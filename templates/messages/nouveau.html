@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Nouveau message{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-pen me-2"></i>Nouveau message</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Destinataire *</label>
+                            <select name="id_destinataire" class="form-select" required>
+                                <option value="">Sélectionner un destinataire</option>
+                                {% for destinataire in destinataires %}
+                                <option value="{{ destinataire.id }}">
+                                    {% if destinataire.role == 'medecin' %}👨‍⚕️{% elif destinataire.role == 'secretaire' %}📋{% elif destinataire.role == 'admin_structure' %}🏥{% else %}👤{% endif %}
+                                    {{ destinataire.prenom }} {{ destinataire.nom }} ({{ destinataire.role }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Sujet *</label>
+                            <input type="text" name="sujet" class="form-control" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Message *</label>
+                            <textarea name="contenu" class="form-control" rows="8" required></textarea>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('messages_liste') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Retour
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane me-2"></i>Envoyer
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}Statistiques{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-chart-bar me-2"></i>
+            Statistiques
+        </h1>
+        <div>
+            <button onclick="exportCSV()" class="btn btn-success">
+                <i class="fas fa-file-excel me-2"></i>Export CSV
+            </button>
+            <button onclick="window.print()" class="btn btn-secondary">
+                <i class="fas fa-print me-2"></i>Imprimer
+            </button>
+        </div>
+    </div>
+
+    <!-- FILTRES -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtres</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Date début</label>
+                    <input type="date" name="date_debut" class="form-control" value="{{ date_debut }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Date fin</label>
+                    <input type="date" name="date_fin" class="form-control" value="{{ date_fin }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Période</label>
+                    <select name="periode" class="form-select">
+                        <option value="jour" {% if periode == 'jour' %}selected{% endif %}>Par jour</option>
+                        <option value="semaine" {% if periode == 'semaine' %}selected{% endif %}>Par semaine</option>
+                        <option value="mois" {% if periode == 'mois' %}selected{% endif %}>Par mois</option>
+                        <option value="annee" {% if periode == 'annee' %}selected{% endif %}>Par année</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Médecin</label>
+                    <select name="medecin_id" class="form-select">
+                        <option value="">Tous</option>
+                        {% for m in medecins %}
+                        <option value="{{ m.id }}" {% if medecin_id|int == m.id %}selected{% endif %}>Dr {{ m.prenom }} {{ m.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Assurance</label>
+                    <select name="type_assurance" class="form-select">
+                        <option value="">Toutes</option>
+                        {% for a in types_assurance %}
+                        <option value="{{ a }}" {% if type_assurance == a %}selected{% endif %}>{{ a }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-2"></i>Appliquer les filtres
+                    </button>
+                    <a href="{{ url_for('statistiques') }}" class="btn btn-secondary">
+                        <i class="fas fa-undo me-2"></i>Réinitialiser
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Total consultations</h6>
+                    <h2 class="display-6">{{ total_consultations }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Patients uniques</h6>
+                    <h2 class="display-6">{{ total_patients }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Moyenne par période</h6>
+                    <h2 class="display-6">
+                        {% if patients_par_periote %}
+                            {{ (patients_par_periode|sum(attribute='nb') / patients_par_periode|length)|round(1) }}
+                        {% else %}0{% endif %}
+                    </h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Taux de guérison</h6>
+                    <h2 class="display-6">
+                        {% set gueris = namespace(value=0) %}
+                        {% for p in top_pathologies if 'guéri' in p[0].lower() %}
+                            {% set gueris.value = p[1] %}
+                        {% endfor %}
+                        {{ (gueris.value / total_consultations * 100)|round(1) if total_consultations > 0 else 0 }}%
+                    </h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphique évolution -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Évolution des consultations</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="evolutionChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Top pathologies -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-diagnoses me-2"></i>Pathologies les plus fréquentes</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th>Pathologie</th><th>Nombre</th><th>%</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for patho in top_pathologies %}
+                                <tr>
+                                    <td>{{ patho[0][:50] }}{% if patho[0]|length > 50 %}...{% endif %}</td>
+                                    <tr>{{ patho[1] }}</td>
+                                    <td>{{ (patho[1] / total_consultations * 100)|round(1) if total_consultations > 0 else 0 }}%</td>
+                                </tr>
+                                {% else %}
+                                <td><td colspan="3" class="text-center">Aucune donnée</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Répartition assurances -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Répartition par assurance</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="assurancesChart" height="200"></canvas>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm">
+                            <thead><tr><th>Assurance</th><th>Nombre</th><th>%</th></tr></thead>
+                            <tbody>
+                                {% for a in assurances %}
+                                <tr>
+                                    <td>{{ a[0] or 'Non spécifié' }}</td>
+                                    <td>{{ a[1] }}</td>
+                                    <td>{{ (a[1] / total_patients * 100)|round(1) if total_patients > 0 else 0 }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fréquentation par période -->
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-calendar-week me-2"></i>Fréquentation par période</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th>Période</th><th>Nombre de patients</th><th>Tendance</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for p in patients_par_periode %}
+                                <tr>
+                                    <td>{{ p.periode }}</td>
+                                    <td>{{ p.nb }}</td>
+                                    <td>
+                                        <div class="progress">
+                                            <div class="progress-bar" style="width: {{ (p.nb / (patients_par_periode|max(attribute='nb')|default(1)).nb) * 100 }}%"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats par médecin (admin structure uniquement) -->
+        {% if stats_medecins %}
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Performance par médecin</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Médecin</th>
+                                    <th>Patients uniques</th>
+                                    <th>Consultations</th>
+                                    <th>Moyenne/patient</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for m in stats_medecins %}
+                                <tr>
+                                    <td>Dr {{ m.prenom }} {{ m.nom }}</td>
+                                    <td>{{ m.nb_patients }}</td>
+                                    <td>{{ m.nb_consultations }}</td>
+                                    <td>{{ (m.nb_consultations / m.nb_patients)|round(1) if m.nb_patients > 0 else 0 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Graphique évolution
+const ctx1 = document.getElementById('evolutionChart').getContext('2d');
+new Chart(ctx1, {
+    type: 'line',
+    data: {
+        labels: {{ evolution_labels|tojson }},
+        datasets: [{
+            label: 'Consultations',
+            data: {{ evolution_data|tojson }},
+            borderColor: '#0d6efd',
+            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+            tension: 0.3,
+            fill: true
+        }]
+    },
+    options: { responsive: true, maintainAspectRatio: true }
+});
+
+// Graphique assurances
+const ctx2 = document.getElementById('assurancesChart').getContext('2d');
+new Chart(ctx2, {
+    type: 'pie',
+    data: {
+        labels: {{ assurances|map(attribute=0)|list|tojson }},
+        datasets: [{
+            data: {{ assurances|map(attribute=1)|list|tojson }},
+            backgroundColor: ['#0d6efd', '#0dcaf0', '#ffc107', '#6c757d', '#198754']
+        }]
+    },
+    options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+});
+
+// Export CSV
+function exportCSV() {
+    window.location.href = "{{ url_for('export_statistiques_csv', **request.args) }}";
+}
+</script>
+{% endblock %}

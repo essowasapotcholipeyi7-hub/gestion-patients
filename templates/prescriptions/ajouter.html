@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Nouvelle prescription{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3"><i class="fas fa-prescription me-2"></i>Nouvelle prescription</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary"><i class="fas fa-arrow-left me-2"></i>Retour</a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label">Patient *</label>
+                    <select name="id_patient" class="form-select" required>
+                        <option value="">Sélectionner un patient</option>
+                        {% for patient in patients %}
+                        <option value="{{ patient.id }}">{{ patient.prenom }} {{ patient.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Médicament *</label>
+                    <input type="text" name="medicament" class="form-control" required>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Dosage</label>
+                        <input type="text" name="dosage" class="form-control" placeholder="Ex: 500mg">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Durée (jours)</label>
+                        <input type="number" name="duree_jours" class="form-control">
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Instructions</label>
+                    <textarea name="instructions" class="form-control" rows="3" placeholder="Ex: Prendre matin et soir pendant 7 jours"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Enregistrer</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

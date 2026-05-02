@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Recherche patients{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3"><i class="fas fa-search me-2"></i>Recherche patients</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary"><i class="fas fa-arrow-left me-2"></i>Retour</a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="POST">
+                <div class="input-group">
+                    <input type="text" name="search_term" class="form-control form-control-lg" placeholder="Nom, prénom, téléphone ou email..." value="{{ search_term }}" required>
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fas fa-search me-2"></i>Rechercher
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if patients is not none %}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Résultats ({{ patients|length }} trouvés)</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nom</th>
+                            <th>Prénom</th>
+                            <th>Téléphone</th>
+                            <th>Assurance</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient in patients %}
+                        <tr>
+                            <td>{{ patient.id }}</td>
+                            <td>{{ patient.nom }}</td>
+                            <td>{{ patient.prenom }}</td>
+                            <td>{{ patient.telephone or '-' }}</td>
+                            <td>{{ patient.type_assurance or '-' }}</td>
+                            <td>
+                                <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-eye me-1"></i>Voir
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center">
+                                {% if search_term %}Aucun résultat pour "{{ search_term }}"{% else %}Entrez un terme de recherche{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

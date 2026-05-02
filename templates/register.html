@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content_public %}
+<div class="container">
+    <div class="row min-vh-100 align-items-center">
+        <div class="col-md-8 mx-auto">
+            <div class="card shadow-lg">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-building fa-4x text-primary"></i>
+                        <h3 class="mt-3">Inscription de la structure</h3>
+                        <p class="text-muted">Créez votre compte professionnel</p>
+                    </div>
+                    
+                    <form method="POST">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> <strong>Informations de la structure</strong>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Nom de la structure *</label>
+                                <input type="text" name="nom_structure" class="form-control" required>
+                                <small class="text-muted">Ex: Cabinet Médical Dupont, Clinique Saint-Jean...</small>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-secondary mt-3">
+                            <i class="fas fa-user-md"></i> <strong>Informations du responsable / médecin</strong>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nom du responsable *</label>
+                                <input type="text" name="nom_responsable" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Prénom du responsable *</label>
+                                <input type="text" name="prenom_responsable" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Adresse de la structure *</label>
+                                <textarea name="adresse" class="form-control" rows="2" required></textarea>
+                                <small class="text-muted">Ex: 123 Rue des Lilas, Lomé, Togo</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Email *</label>
+                                <input type="email" name="email" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Téléphone *</label>
+                                <input type="tel" name="telephone" class="form-control" required>
+                                <small class="text-muted">Ex: +228 90XXXXXX</small>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-warning mt-3">
+                            <i class="fas fa-lock"></i> <strong>Sécurité du compte</strong>
+                            <ul class="mb-0 mt-1 small">
+                                <li>Minimum 8 caractères</li>
+                                <li>Au moins 1 majuscule (A-Z)</li>
+                                <li>Au moins 1 minuscule (a-z)</li>
+                                <li>Au moins 1 chiffre (0-9)</li>
+                                <li>Au moins 1 symbole (!@#$%^&*)</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Mot de passe *</label>
+                                <input type="password" name="password" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Confirmer le mot de passe *</label>
+                                <input type="password" name="confirm_password" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-success mt-3">
+                            <i class="fas fa-shield-alt"></i> <strong>Récupération en cas d'oubli de mot de passe</strong>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Question secrète *</label>
+                                <select name="reset_question" class="form-select" required>
+                                    <option value="">Choisissez une question</option>
+                                    <option>Quel est le nom de votre premier animal ?</option>
+                                    <option>Quelle est votre ville de naissance ?</option>
+                                    <option>Quel est le nom de jeune fille de votre mère ?</option>
+                                    <option>Quel était votre premier métier ?</option>
+                                    <option>Quel est le nom de votre meilleur ami d'enfance ?</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Réponse secrète *</label>
+                                <input type="text" name="reset_answer" class="form-control" required>
+                                <small class="text-muted">Gardez cette réponse dans un endroit sûr</small>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-check-circle me-2"></i> S'inscrire
+                            </button>
+                        </div>
+                        
+                        <div class="text-center mt-3">
+                            <a href="{{ url_for('login') }}" class="text-decoration-none">
+                                <i class="fas fa-arrow-left me-1"></i> Déjà inscrit ? Se connecter
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

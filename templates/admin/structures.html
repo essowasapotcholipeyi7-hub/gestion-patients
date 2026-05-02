@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Structures{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Gestion des structures</h1>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Structure</th>
+                            <th>Responsable</th>
+                            <th>Email</th>
+                            <th>Téléphone</th>
+                            <th>Statut</th>
+                            <th>Date demande</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for structure in structures %}
+                        <tr>
+                            <td>{{ structure.id }}</td>
+                            <td><strong>{{ structure.nom }}</strong><br>
+                                <small class="text-muted">{{ structure.adresse[:50] if structure.adresse else '' }}</small>
+                            </td>
+                            <td>
+                                {% set responsable = namespace(user=None) %}
+                                {% for user in structure.utilisateurs %}
+                                    {% if user.role == 'admin_structure' %}
+                                        <strong>{{ user.prenom }} {{ user.nom }}</strong>
+                                    {% endif %}
+                                {% endfor %}
+                            </td>
+                            <td>{{ structure.email }}</td>
+                            <td>{{ structure.telephone or '-' }}</td>
+                            <td>
+                                {% if structure.statut == 'actif' %}
+                                    <span class="badge bg-success">Actif</span>
+                                {% elif structure.statut == 'en_attente' %}
+                                    <span class="badge bg-warning">En attente</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Refusé</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ structure.date_demande.strftime('%d/%m/%Y') if structure.date_demande else '-' }}</td>
+                            <td>
+                                {% if structure.statut == 'en_attente' %}
+                                    <a href="{{ url_for('admin_activate_structure', id=structure.id) }}" 
+                                       class="btn btn-sm btn-success"
+                                       onclick="return confirm('Activer cette structure ?')">
+                                        <i class="fas fa-check"></i> Activer
+                                    </a>
+                                {% endif %}
+                                <a href="{{ url_for('admin_reset_structure_password', id=structure.id) }}" 
+                                   class="btn btn-sm btn-warning">
+                                    <i class="fas fa-key"></i> Reset pwd
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

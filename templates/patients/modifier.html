@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier patient - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-user-edit me-2"></i>
+            Modifier patient - {{ patient.prenom }} {{ patient.nom }}
+        </h1>
+        <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Retour
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="POST">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Nom *</label>
+                        <input type="text" name="nom" class="form-control" value="{{ patient.nom }}" required>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Prénom *</label>
+                        <input type="text" name="prenom" class="form-control" value="{{ patient.prenom }}" required>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Date de naissance</label>
+                        <input type="date" name="date_naissance" class="form-control" value="{{ patient.date_naissance.strftime('%Y-%m-%d') if patient.date_naissance else '' }}">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Téléphone</label>
+                        <input type="tel" name="telephone" class="form-control" value="{{ patient.telephone or '' }}">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" value="{{ patient.email or '' }}">
+                    </div>
+                    
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label">Adresse</label>
+                        <textarea name="adresse" class="form-control" rows="2">{{ patient.adresse or '' }}</textarea>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Type d'assurance</label>
+                        <select name="type_assurance" class="form-select" id="typeAssurance">
+                            <option value="">Sélectionner</option>
+                            <option value="AMU-CNSS" {% if patient.type_assurance == 'AMU-CNSS' %}selected{% endif %}>AMU-CNSS</option>
+                            <option value="AMU-INAM" {% if patient.type_assurance == 'AMU-INAM' %}selected{% endif %}>AMU-INAM</option>
+                            <option value="AUTRE_ASSURANCE" {% if patient.type_assurance == 'AUTRE_ASSURANCE' %}selected{% endif %}>Autre assurance</option>
+                            <option value="NON_ASSURÉ" {% if patient.type_assurance == 'NON_ASSURÉ' %}selected{% endif %}>Non assuré</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3" id="autreAssuranceDiv" style="{% if patient.type_assurance != 'AUTRE_ASSURANCE' %}display: none;{% endif %}">
+                        <label class="form-label">Nom de l'assurance</label>
+                        <input type="text" name="autre_assurance_nom" class="form-control" value="{{ patient.autre_assurance_nom or '' }}">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Numéro d'assuré</label>
+                        <input type="text" name="num_assure" class="form-control" value="{{ patient.num_assure or '' }}">
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Médecin traitant</label>
+                        <select name="id_medecin_referent" class="form-select">
+                            <option value="">Sélectionner un médecin</option>
+                            {% for medecin in medecins %}
+                            <option value="{{ medecin.id }}" {% if patient.id_medecin_referent == medecin.id %}selected{% endif %}>
+                                Dr {{ medecin.prenom }} {{ medecin.nom }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label">Allergies</label>
+                        <textarea name="allergies" class="form-control" rows="2">{{ patient.allergies or '' }}</textarea>
+                    </div>
+                    
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label">Antécédents</label>
+                        <textarea name="antecedents" class="form-control" rows="2">{{ patient.antecedents_medicaux or '' }}</textarea>
+                    </div>
+                    
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" class="form-control" rows="2">{{ patient.notes or '' }}</textarea>
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('typeAssurance').addEventListener('change', function() {
+        var autreDiv = document.getElementById('autreAssuranceDiv');
+        if (this.value === 'AUTRE_ASSURANCE') {
+            autreDiv.style.display = 'block';
+        } else {
+            autreDiv.style.display = 'none';
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier utilisateur{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-edit me-2"></i>Modifier utilisateur</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" value="{{ user.email }}" disabled>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nom *</label>
+                                <input type="text" name="nom" class="form-control" value="{{ user.nom }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Prénom *</label>
+                                <input type="text" name="prenom" class="form-control" value="{{ user.prenom }}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Rôle *</label>
+                            <select name="role" class="form-select" required>
+                                <option value="medecin" {% if user.role == 'medecin' %}selected{% endif %}>Médecin</option>
+                                <option value="secretaire" {% if user.role == 'secretaire' %}selected{% endif %}>Secrétaire</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" name="actif" class="form-check-input" {% if user.actif %}checked{% endif %}>
+                            <label class="form-check-label">Compte actif</label>
+                        </div>
+                        
+                        <hr>
+                        <h6>Changer le mot de passe (optionnel)</h6>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nouveau mot de passe</label>
+                                <input type="password" name="new_password" class="form-control">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Confirmer</label>
+                                <input type="password" name="confirm_password" class="form-control">
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('structure_utilisateurs') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Retour
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Enregistrer
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
