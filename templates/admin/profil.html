@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Mon profil - Super Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-user-cog me-2"></i>Mon profil - Super Admin</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <strong>Email :</strong> {{ current_user.email }}<br>
+                        <strong>Rôle :</strong> Super Administrateur
+                    </div>
+                    
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Ancien mot de passe</label>
+                            <input type="password" name="ancien_mdp" class="form-control" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Nouveau mot de passe</label>
+                            <input type="password" name="nouveau_mdp" class="form-control" required>
+                            <small class="text-muted">Minimum 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre, 1 symbole</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Confirmer nouveau mot de passe</label>
+                            <input type="password" name="confirmer_mdp" class="form-control" required>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Changer le mot de passe
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

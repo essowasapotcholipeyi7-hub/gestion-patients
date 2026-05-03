@@ -83,7 +83,11 @@
             <i class="fas fa-users me-2"></i> Patients
         </a>
         {% endif %}
-
+        {% if current_user.role == 'super_admin' %}
+        <a class="nav-link" href="{{ url_for('admin_profil') }}">
+            <i class="fas fa-user-shield me-2"></i> Mon profil
+        </a>
+        {% endif %}
         <a class="nav-link" href="{{ url_for('messages_liste') }}">
             <i class="fas fa-envelope me-2"></i> Messagerie
             {% if non_lus > 0 %}
@@ -97,6 +101,9 @@
         </a>
         <a class="nav-link" href="{{ url_for('admin_structures') }}">
             <i class="fas fa-building me-2"></i> Structures
+        </a>
+        <a class="nav-link" href="{{ url_for('admin_nouveau_super_admin') }}">
+            <i class="fas fa-user-plus me-2"></i> Nouveau Super Admin
         </a>
         {% endif %}
         {% if current_user.role == 'admin_structure' or current_user.role == 'medecin' %}

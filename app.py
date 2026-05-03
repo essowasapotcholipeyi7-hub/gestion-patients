@@ -1212,5 +1212,84 @@ start_scheduler()
 import atexit
 atexit.register(stop_scheduler)
 
+@app.route('/admin/profil', methods=['GET', 'POST'])
+@login_required
+def admin_profil():
+    if current_user.role != 'super_admin':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        ancien_mdp = request.form.get('ancien_mdp')
+        nouveau_mdp = request.form.get('nouveau_mdp')
+        confirmer_mdp = request.form.get('confirmer_mdp')
+        
+        if not current_user.check_password(ancien_mdp):
+            flash('Ancien mot de passe incorrect', 'danger')
+            return redirect(url_for('admin_profil'))
+        
+        if nouveau_mdp != confirmer_mdp:
+            flash('Les nouveaux mots de passe ne correspondent pas', 'danger')
+            return redirect(url_for('admin_profil'))
+        
+        # Validation de la complexité
+        import re
+        if len(nouveau_mdp) < 8:
+            flash('Minimum 8 caractères', 'danger')
+        elif not re.search(r"[A-Z]", nouveau_mdp):
+            flash('Au moins 1 majuscule', 'danger')
+        elif not re.search(r"[a-z]", nouveau_mdp):
+            flash('Au moins 1 minuscule', 'danger')
+        elif not re.search(r"[0-9]", nouveau_mdp):
+            flash('Au moins 1 chiffre', 'danger')
+        elif not re.search(r"[!@#$%^&*(),.?\":{}|<>]", nouveau_mdp):
+            flash('Au moins 1 symbole', 'danger')
+        else:
+            current_user.set_password(nouveau_mdp)
+            db.session.commit()
+            flash('Mot de passe modifié avec succès', 'success')
+            return redirect(url_for('admin_profil'))
+    
+    return render_template('admin/profil.html')
+
+@app.route('/admin/nouveau-super-admin', methods=['GET', 'POST'])
+@login_required
+def admin_nouveau_super_admin():
+    if current_user.role != 'super_admin':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    from models import Utilisateur
+    from datetime import datetime
+    
+    if request.method == 'POST':
+        email = request.form.get('email')
+        nom = request.form.get('nom')
+        prenom = request.form.get('prenom')
+        password = request.form.get('password')
+        
+        # Vérifier si l'email existe déjà
+        existing = Utilisateur.query.filter_by(email=email).first()
+        if existing:
+            flash('Cet email est déjà utilisé', 'danger')
+            return redirect(url_for('admin_nouveau_super_admin'))
+        
+        # Créer le Super Admin
+        new_admin = Utilisateur(
+            email=email,
+            nom=nom,
+            prenom=prenom,
+            role='super_admin',
+            actif=True
+        )
+        new_admin.set_password(password)
+        db.session.add(new_admin)
+        db.session.commit()
+        
+        flash(f'Super Admin {prenom} {nom} créé avec succès', 'success')
+        return redirect(url_for('admin_structures'))
+    
+    return render_template('admin/nouveau_super_admin.html')
+
 if __name__ == '__main__':
     app.run(debug=True)
