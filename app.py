@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 from scheduler import start_scheduler, stop_scheduler
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -193,18 +194,16 @@ def forgot_password():
             return redirect(url_for('forgot_password'))
         
         if use_secret_question and user.reset_question:
-            # Rediriger vers la vérification par question secrète
             session['reset_user_id'] = user.id
             return redirect(url_for('verify_secret_question'))
         else:
-            # Générer un token et envoyer un email (simplifié pour l'instant)
             import secrets
             token = secrets.token_urlsafe(32)
             user.reset_token = token
-            user.reset_token_expiry = datetime.utcnow()
+            user.reset_token_expiry = datetime.utcnow() + timedelta(hours=24)  # ✅ CORRIGÉ
             db.session.commit()
             
-            flash(f'Un lien de réinitialisation a été envoyé (démo: /reset-password/{token})', 'info')
+            flash(f'Lien de réinitialisation (valable 24h) : /reset-password/{token}', 'info')
             return redirect(url_for('login'))
     
     return render_template('forgot_password.html')
@@ -1290,6 +1289,33 @@ def admin_nouveau_super_admin():
         return redirect(url_for('admin_structures'))
     
     return render_template('admin/nouveau_super_admin.html')
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password_token(token):
+    from models import Utilisateur
+    from datetime import datetime
+    
+    user = Utilisateur.query.filter_by(reset_token=token).first()
+    
+    if not user or not user.reset_token_expiry or user.reset_token_expiry < datetime.utcnow():
+        flash('Le lien de réinitialisation est invalide ou a expiré.', 'danger')
+        return redirect(url_for('forgot_password'))
+    
+    if request.method == 'POST':
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if new_password != confirm_password:
+            flash('Les mots de passe ne correspondent pas.', 'danger')
+        else:
+            user.set_password(new_password)
+            user.reset_token = None
+            user.reset_token_expiry = None
+            db.session.commit()
+            flash('Mot de passe réinitialisé avec succès.', 'success')
+            return redirect(url_for('login'))
+    
+    return render_template('reset_password_token.html', token=token)
 
 if __name__ == '__main__':
     app.run(debug=True)
