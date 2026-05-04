@@ -67,13 +67,29 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        from models import Utilisateur
+        from models import Utilisateur, Structure
+        
         email = request.form.get('email')
         password = request.form.get('password')
         
         user = Utilisateur.query.filter_by(email=email).first()
         
         if user and user.check_password(password):
+            # Vérifier que l'utilisateur est actif
+            if not user.actif:
+                flash('Votre compte a été désactivé. Contactez l\'administrateur.', 'danger')
+                return redirect(url_for('login'))
+            
+            # Vérifier que la structure est active (sauf super_admin)
+            if user.role != 'super_admin':
+                structure = Structure.query.get(user.id_structure)
+                if not structure:
+                    flash('Structure non trouvée. Contactez l\'administrateur.', 'danger')
+                    return redirect(url_for('login'))
+                if structure.statut != 'actif':
+                    flash('Votre structure n\'est pas active. Contactez l\'administrateur.', 'warning')
+                    return redirect(url_for('login'))
+            
             login_user(user)
             user.derniere_connexion = datetime.utcnow()
             db.session.commit()
@@ -1316,6 +1332,68 @@ def reset_password_token(token):
             return redirect(url_for('login'))
     
     return render_template('reset_password_token.html', token=token)
+
+@app.route('/admin/structure/<int:id>/desactivate', methods=['GET', 'POST'])
+@login_required
+def admin_desactivate_structure(id):
+    if current_user.role != 'super_admin':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    from models import Structure
+    structure = Structure.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        structure.statut = 'desactive'
+        db.session.commit()
+        flash(f'Structure {structure.nom} désactivée avec succès', 'success')
+        return redirect(url_for('admin_structures'))
+    
+    return render_template('admin/desactiver_structure.html', structure=structure)
+
+@app.route('/admin/structure/<int:id>/delete', methods=['GET', 'POST'])
+@login_required
+def admin_delete_structure(id):
+    if current_user.role != 'super_admin':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    from models import Structure, Utilisateur, Patient, Consultation, Prescription
+    
+    structure = Structure.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        # Compter les données avant suppression
+        nb_users = Utilisateur.query.filter_by(id_structure=id).count()
+        nb_patients = Patient.query.filter_by(id_structure=id).count()
+        nb_consultations = Consultation.query.join(Patient).filter(Patient.id_structure == id).count()
+        nb_prescriptions = Prescription.query.join(Patient).filter(Patient.id_structure == id).count()
+        
+        # Supprimer en cascade
+        # 1. Supprimer les prescriptions
+        Prescription.query.filter(Prescription.id_patient.in_(
+            db.session.query(Patient.id).filter_by(id_structure=id)
+        )).delete(synchronize_session=False)
+        
+        # 2. Supprimer les consultations
+        Consultation.query.filter(Consultation.id_patient.in_(
+            db.session.query(Patient.id).filter_by(id_structure=id)
+        )).delete(synchronize_session=False)
+        
+        # 3. Supprimer les patients
+        Patient.query.filter_by(id_structure=id).delete()
+        
+        # 4. Supprimer les utilisateurs
+        Utilisateur.query.filter_by(id_structure=id).delete()
+        
+        # 5. Supprimer la structure
+        db.session.delete(structure)
+        db.session.commit()
+        
+        flash(f'Structure {structure.nom} supprimée avec succès. Données supprimées : {nb_users} utilisateurs, {nb_patients} patients, {nb_consultations} consultations, {nb_prescriptions} prescriptions.', 'success')
+        return redirect(url_for('admin_structures'))
+    
+    return render_template('admin/supprimer_structure.html', structure=structure)
 
 if __name__ == '__main__':
     app.run(debug=True)

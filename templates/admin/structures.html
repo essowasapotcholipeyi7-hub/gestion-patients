@@ -46,6 +46,8 @@
                                     <span class="badge bg-success">Actif</span>
                                 {% elif structure.statut == 'en_attente' %}
                                     <span class="badge bg-warning">En attente</span>
+                                {% elif structure.statut == 'desactive' %}
+                                    <span class="badge bg-secondary">Désactivé</span>
                                 {% else %}
                                     <span class="badge bg-danger">Refusé</span>
                                 {% endif %}
@@ -59,10 +61,35 @@
                                         <i class="fas fa-check"></i> Activer
                                     </a>
                                 {% endif %}
+                                
+                                {% if structure.statut == 'actif' %}
+                                    <a href="{{ url_for('admin_desactivate_structure', id=structure.id) }}" 
+                                       class="btn btn-sm btn-warning"
+                                       onclick="return confirm('Désactiver cette structure ? Les utilisateurs ne pourront plus se connecter.')">
+                                        <i class="fas fa-ban"></i> Désactiver
+                                    </a>
+                                {% endif %}
+                                
+                                {% if structure.statut == 'desactive' %}
+                                    <a href="{{ url_for('admin_activate_structure', id=structure.id) }}" 
+                                       class="btn btn-sm btn-success"
+                                       onclick="return confirm('Réactiver cette structure ?')">
+                                        <i class="fas fa-play"></i> Réactiver
+                                    </a>
+                                {% endif %}
+                                
                                 <a href="{{ url_for('admin_reset_structure_password', id=structure.id) }}" 
-                                   class="btn btn-sm btn-warning">
+                                   class="btn btn-sm btn-info">
                                     <i class="fas fa-key"></i> Reset pwd
                                 </a>
+                                
+                                {% if structure.statut != 'actif' %}
+                                <a href="{{ url_for('admin_delete_structure', id=structure.id) }}" 
+                                   class="btn btn-sm btn-danger"
+                                   onclick="return confirm('⚠️ SUPPRESSION DÉFINITIVE ! Toutes les données de cette structure seront perdues. Confirmer ?')">
+                                    <i class="fas fa-trash"></i> Supprimer
+                                </a>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}

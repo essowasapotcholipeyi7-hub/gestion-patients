@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Supprimer la structure{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-trash-alt me-2"></i>Supprimer la structure</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <strong>⚠️ ATTENTION : ACTION IRRÉVERSIBLE</strong>
+                    </div>
+                    
+                    <p>Vous êtes sur le point de supprimer définitivement :</p>
+                    <div class="alert alert-warning">
+                        <strong>{{ structure.nom }}</strong><br>
+                        Email: {{ structure.email }}<br>
+                        Téléphone: {{ structure.telephone or '-' }}<br>
+                        Date création: {{ structure.date_demande.strftime('%d/%m/%Y') if structure.date_demande else '-' }}
+                    </div>
+                    
+                    <p class="text-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Cette action supprimera TOUTES les données associées :
+                    </p>
+                    <ul class="text-danger">
+                        <li>Tous les patients de cette structure</li>
+                        <li>Toutes les consultations</li>
+                        <li>Toutes les prescriptions</li>
+                        <li>Tous les utilisateurs (médecins, secrétaires)</li>
+                    </ul>
+                    
+                    <form method="POST">
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin_structures') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Annuler
+                            </a>
+                            <button type="submit" class="btn btn-danger" onclick="return confirm('Suppression définitive. Confirmer ?')">
+                                <i class="fas fa-trash-alt me-2"></i>Supprimer définitivement
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
