@@ -551,9 +551,10 @@ def patients_list():
 @app.route('/patients/ajouter', methods=['GET', 'POST'])
 @login_required
 def patient_ajouter():
-    from models import Patient, Utilisateur
+    from models import Patient, Utilisateur, Consultation
+    from datetime import datetime
     
-    # Récupérer la liste des médecins pour la structure (si admin_structure ou secretaire)
+    # Récupérer la liste des médecins
     medecins = []
     if current_user.role in ['admin_structure', 'secretaire']:
         medecins = Utilisateur.query.filter_by(
@@ -565,20 +566,32 @@ def patient_ajouter():
         medecins = [current_user]
     
     if request.method == 'POST':
-        # Récupérer les données
+        # Identité
         nom = request.form.get('nom')
         prenom = request.form.get('prenom')
         date_naissance = request.form.get('date_naissance')
+        sexe = request.form.get('sexe')
         telephone = request.form.get('telephone')
         email = request.form.get('email')
         adresse = request.form.get('adresse')
+        profession = request.form.get('profession')
+        
+        # Assurance
         type_assurance = request.form.get('type_assurance')
-        autre_assurance_nom = request.form.get('autre_assurance_nom') if type_assurance == 'AUTRE_ASSURANCE' else None
+        autre_assurance_nom = request.form.get('autre_assurance_nom')
         num_assure = request.form.get('num_assure')
+        
+        # Médecin référent
         id_medecin_referent = request.form.get('id_medecin_referent')
-        allergies = request.form.get('allergies')
-        antecedents = request.form.get('antecedents')
-        notes = request.form.get('notes')
+        
+        # ⭐ CONSTANTES VITALES
+        temperature = request.form.get('temperature')
+        tension = request.form.get('tension')
+        pouls = request.form.get('pouls')
+        saturation = request.form.get('saturation')
+        poids = request.form.get('poids')
+        taille = request.form.get('taille')
+        imc = request.form.get('imc')
         
         # Validation
         if not nom or not prenom:
@@ -586,39 +599,59 @@ def patient_ajouter():
             return redirect(url_for('patient_ajouter'))
         
         # Création du patient
-        from datetime import datetime
         patient = Patient(
             id_structure=current_user.id_structure if current_user.id_structure else 1,
             nom=nom,
             prenom=prenom,
             date_naissance=datetime.strptime(date_naissance, '%Y-%m-%d') if date_naissance else None,
+            sexe=sexe,
             telephone=telephone,
             email=email,
             adresse=adresse,
+            profession=profession,
             type_assurance=type_assurance,
-            autre_assurance_nom=autre_assurance_nom,
+            autre_assurance_nom=autre_assurance_nom if type_assurance == 'AUTRE_ASSURANCE' else None,
             num_assure=num_assure,
             id_medecin_referent=int(id_medecin_referent) if id_medecin_referent else None,
-            allergies=allergies,
-            antecedents_medicaux=antecedents,
-            notes=notes,
+            # ⭐ CONSTANTES DANS PATIENT
+            temperature_c=float(temperature) if temperature else None,
+            tension_arterielle=tension,
+            pulse_bpm=int(pouls) if pouls else None,
+            oxygene_saturation=int(saturation) if saturation else None,
+            poids_kg=float(poids) if poids else None,
+            taille_cm=float(taille) if taille else None,
+            imc=float(imc) if imc else None,
             statut_medical='PREMIERE_VISITE',
             date_premiere_visite=datetime.utcnow(),
             archived=False
         )
         
         db.session.add(patient)
+        db.session.flush()  # Pour obtenir l'ID du patient
+        
+        # ⭐ CRÉER UNE PREMIÈRE CONSULTATION AVEC LES CONSTANTES
+        consultation = Consultation(
+            id_patient=patient.id,
+            id_medecin=current_user.id if current_user.role == 'medecin' else int(id_medecin_referent) if id_medecin_referent else None,
+            motif="Première consultation - Enregistrement initial",
+            # ⭐ CONSTANTES DANS CONSULTATION
+            temperature_c=float(temperature) if temperature else None,
+            tension_arterielle=tension,
+            pulse_bpm=int(pouls) if pouls else None,
+            oxygene_saturation=int(saturation) if saturation else None,
+            poids_kg=float(poids) if poids else None,
+            taille_cm=float(taille) if taille else None,
+            imc=float(imc) if imc else None,
+            date_consultation=datetime.utcnow()
+        )
+        db.session.add(consultation)
+        
         db.session.commit()
         
-        flash(f'Patient {prenom} {nom} ajouté avec succès', 'success')
-        
-        # Rediriger vers la fiche du patient
+        flash(f'Patient {prenom} {nom} ajouté avec succès avec ses constantes vitales', 'success')
         return redirect(url_for('patient_detail', id=patient.id))
     
     return render_template('patients/ajouter.html', medecins=medecins)
-
-
-from datetime import datetime
 
 @app.route('/patient/<int:id>')
 @login_required
@@ -664,6 +697,8 @@ def consultation_ajouter():
         id_patient = request.form.get('id_patient')
         motif = request.form.get('motif')
         diagnostic = request.form.get('diagnostic')
+        
+        # Constantes
         tension = request.form.get('tension')
         temperature = request.form.get('temperature')
         pouls = request.form.get('pouls')
@@ -671,14 +706,24 @@ def consultation_ajouter():
         poids = request.form.get('poids')
         taille = request.form.get('taille')
         imc = request.form.get('imc')
-        examens_medicaux = request.form.get('examens_medicaux')
-        examens_paramedicaux = request.form.get('examens_paramedicaux')
+        
+        # ⭐ EXAMENS (nouveaux noms)
+        examens_cliniques = request.form.get('examens_cliniques')
+        examens_biologie = request.form.get('examens_biologie')
+        examens_imagerie = request.form.get('examens_imagerie')
+        
         traitement = request.form.get('traitement')
         notes = request.form.get('notes')
         prochain_rdv = request.form.get('prochain_rdv')
         arret_travail = request.form.get('arret_travail') == 'on'
         arret_jours = request.form.get('arret_jours')
-        statut_medical = request.form.get('statut_medical')  # 👈 NOUVEAU
+        statut_medical = request.form.get('statut_medical')
+        
+        # ⭐ ANTÉCÉDENTS
+        allergies = request.form.get('allergies')
+        traitements_en_cours = request.form.get('traitements_en_cours')
+        antecedents_medicaux = request.form.get('antecedents_medicaux')
+        antecedents_chirurgicaux = request.form.get('antecedents_chirurgicaux')
         
         consultation = Consultation(
             id_patient=int(id_patient),
@@ -692,23 +737,44 @@ def consultation_ajouter():
             poids_kg=float(poids) if poids else None,
             taille_cm=float(taille) if taille else None,
             imc=float(imc) if imc else None,
-            examens_medicaux=examens_medicaux,
-            examens_paramedicaux=examens_paramedicaux,
+            # ⭐ EXAMENS (nouveaux noms)
+            examens_cliniques=examens_cliniques,
+            examens_biologie=examens_biologie,
+            examens_imagerie=examens_imagerie,
             traitement_prescrit=traitement,
             notes_cliniques=notes,
             arret_travail=arret_travail,
             arret_jours=int(arret_jours) if arret_jours else None,
             prochain_rdv=datetime.strptime(prochain_rdv, '%Y-%m-%d') if prochain_rdv else None,
-            date_consultation=datetime.utcnow()
+            date_consultation=datetime.utcnow(),
+            # ⭐ ANTÉCÉDENTS
+            allergies=allergies,
+            traitements_en_cours=traitements_en_cours,
+            antecedents_medicaux=antecedents_medicaux,
+            antecedents_chirurgicaux=antecedents_chirurgicaux
         )
         
         db.session.add(consultation)
         
-        # Mettre à jour le patient
         patient = Patient.query.get(id_patient)
+        
+        if temperature:
+            patient.temperature_c = float(temperature)
+        if tension:
+            patient.tension_arterielle = tension
+        if pouls:
+            patient.pulse_bpm = int(pouls)
+        if saturation:
+            patient.oxygene_saturation = int(saturation)
+        if poids:
+            patient.poids_kg = float(poids)
+        if taille:
+            patient.taille_cm = float(taille)
+        if imc:
+            patient.imc = float(imc)
+        
         patient.date_derniere_consultation = datetime.utcnow()
         
-        # 👈 NOUVEAU : Mettre à jour le statut si changé
         if statut_medical:
             patient.statut_medical = statut_medical
             if statut_medical == 'GUERI':
@@ -875,6 +941,8 @@ def consultation_ajouter_avec_patient(id):
     if request.method == 'POST':
         motif = request.form.get('motif')
         diagnostic = request.form.get('diagnostic')
+        
+        # Constantes
         tension = request.form.get('tension')
         temperature = request.form.get('temperature')
         pouls = request.form.get('pouls')
@@ -882,20 +950,39 @@ def consultation_ajouter_avec_patient(id):
         poids = request.form.get('poids')
         taille = request.form.get('taille')
         imc = request.form.get('imc')
-        examens_medicaux = request.form.get('examens_medicaux')
-        examens_paramedicaux = request.form.get('examens_paramedicaux')
+        
+        # ⭐ EXAMENS (nouveaux noms)
+        examens_cliniques = request.form.get('examens_cliniques')
+        examens_biologie = request.form.get('examens_biologie')
+        examens_imagerie = request.form.get('examens_imagerie')
+        
+        # Diagnostic et traitement
         traitement = request.form.get('traitement')
         notes = request.form.get('notes')
-        prochain_rdv = request.form.get('prochain_rdv')
+        
+        # Arrêt de travail
         arret_travail = request.form.get('arret_travail') == 'on'
         arret_jours = request.form.get('arret_jours')
-        statut_medical = request.form.get('statut_medical')  # 👈 NOUVEAU
         
+        # Prochain RDV
+        prochain_rdv = request.form.get('prochain_rdv')
+        
+        # Statut médical
+        statut_medical = request.form.get('statut_medical')
+        
+        # ⭐ ANTÉCÉDENTS
+        allergies = request.form.get('allergies')
+        traitements_en_cours = request.form.get('traitements_en_cours')
+        antecedents_medicaux = request.form.get('antecedents_medicaux')
+        antecedents_chirurgicaux = request.form.get('antecedents_chirurgicaux')
+        
+        # Création de la consultation
         consultation = Consultation(
             id_patient=patient.id,
             id_medecin=current_user.id if current_user.role == 'medecin' else None,
             motif=motif,
             diagnostic=diagnostic,
+            # Constantes
             tension_arterielle=tension,
             temperature_c=float(temperature) if temperature else None,
             pulse_bpm=int(pouls) if pouls else None,
@@ -903,22 +990,47 @@ def consultation_ajouter_avec_patient(id):
             poids_kg=float(poids) if poids else None,
             taille_cm=float(taille) if taille else None,
             imc=float(imc) if imc else None,
-            examens_medicaux=examens_medicaux,
-            examens_paramedicaux=examens_paramedicaux,
+            # ⭐ EXAMENS (nouveaux noms)
+            examens_cliniques=examens_cliniques,
+            examens_biologie=examens_biologie,
+            examens_imagerie=examens_imagerie,
+            # Diagnostic et traitement
             traitement_prescrit=traitement,
             notes_cliniques=notes,
+            # Arrêt de travail
             arret_travail=arret_travail,
             arret_jours=int(arret_jours) if arret_jours else None,
+            # Prochain RDV
             prochain_rdv=datetime.strptime(prochain_rdv, '%Y-%m-%d') if prochain_rdv else None,
-            date_consultation=datetime.utcnow()
+            date_consultation=datetime.utcnow(),
+            # ⭐ ANTÉCÉDENTS
+            allergies=allergies,
+            traitements_en_cours=traitements_en_cours,
+            antecedents_medicaux=antecedents_medicaux,
+            antecedents_chirurgicaux=antecedents_chirurgicaux
         )
         
         db.session.add(consultation)
         
-        # Mettre à jour le patient
+        # Mettre à jour les constantes dans Patient
+        if temperature:
+            patient.temperature_c = float(temperature)
+        if tension:
+            patient.tension_arterielle = tension
+        if pouls:
+            patient.pulse_bpm = int(pouls)
+        if saturation:
+            patient.oxygene_saturation = int(saturation)
+        if poids:
+            patient.poids_kg = float(poids)
+        if taille:
+            patient.taille_cm = float(taille)
+        if imc:
+            patient.imc = float(imc)
+        
         patient.date_derniere_consultation = datetime.utcnow()
         
-        # 👈 NOUVEAU : Mettre à jour le statut si changé
+        # Mettre à jour le statut médical
         if statut_medical:
             patient.statut_medical = statut_medical
             if statut_medical == 'GUERI':
@@ -928,7 +1040,7 @@ def consultation_ajouter_avec_patient(id):
         
         db.session.commit()
         
-        flash(f'Consultation pour {patient.prenom} {patient.nom} enregistrée', 'success')
+        flash(f'Consultation pour {patient.prenom} {patient.nom} enregistrée avec succès', 'success')
         return redirect(url_for('patient_detail', id=patient.id))
     
     return render_template('consultations/ajouter_avec_patient.html', patient=patient)
@@ -1394,6 +1506,573 @@ def admin_delete_structure(id):
         return redirect(url_for('admin_structures'))
     
     return render_template('admin/supprimer_structure.html', structure=structure)
+
+# ==================== HOSPITALISATIONS ====================
+
+@app.route('/hospitalisations')
+@login_required
+def liste_hospitalisations():
+    """Liste des hospitalisations"""
+    from models import Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, Patient
+    
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier', 'secretaire', 'super_admin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    statut = request.args.get('statut', 'tous')
+    service = request.args.get('service', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    
+    # Base de la requête
+    if current_user.role == 'super_admin':
+        query = Hospitalisation.query
+    else:
+        query = Hospitalisation.query.join(Patient).filter(Patient.id_structure == current_user.id_structure)
+    
+    # Filtrer par statut
+    if statut == 'actif':
+        query = query.filter(Hospitalisation.statut == 'actif')
+    elif statut == 'sorti':
+        query = query.filter(Hospitalisation.statut == 'sorti')
+    elif statut == 'transfere':
+        query = query.filter(Hospitalisation.statut == 'transfere')
+    
+    if service:
+        query = query.filter(Hospitalisation.service.ilike(f'%{service}%'))
+    
+    # Filtrer selon le rôle
+    if current_user.role == 'medecin':
+        query = query.join(HospitalisationMedecin).filter(
+            HospitalisationMedecin.medecin_id == current_user.id,
+            HospitalisationMedecin.actif == True
+        )
+    elif current_user.role == 'infirmier':
+        query = query.join(HospitalisationInfirmier).filter(
+            HospitalisationInfirmier.infirmier_id == current_user.id,
+            HospitalisationInfirmier.actif == True
+        )
+    
+    hospitalisations = query.order_by(Hospitalisation.date_debut.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    # Liste des services
+    if current_user.role == 'super_admin':
+        services_query = db.session.query(Hospitalisation.service).distinct()
+    else:
+        services_query = db.session.query(Hospitalisation.service).join(Patient).filter(
+            Patient.id_structure == current_user.id_structure
+        ).distinct()
+    services = [s[0] for s in services_query.all() if s[0]]
+    
+    return render_template('hospitalisations/liste.html',
+                         hospitalisations=hospitalisations,
+                         statut_actuel=statut,
+                         services=services)
+
+
+@app.route('/hospitalisation/nouvelle', methods=['GET', 'POST'])
+@login_required
+def nouvelle_hospitalisation():
+    """Créer une nouvelle hospitalisation"""
+    from models import Patient, Utilisateur, Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier
+    
+    if current_user.role not in ['admin_structure', 'medecin', 'secretaire']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        patient_id = request.form.get('patient_id')
+        motif = request.form.get('motif')
+        service = request.form.get('service')
+        chambre = request.form.get('chambre')
+        lit = request.form.get('lit')
+        notes_admission = request.form.get('notes_admission')
+        medecins_ids = request.form.getlist('medecins_ids')
+        infirmiers_ids = request.form.getlist('infirmiers_ids')
+        
+        # Créer l'hospitalisation
+        hospitalisation = Hospitalisation(
+            patient_id=patient_id,
+            motif=motif,
+            service=service,
+            chambre=chambre,
+            lit=lit,
+            notes_admission=notes_admission,
+            statut='actif',
+            created_by=current_user.id
+        )
+        db.session.add(hospitalisation)
+        db.session.flush()
+        
+        # Assigner les médecins
+        for medecin_id in medecins_ids:
+            hm = HospitalisationMedecin(
+                hospitalisation_id=hospitalisation.id,
+                medecin_id=medecin_id
+            )
+            db.session.add(hm)
+        
+        # Assigner les infirmiers
+        for infirmier_id in infirmiers_ids:
+            hi = HospitalisationInfirmier(
+                hospitalisation_id=hospitalisation.id,
+                infirmier_id=infirmier_id
+            )
+            db.session.add(hi)
+        
+        db.session.commit()
+        
+        flash('Hospitalisation créée avec succès', 'success')
+        return redirect(url_for('detail_hospitalisation', id=hospitalisation.id))
+    
+    # GET: Afficher le formulaire
+    if current_user.role == 'admin_structure':
+        patients = Patient.query.filter_by(
+            id_structure=current_user.id_structure,
+            archived=False
+        ).all()
+        medecins = Utilisateur.query.filter_by(
+            id_structure=current_user.id_structure,
+            role='medecin',
+            actif=True
+        ).all()
+        infirmiers = Utilisateur.query.filter_by(
+            id_structure=current_user.id_structure,
+            role='infirmier',
+            actif=True
+        ).all()
+    else:
+        # Médecin
+        patients = Patient.query.filter_by(
+            id_structure=current_user.id_structure,
+            id_medecin_referent=current_user.id,
+            archived=False
+        ).all()
+        medecins = [current_user]
+        infirmiers = Utilisateur.query.filter_by(
+            id_structure=current_user.id_structure,
+            role='infirmier',
+            actif=True
+        ).all()
+    
+    return render_template('hospitalisations/nouvelle.html',
+                         patients=patients,
+                         medecins=medecins,
+                         infirmiers=infirmiers)
+
+
+@app.route('/hospitalisation/<int:id>')
+@login_required
+def detail_hospitalisation(id):
+    """Détails d'une hospitalisation"""
+    from models import Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, ConstanteVitale, EvolutionPatient
+    
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    
+    # Vérifier les permissions
+    if current_user.role not in ['super_admin', 'admin_structure']:
+        if current_user.role == 'medecin':
+            assigne = HospitalisationMedecin.query.filter_by(
+                hospitalisation_id=id,
+                medecin_id=current_user.id,
+                actif=True
+            ).first()
+            if not assigne:
+                flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+                return redirect(url_for('dashboard'))
+        elif current_user.role == 'infirmier':
+            assigne = HospitalisationInfirmier.query.filter_by(
+                hospitalisation_id=id,
+                infirmier_id=current_user.id,
+                actif=True
+            ).first()
+            if not assigne:
+                flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+                return redirect(url_for('dashboard'))
+    
+    # Récupérer les données associées
+    medecins = hospitalisation.medecins.filter_by(actif=True).all()
+    infirmiers = hospitalisation.infirmiers.filter_by(actif=True).all()
+    constantes = hospitalisation.constantes.order_by(ConstanteVitale.date_prise.desc()).limit(50).all()
+    evolutions = hospitalisation.evolutions.order_by(EvolutionPatient.date_evolution.desc()).all()
+    
+    return render_template('hospitalisations/detail.html',
+                         hospitalisation=hospitalisation,
+                         medecins=medecins,
+                         infirmiers=infirmiers,
+                         constantes=constantes,
+                         evolutions=evolutions)
+
+
+@app.route('/hospitalisation/<int:id>/evolution', methods=['GET', 'POST'])
+@login_required
+def ajouter_evolution(id):
+    """Ajouter une évolution pour un patient hospitalisé"""
+    from models import Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, EvolutionPatient
+    
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    
+    # Vérifier les permissions
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if current_user.role != 'admin_structure':
+        if current_user.role == 'medecin':
+            assigne = HospitalisationMedecin.query.filter_by(
+                hospitalisation_id=id,
+                medecin_id=current_user.id,
+                actif=True
+            ).first()
+            if not assigne:
+                flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+                return redirect(url_for('dashboard'))
+        elif current_user.role == 'infirmier':
+            assigne = HospitalisationInfirmier.query.filter_by(
+                hospitalisation_id=id,
+                infirmier_id=current_user.id,
+                actif=True
+            ).first()
+            if not assigne:
+                flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+                return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        etat_echelle = request.form.get('etat_echelle', type=int)
+        temperature = request.form.get('temperature', type=float)
+        pression = request.form.get('pression')
+        fc = request.form.get('fc', type=int)
+        symptomes = request.form.get('symptomes')
+        traitement_administre = request.form.get('traitement_administre')
+        observations = request.form.get('observations')
+        prochaines_etapes = request.form.get('prochaines_etapes')
+        
+        if etat_echelle is None or etat_echelle < 0 or etat_echelle > 10:
+            flash('L\'état doit être entre 0 et 10', 'danger')
+            return redirect(url_for('ajouter_evolution', id=id))
+        
+        evolution = EvolutionPatient(
+            hospitalisation_id=id,
+            etat_echelle=etat_echelle,
+            temperature=temperature,
+            pression=pression,
+            fc=fc,
+            symptomes=symptomes,
+            traitement_administre=traitement_administre,
+            observations=observations,
+            prochaines_etapes=prochaines_etapes,
+            redige_par=current_user.id
+        )
+        db.session.add(evolution)
+        db.session.commit()
+        
+        flash('Évolution enregistrée avec succès', 'success')
+        return redirect(url_for('detail_hospitalisation', id=id))
+    
+    return render_template('hospitalisations/evolution.html',
+                         hospitalisation=hospitalisation)
+
+
+@app.route('/hospitalisation/<int:id>/constante', methods=['GET', 'POST'])
+@login_required
+def ajouter_constante(id):
+    """Ajouter des constantes vitales pour un patient hospitalisé"""
+    from models import Hospitalisation, HospitalisationInfirmier, ConstanteVitale
+    
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    
+    # ⭐ PERMISSIONS CORRIGÉES - Médecin aussi autorisé
+    if current_user.role not in ['super_admin', 'admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Vérifier l'appartenance à la structure
+    if current_user.id_structure and hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+    
+    # Si c'est un infirmier, vérifier qu'il est assigné
+    if current_user.role == 'infirmier':
+        assigne = HospitalisationInfirmier.query.filter_by(
+            hospitalisation_id=id,
+            infirmier_id=current_user.id,
+            actif=True
+        ).first()
+        if not assigne:
+            flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+            return redirect(url_for('liste_hospitalisations'))
+    
+    # Si c'est un médecin, vérifier qu'il est assigné
+    if current_user.role == 'medecin':
+        from models import HospitalisationMedecin
+        assigne = HospitalisationMedecin.query.filter_by(
+            hospitalisation_id=id,
+            medecin_id=current_user.id,
+            actif=True
+        ).first()
+        if not assigne:
+            flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+            return redirect(url_for('liste_hospitalisations'))
+    
+    if request.method == 'POST':
+        temperature = request.form.get('temperature', type=float)
+        pression_arterielle = request.form.get('pression_arterielle')
+        frequence_cardiaque = request.form.get('frequence_cardiaque', type=int)
+        frequence_respiratoire = request.form.get('frequence_respiratoire', type=int)
+        saturation_oxygene = request.form.get('saturation_oxygene', type=float)
+        glycemie = request.form.get('glycemie', type=float)
+        poids = request.form.get('poids', type=float)
+        taille = request.form.get('taille', type=float)
+        autres_constantes = request.form.get('autres_constantes')
+        notes = request.form.get('notes')
+        
+        # Calculer l'IMC si poids et taille sont fournis
+        imc = None
+        if poids and taille and taille > 0:
+            imc = round(poids / ((taille/100) ** 2), 1)
+        
+        constante = ConstanteVitale(
+            hospitalisation_id=id,
+            infirmier_id=current_user.id,
+            temperature=temperature,
+            pression_arterielle=pression_arterielle,
+            frequence_cardiaque=frequence_cardiaque,
+            frequence_respiratoire=frequence_respiratoire,
+            saturation_oxygene=saturation_oxygene,
+            glycemie=glycemie,
+            poids=poids,
+            taille=taille,
+            imc=imc,
+            autres_constantes=autres_constantes,
+            notes=notes
+        )
+        db.session.add(constante)
+        db.session.commit()
+        
+        flash('Constantes vitales enregistrées avec succès', 'success')
+        return redirect(url_for('detail_hospitalisation', id=id))
+    
+    return render_template('hospitalisations/constante.html',
+                         hospitalisation=hospitalisation)
+
+
+@app.route('/hospitalisation/<int:id>/cloturer', methods=['POST'])
+@login_required
+def cloturer_hospitalisation(id):
+    """Clôturer une hospitalisation (sortie du patient)"""
+    from models import Hospitalisation, HospitalisationMedecin
+    from datetime import datetime
+    
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    
+    if current_user.role not in ['super_admin', 'admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Vérifier l'appartenance à la structure
+    if current_user.id_structure and hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+    
+    if current_user.role == 'medecin':
+        assigne = HospitalisationMedecin.query.filter_by(
+            hospitalisation_id=id,
+            medecin_id=current_user.id,
+            actif=True
+        ).first()
+        if not assigne:
+            flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+            return redirect(url_for('liste_hospitalisations'))
+    
+    # Récupération des données du formulaire
+    type_sortie = request.form.get('type_sortie', 'sortie')
+    motif_sortie = request.form.get('motif_sortie', '')
+    
+    # --- Gestion du type de sortie ---
+    if type_sortie == 'transfere':
+        centre_transfert = request.form.get('centre_transfert')
+        motif_transfert = request.form.get('motif_transfert')
+        date_transfert_str = request.form.get('date_transfert')
+        
+        hospitalisation.statut = 'transfere'
+        hospitalisation.centre_transfert = centre_transfert
+        hospitalisation.motif_transfert = motif_transfert
+        if date_transfert_str:
+            hospitalisation.date_transfert = datetime.fromisoformat(date_transfert_str)
+            
+    elif type_sortie == 'deces':
+        hospitalisation.statut = 'sorti'
+        motif_sortie = f"DÉCÈS - {motif_sortie}" if motif_sortie else "DÉCÈS"
+        
+    elif type_sortie == 'autres':
+        hospitalisation.statut = 'sorti'
+        motif_autres = request.form.get('motif_autres')
+        if motif_autres:
+            motif_sortie = f"Autre motif: {motif_autres}"
+        else:
+            motif_sortie = "Autre motif non spécifié"
+            
+    else:  # sortie normale
+        hospitalisation.statut = 'sorti'
+    
+    # --- Gestion des avis externes ---
+    medecins_externes = request.form.get('medecins_externes')
+    demandes_avis = request.form.get('demandes_avis')
+    avis_externes = request.form.get('avis_externes')
+    
+    if medecins_externes:
+        hospitalisation.medecins_externes = medecins_externes
+    if demandes_avis:
+        hospitalisation.demandes_avis = demandes_avis
+    if avis_externes:
+        hospitalisation.avis_externes = avis_externes
+    
+    hospitalisation.date_fin = datetime.utcnow()
+    
+    # --- Construction des notes de sortie ---
+    notes_completes = f"\n--- SORTIE DU PATIENT ---\n"
+    notes_completes += f"Date de sortie: {hospitalisation.date_fin.strftime('%d/%m/%Y %H:%M')}\n"
+    notes_completes += f"Type: {type_sortie}\n"
+    notes_completes += f"Motif: {motif_sortie}\n"
+    
+    if type_sortie == 'transfere':
+        notes_completes += f"Transfert vers: {centre_transfert or 'Non spécifié'}\n"
+        notes_completes += f"Motif du transfert: {motif_transfert or 'Non spécifié'}\n"
+        if date_transfert_str:
+            notes_completes += f"Date du transfert: {date_transfert_str}\n"
+    
+    if medecins_externes:
+        notes_completes += f"Médecins externes consultés: {medecins_externes}\n"
+    if demandes_avis:
+        notes_completes += f"Demandes d'avis: {demandes_avis}\n"
+    if avis_externes:
+        notes_completes += f"Avis reçus: {avis_externes}\n"
+    
+    notes_completes += "---\n"
+    
+    hospitalisation.notes_admission = (hospitalisation.notes_admission or '') + notes_completes
+    
+    db.session.commit()
+    
+    flash(f'Hospitalisation clôturée avec succès ({type_sortie})', 'success')
+    return redirect(url_for('liste_hospitalisations'))
+
+@app.route('/patient/<int:patient_id>/hospitalisations')
+@login_required
+def patient_hospitalisations(patient_id):
+    """Voir toutes les hospitalisations d'un patient"""
+    from models import Patient, Hospitalisation
+    
+    patient = Patient.query.get_or_404(patient_id)
+    
+    # Vérifier les permissions
+    if current_user.role not in ['super_admin']:
+        if current_user.id_structure and patient.id_structure != current_user.id_structure:
+            flash('Accès non autorisé', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        if current_user.role == 'medecin' and patient.id_medecin_referent != current_user.id:
+            flash('Accès non autorisé', 'danger')
+            return redirect(url_for('dashboard'))
+    
+    hospitalisations = Hospitalisation.query.filter_by(
+        patient_id=patient_id
+    ).order_by(Hospitalisation.date_debut.desc()).all()
+    
+    return render_template('hospitalisations/patient_hospitalisations.html',
+                         patient=patient,
+                         hospitalisations=hospitalisations)
+@app.route('/hospitalisation/<int:id>/avis-externe', methods=['POST'])
+@login_required
+def ajouter_avis_externe(id):
+    """Ajouter un nouvel avis de médecin externe"""
+    from models import Hospitalisation, AvisExterne
+    from datetime import datetime
+    
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    
+    # Vérifier les permissions
+    if current_user.role not in ['super_admin', 'admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Vérifier l'appartenance à la structure
+    if current_user.id_structure and hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+    
+    # Récupération des données
+    medecin_nom = request.form.get('medecin_nom', '').strip()
+    specialite = request.form.get('specialite', '').strip()
+    etablissement = request.form.get('etablissement', '').strip()
+    demande_avis = request.form.get('demande_avis', '').strip()
+    avis_recu = request.form.get('avis_recu', '').strip()
+    date_demande_str = request.form.get('date_demande')
+    date_reception_str = request.form.get('date_reception')
+    
+    # Validation
+    if not medecin_nom or not avis_recu:
+        flash('Le nom du médecin et l\'avis reçu sont obligatoires', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+    
+    # Création de l'avis
+    avis = AvisExterne(
+        hospitalisation_id=id,
+        medecin_nom=medecin_nom,
+        specialite=specialite if specialite else None,
+        etablissement=etablissement if etablissement else None,
+        demande_avis=demande_avis if demande_avis else None,
+        avis_recu=avis_recu,
+        created_by=current_user.id
+    )
+    
+    if date_demande_str:
+        avis.date_demande = datetime.fromisoformat(date_demande_str)
+    if date_reception_str:
+        avis.date_reception = datetime.fromisoformat(date_reception_str)
+    
+    db.session.add(avis)
+    db.session.commit()
+    
+    flash('✅ Avis externe enregistré avec succès', 'success')
+    return redirect(url_for('detail_hospitalisation', id=id))
+
+@app.route('/consultation/<int:id>/resultats', methods=['POST'])
+@login_required
+def ajouter_resultats(id):
+    """Ajouter ou mettre à jour les résultats des examens"""
+    from models import Consultation
+    from datetime import datetime
+    
+    consultation = Consultation.query.get_or_404(id)
+    
+    # Vérifier les permissions
+    if current_user.role not in ['super_admin', 'admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Récupération des données
+    resultats_biologie = request.form.get('resultats_biologie', '').strip()
+    resultats_imagerie = request.form.get('resultats_imagerie', '').strip()
+    date_resultats_str = request.form.get('date_resultats')
+    
+    # Mise à jour
+    if resultats_biologie:
+        consultation.resultats_biologie = resultats_biologie
+    if resultats_imagerie:
+        consultation.resultats_imagerie = resultats_imagerie
+    
+    if date_resultats_str:
+        consultation.date_resultats = datetime.fromisoformat(date_resultats_str)
+    else:
+        consultation.date_resultats = datetime.utcnow()
+    
+    db.session.commit()
+    
+    flash('✅ Résultats enregistrés avec succès', 'success')
+    return redirect(url_for('consultation_detail', id=id))
 
 if __name__ == '__main__':
     app.run(debug=True)

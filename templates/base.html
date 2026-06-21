@@ -54,6 +54,85 @@
             right: 20px;
             z-index: 1050;
         }
+
+        /* ⭐ SPINNER POUR LES BOUTONS */
+        .btn-loading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.85;
+        }
+
+        .btn-loading .spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .btn-loading .btn-text {
+            visibility: hidden;
+        }
+
+        .btn-loading::after {
+            content: "Chargement...";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+
+        /* Spinner pour les téléchargements */
+        .btn-downloading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.85;
+        }
+
+        .btn-downloading .spinner-download {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        .btn-downloading .download-text {
+            visibility: hidden;
+        }
+
+        .btn-downloading::after {
+            content: "Téléchargement...";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+
+        /* Animation de pulsation pour les boutons */
+        .btn-pulse {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -94,7 +173,9 @@
                 <span class="badge bg-danger rounded-pill ms-2">{{ non_lus }}</span>
             {% endif %}
         </a>
-        
+        <a class="nav-link" href="{{ url_for('liste_hospitalisations') }}">
+            <i class="fas fa-hospital me-2"></i> Hospitalisations
+        </a>
         {% if current_user.role == 'super_admin' %}
         <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
             <i class="fas fa-crown me-2"></i> Administration
@@ -154,6 +235,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
+        // ============================================================
+        // 1. TOAST NOTIFICATIONS
+        // ============================================================
         function showToast(message, type = 'success') {
             const toastContainer = document.querySelector('.toast-container');
             const toast = document.createElement('div');
@@ -168,17 +252,123 @@
             toastContainer.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
         }
-        
-        // Désactiver bouton submit pour éviter double envoi
+
+        // ============================================================
+        // 2. SPINNER SUR LES BOUTONS DE FORMULAIRES
+        // ============================================================
         document.querySelectorAll('form').forEach(form => {
             form.addEventListener('submit', function(e) {
-                const submitBtn = this.querySelector('button[type="submit"]');
-                if (submitBtn) {
+                const submitBtn = this.querySelector('button[type="submit"], input[type="submit"]');
+                if (submitBtn && !submitBtn.disabled) {
+                    // Désactiver le bouton
                     submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Chargement...';
+                    submitBtn.classList.add('btn-loading');
+                    
+                    // Sauvegarder le texte original
+                    const originalText = submitBtn.innerHTML;
+                    submitBtn.dataset.originalText = originalText;
+                    
+                    // Ajouter le spinner
+                    submitBtn.innerHTML = '<span class="spinner"></span><span class="btn-text">Chargement...</span>';
                 }
             });
         });
+
+        // ============================================================
+        // 3. SPINNER SUR LES LIENS DE TÉLÉCHARGEMENT
+        // ============================================================
+        document.querySelectorAll('[data-download]').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const originalText = this.innerHTML;
+                this.innerHTML = '<span class="spinner-download"></span><span class="download-text">Téléchargement...</span>';
+                this.classList.add('btn-downloading');
+                
+                // Restaurer après 3 secondes (sécurité)
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.classList.remove('btn-downloading');
+                }, 3000);
+            });
+        });
+
+        // ============================================================
+        // 4. SPINNER SUR LES LIENS AVEC DATA-LOADING
+        // ============================================================
+        document.querySelectorAll('[data-loading]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                const originalText = this.innerHTML;
+                this.innerHTML = '<span class="spinner"></span> Chargement...';
+                this.classList.add('btn-loading');
+                this.style.pointerEvents = 'none';
+                
+                // Restaurer après 5 secondes (sécurité)
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.classList.remove('btn-loading');
+                    this.style.pointerEvents = 'auto';
+                }, 5000);
+            });
+        });
+
+        // ============================================================
+        // 5. FONCTION POUR RÉACTIVER UN BOUTON
+        // ============================================================
+        function resetButton(btn) {
+            btn.disabled = false;
+            btn.classList.remove('btn-loading');
+            btn.classList.remove('btn-downloading');
+            if (btn.dataset.originalText) {
+                btn.innerHTML = btn.dataset.originalText;
+            }
+        }
+
+        // ============================================================
+        // 6. GESTION DES ERREURS AJAX
+        // ============================================================
+        function handleAjaxError(xhr, status, error) {
+            showToast('Une erreur est survenue. Veuillez réessayer.', 'danger');
+            // Réactiver tous les boutons
+            document.querySelectorAll('.btn-loading, .btn-downloading').forEach(btn => {
+                resetButton(btn);
+            });
+        }
+
+        // ============================================================
+        // 7. CONFIRMATION AVANT SUPPRESSION
+        // ============================================================
+        document.querySelectorAll('[data-confirm]').forEach(el => {
+            el.addEventListener('click', function(e) {
+                const message = this.dataset.confirm || 'Êtes-vous sûr ?';
+                if (!confirm(message)) {
+                    e.preventDefault();
+                }
+            });
+        });
+
+        // ============================================================
+        // 8. INITIALISATION DES TOOLTIPS BOOTSTRAP
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            // Activer les tooltips Bootstrap
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function(tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        });
+
+        // ============================================================
+        // 9. GESTION DES MODALS AVEC SPINNER
+        // ============================================================
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('hidden.bs.modal', function() {
+                // Réactiver les boutons dans le modal
+                this.querySelectorAll('.btn-loading, .btn-downloading').forEach(btn => {
+                    resetButton(btn);
+                });
+            });
+        });
+
+        console.log('✅ MediLogic - Tous les systèmes de feedback sont actifs !');
     </script>
     {% block extra_js %}{% endblock %}
 </body>

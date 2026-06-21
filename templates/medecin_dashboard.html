@@ -1,29 +1,61 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard Médecin{% endblock %}
+{% block title %}Dashboard - {{ current_user.prenom }} {{ current_user.nom }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3">
             <i class="fas fa-chart-line me-2"></i>
-            Tableau de bord - Dr {{ current_user.prenom }} {{ current_user.nom }}
+            Tableau de bord
+            {% if current_user.role == 'medecin' %}
+                - Dr {{ current_user.prenom }} {{ current_user.nom }}
+            {% elif current_user.role == 'infirmier' %}
+                - Infirmier {{ current_user.prenom }} {{ current_user.nom }}
+            {% elif current_user.role == 'secretaire' %}
+                - Secrétaire {{ current_user.prenom }} {{ current_user.nom }}
+            {% elif current_user.role == 'admin_structure' %}
+                - Admin {{ current_user.prenom }} {{ current_user.nom }}
+            {% else %}
+                - {{ current_user.prenom }} {{ current_user.nom }}
+            {% endif %}
         </h1>
         <div>
             <span class="badge bg-primary fs-6">
                 <i class="fas fa-building me-1"></i> {{ current_user.structure.nom if current_user.structure else 'Structure' }}
             </span>
+            <span class="badge bg-secondary fs-6 ms-2">
+                <i class="fas fa-user-tag me-1"></i>
+                {% if current_user.role == 'medecin' %}
+                    👨‍⚕️ Médecin
+                {% elif current_user.role == 'infirmier' %}
+                    🩺 Infirmier
+                {% elif current_user.role == 'secretaire' %}
+                    📋 Secrétaire
+                {% elif current_user.role == 'admin_structure' %}
+                    👑 Admin
+                {% else %}
+                    {{ current_user.role }}
+                {% endif %}
+            </span>
         </div>
     </div>
 
-    <!-- Cartes statistiques -->
+    <!-- Cartes statistiques adaptées au rôle -->
     <div class="row mb-4">
+        <!-- Patients -->
         <div class="col-md-3 mb-3">
             <div class="card bg-primary text-white h-100">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">Mes patients</h6>
+                            <h6 class="card-title">
+                                {% if current_user.role == 'infirmier' %}
+                                    Patients suivis
+                                {% else %}
+                                    Mes patients
+                                {% endif %}
+                            </h6>
                             <h2 class="display-6">{{ patients_actifs }}</h2>
                         </div>
                         <i class="fas fa-users fa-3x opacity-50"></i>
@@ -32,50 +64,83 @@
             </div>
         </div>
         
+        <!-- Consultations -->
         <div class="col-md-3 mb-3">
             <div class="card bg-success text-white h-100">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">Consultations aujourd'hui</h6>
-                            <h2 class="display-6">{{ consultations_aujourdhui }}</h2>
+                            <h6 class="card-title">
+                                {% if current_user.role == 'infirmier' %}
+                                    Patients hospitalisés
+                                {% else %}
+                                    Consultations aujourd'hui
+                                {% endif %}
+                            </h6>
+                            <h2 class="display-6">
+                                {% if current_user.role == 'infirmier' %}
+                                    {{ hospitalisations_actives or 0 }}
+                                {% else %}
+                                    {{ consultations_aujourdhui }}
+                                {% endif %}
+                            </h2>
                         </div>
-                        <i class="fas fa-calendar-day fa-3x opacity-50"></i>
+                        <i class="fas fa-{% if current_user.role == 'infirmier' %}hospital{% else %}calendar-day{% endif %} fa-3x opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
         
+        <!-- Prescriptions / Constantes -->
         <div class="col-md-3 mb-3">
             <div class="card bg-info text-white h-100">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">Prescriptions actives</h6>
-                            <h2 class="display-6">{{ prescriptions_actives }}</h2>
+                            <h6 class="card-title">
+                                {% if current_user.role == 'infirmier' %}
+                                    Constantes prises
+                                {% else %}
+                                    Prescriptions actives
+                                {% endif %}
+                            </h6>
+                            <h2 class="display-6">
+                                {% if current_user.role == 'infirmier' %}
+                                    {{ constantes_prises or 0 }}
+                                {% else %}
+                                    {{ prescriptions_actives }}
+                                {% endif %}
+                            </h2>
                         </div>
-                        <i class="fas fa-prescription-bottle fa-3x opacity-50"></i>
+                        <i class="fas fa-{% if current_user.role == 'infirmier' %}heartbeat{% else %}prescription-bottle{% endif %} fa-3x opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
         
+        <!-- Patients guéris / Sortis -->
         <div class="col-md-3 mb-3">
             <div class="card bg-warning text-white h-100">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">Patients guéris</h6>
+                            <h6 class="card-title">
+                                {% if current_user.role == 'infirmier' %}
+                                    Patients sortis
+                                {% else %}
+                                    Patients guéris
+                                {% endif %}
+                            </h6>
                             <h2 class="display-6">{{ patients_gueris }}</h2>
                         </div>
-                        <i class="fas fa-heartbeat fa-3x opacity-50"></i>
+                        <i class="fas fa-{% if current_user.role == 'infirmier' %}check-double{% else %}heartbeat{% endif %} fa-3x opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Actions rapides (LIENS FONCTIONNELS) -->
+    <!-- Actions rapides (adaptées au rôle) -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
@@ -83,15 +148,31 @@
                     <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Actions rapides</h5>
                 </div>
                 <div class="card-body">
-                    <a href="{{ url_for('patient_ajouter') }}" class="btn btn-primary me-2">
-                        <i class="fas fa-user-plus me-2"></i>Nouveau patient
-                    </a>
-                    <a href="{{ url_for('consultation_ajouter') }}" class="btn btn-success me-2">
-                        <i class="fas fa-stethoscope me-2"></i>Nouvelle consultation
-                    </a>
-                    <a href="{{ url_for('prescription_ajouter') }}" class="btn btn-info me-2">
-                        <i class="fas fa-prescription me-2"></i>Nouvelle prescription
-                    </a>
+                    {% if current_user.role == 'medecin' %}
+                        <a href="{{ url_for('patient_ajouter') }}" class="btn btn-primary me-2">
+                            <i class="fas fa-user-plus me-2"></i>Nouveau patient
+                        </a>
+                        <a href="{{ url_for('consultation_ajouter') }}" class="btn btn-success me-2">
+                            <i class="fas fa-stethoscope me-2"></i>Nouvelle consultation
+                        </a>
+                        <a href="{{ url_for('prescription_ajouter') }}" class="btn btn-info me-2">
+                            <i class="fas fa-prescription me-2"></i>Nouvelle prescription
+                        </a>
+                    {% elif current_user.role == 'infirmier' %}
+                        <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-primary me-2">
+                            <i class="fas fa-hospital me-2"></i>Voir hospitalisations
+                        </a>
+                        <a href="{{ url_for('patients_list') }}" class="btn btn-success me-2">
+                            <i class="fas fa-users me-2"></i>Voir patients
+                        </a>
+                    {% elif current_user.role == 'secretaire' %}
+                        <a href="{{ url_for('patients_list') }}" class="btn btn-primary me-2">
+                            <i class="fas fa-users me-2"></i>Voir patients
+                        </a>
+                        <a href="{{ url_for('patient_ajouter') }}" class="btn btn-success me-2">
+                            <i class="fas fa-user-plus me-2"></i>Nouveau patient
+                        </a>
+                    {% endif %}
                     <a href="{{ url_for('recherche_patients') }}" class="btn btn-secondary">
                         <i class="fas fa-search me-2"></i>Rechercher patient
                     </a>

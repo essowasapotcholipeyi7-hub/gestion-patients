@@ -66,20 +66,56 @@
                         <input type="text" id="interpretation" class="form-control" readonly style="background-color: #e9ecef;">
                     </div>
                 </div>
-                
-                <!-- Examens -->
-                <h5 class="mt-3 mb-3"><i class="fas fa-microscope me-2"></i>Examens</h5>
+
+                <!-- ⭐ ANTÉCÉDENTS (juste après les constantes) -->
+                <h5 class="mt-3 mb-3"><i class="fas fa-history me-2"></i>Antécédents du patient</h5>
                 <hr>
-                <div class="mb-3">
-                    <label class="form-label">Examens médicaux (biologie, radiologie, etc.)</label>
-                    <textarea name="examens_medicaux" class="form-control" rows="3" placeholder="Ex: NFS, Glycémie, Bilan hépatique..."></textarea>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Allergies</label>
+                        <textarea name="allergies" class="form-control" rows="2" placeholder="Ex: Pénicilline, Arachides..."></textarea>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Traitements en cours</label>
+                        <textarea name="traitements_en_cours" class="form-control" rows="2" placeholder="Ex: Aspirine 100mg/j..."></textarea>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Antécédents médicaux</label>
+                        <textarea name="antecedents_medicaux" class="form-control" rows="2" placeholder="Ex: Diabète, Hypertension..."></textarea>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Antécédents chirurgicaux</label>
+                        <textarea name="antecedents_chirurgicaux" class="form-control" rows="2" placeholder="Ex: Appendicectomie, Césarienne..."></textarea>
+                    </div>
                 </div>
                 
-                <div class="mb-3">
-                    <label class="form-label">Examens paramédicaux</label>
-                    <textarea name="examens_paramedicaux" class="form-control" rows="3" placeholder="Ex: Échographie, Scanner, IRM, Électrocardiogramme..."></textarea>
-                </div>
-                
+<!-- Examens -->
+<h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2 text-info"></i>Examens</h5>
+<hr>
+
+<div class="mb-3">
+    <label class="form-label fw-bold">🔬 Examens cliniques (médecin)</label>
+    <textarea name="examens_cliniques" class="form-control" rows="2" 
+              placeholder="Ex: Palpation, Auscultation, Examen neurologique..."></textarea>
+    <small class="text-muted">Examens réalisés par le médecin lors de la consultation</small>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label fw-bold">🧪 Examens de biologie</label>
+        <textarea name="examens_biologie" class="form-control" rows="3" 
+                  placeholder="Ex: NFS, Glycémie, Bilan hépatique, Bilan rénal, CRP, VS..."></textarea>
+        <small class="text-muted">Analyses biologiques prescrites</small>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label fw-bold">📷 Examens d'imagerie</label>
+        <textarea name="examens_imagerie" class="form-control" rows="3" 
+                  placeholder="Ex: Radiographie, Échographie, Scanner, IRM, Mammographie..."></textarea>
+        <small class="text-muted">Examens d'imagerie prescrits</small>
+    </div>
+</div>                
                 <!-- Diagnostic et traitement -->
                 <h5 class="mt-3 mb-3"><i class="fas fa-notes-medical me-2"></i>Diagnostic & Traitement</h5>
                 <hr>
@@ -115,18 +151,19 @@
                 </div>
 
                 <!-- Statut médical -->
-<h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2"></i>Statut médical</h5>
-<hr>
-<div class="mb-3">
-    <label class="form-label">Statut après cette consultation</label>
-    <select name="statut_medical" class="form-select">
-        <option value="EN_TRAITEMENT">🟡 En traitement (suivi en cours)</option>
-        <option value="GUERI">✅ Guéri - Clôturer le dossier</option>
-        <option value="TRANSFERE">🔵 Transféré vers autre service</option>
-        <option value="PERDU_VUE">⚪ Perdu de vue</option>
-    </select>
-    <small class="text-muted">Ce statut sera appliqué au patient</small>
-</div>
+                <h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2"></i>Statut médical</h5>
+                <hr>
+                <div class="mb-3">
+                    <label class="form-label">Statut après cette consultation</label>
+                    <select name="statut_medical" class="form-select">
+                        <option value="EN_TRAITEMENT">🟡 En traitement (suivi en cours)</option>
+                        <option value="GUERI">✅ Guéri - Clôturer le dossier</option>
+                        <option value="TRANSFERE">🔵 Transféré vers autre service</option>
+                        <option value="PERDU_VUE">⚪ Perdu de vue</option>
+                    </select>
+                    <small class="text-muted">Ce statut sera appliqué au patient</small>
+                </div>
+                
                 <!-- Rendez-vous -->
                 <h5 class="mt-3 mb-3"><i class="fas fa-calendar-alt me-2"></i>Rendez-vous</h5>
                 <hr>

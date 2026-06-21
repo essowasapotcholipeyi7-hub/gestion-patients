@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Ajouter une Évolution - {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-notes-medical me-2 text-primary"></i>
+                        Ajouter une Évolution
+                    </h5>
+                    <small class="text-muted">
+                        Patient : {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}
+                        - Service : {{ hospitalisation.service }}
+                    </small>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <!-- Échelle 0-10 -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-chart-line me-2 text-primary"></i>
+                                État du patient (0-10)
+                            </label>
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-danger"><small>Très mauvais</small></span>
+                                        <span class="text-warning"><small>Moyen</small></span>
+                                        <span class="text-success"><small>Excellent</small></span>
+                                    </div>
+                                    <div class="btn-group w-100" role="group">
+                                        {% for i in range(11) %}
+                                        <input type="radio" class="btn-check" name="etat_echelle" id="etat{{ i }}" value="{{ i }}" {% if i == 5 %}checked{% endif %}>
+                                        <label class="btn btn-outline-{% if i < 3 %}danger{% elif i < 7 %}warning{% else %}success{% endif %} btn-sm" for="etat{{ i }}">
+                                            {{ i }}
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Signes vitaux -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Température (°C)</label>
+                                <input type="number" step="0.1" name="temperature" class="form-control" placeholder="Ex: 37.5">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Pression artérielle</label>
+                                <input type="text" name="pression" class="form-control" placeholder="Ex: 120/80">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Fréquence cardiaque (bpm)</label>
+                                <input type="number" name="fc" class="form-control" placeholder="Ex: 72">
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Symptômes -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-thermometer-half me-2 text-warning"></i>
+                                Symptômes / Plaintes
+                            </label>
+                            <textarea name="symptomes" class="form-control" rows="3" placeholder="Décrivez les symptômes actuels du patient..."></textarea>
+                        </div>
+
+                        <!-- Traitement -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-prescription-bottle me-2 text-success"></i>
+                                Traitement administré
+                            </label>
+                            <textarea name="traitement_administre" class="form-control" rows="2" placeholder="Médicaments ou traitements donnés..."></textarea>
+                        </div>
+
+                        <!-- Observations -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-comment-medical me-2 text-info"></i>
+                                Observations cliniques
+                            </label>
+                            <textarea name="observations" class="form-control" rows="3" placeholder="Observations détaillées du médecin/infirmier..."></textarea>
+                        </div>
+
+                        <!-- Prochaines étapes -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-forward me-2 text-primary"></i>
+                                Prochaines étapes
+                            </label>
+                            <textarea name="prochaines_etapes" class="form-control" rows="2" placeholder="Examens à réaliser, changements de traitement, etc..."></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Annuler
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Enregistrer l'évolution
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

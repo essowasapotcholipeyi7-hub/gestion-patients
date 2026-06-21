@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Prendre les Constantes - {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-heartbeat me-2 text-danger"></i>
+                        Prise des Constantes Vitales
+                    </h5>
+                    <small class="text-muted">
+                        Patient : {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}
+                        - Infirmier : {{ current_user.nom }} {{ current_user.prenom }}
+                    </small>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row">
+                            <!-- Colonne gauche -->
+                            <div class="col-md-6">
+                                <!-- Température -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-thermometer-half me-2 text-danger"></i>
+                                        Température (°C)
+                                    </label>
+                                    <input type="number" step="0.1" name="temperature" class="form-control" placeholder="Ex: 37.5">
+                                </div>
+
+                                <!-- Pression artérielle -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-heart me-2 text-primary"></i>
+                                        Pression artérielle (mmHg)
+                                    </label>
+                                    <input type="text" name="pression_arterielle" class="form-control" placeholder="Ex: 120/80">
+                                </div>
+
+                                <!-- Fréquence cardiaque -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-heartbeat me-2 text-danger"></i>
+                                        Fréquence cardiaque (bpm)
+                                    </label>
+                                    <input type="number" name="frequence_cardiaque" class="form-control" placeholder="Ex: 72">
+                                </div>
+
+                                <!-- Fréquence respiratoire -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-lungs me-2 text-info"></i>
+                                        Fréquence respiratoire (cycles/min)
+                                    </label>
+                                    <input type="number" name="frequence_respiratoire" class="form-control" placeholder="Ex: 16">
+                                </div>
+                            </div>
+
+                            <!-- Colonne droite -->
+                            <div class="col-md-6">
+                                <!-- Saturation O2 -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-wind me-2 text-primary"></i>
+                                        Saturation O₂ (%)
+                                    </label>
+                                    <input type="number" step="0.1" name="saturation_oxygene" class="form-control" placeholder="Ex: 98">
+                                </div>
+
+                                <!-- Glycémie -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-flask me-2 text-warning"></i>
+                                        Glycémie (g/L)
+                                    </label>
+                                    <input type="number" step="0.01" name="glycemie" class="form-control" placeholder="Ex: 1.20">
+                                </div>
+
+                                <!-- Poids -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-weight me-2 text-secondary"></i>
+                                        Poids (kg)
+                                    </label>
+                                    <input type="number" step="0.1" name="poids" class="form-control" placeholder="Ex: 75">
+                                </div>
+
+                                <!-- Taille -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-ruler-vertical me-2 text-secondary"></i>
+                                        Taille (cm)
+                                    </label>
+                                    <input type="number" step="0.5" name="taille" class="form-control" placeholder="Ex: 175">
+                                    <small class="text-muted">L'IMC sera calculé automatiquement</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Autres constantes -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-ellipsis-h me-2 text-muted"></i>
+                                Autres constantes / Observations
+                            </label>
+                            <textarea name="autres_constantes" class="form-control" rows="2" placeholder="Autres mesures ou observations..."></textarea>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-comment me-2 text-info"></i>
+                                Notes complémentaires
+                            </label>
+                            <textarea name="notes" class="form-control" rows="2" placeholder="Informations supplémentaires sur l'état du patient..."></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Annuler
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save me-2"></i>Enregistrer les constantes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

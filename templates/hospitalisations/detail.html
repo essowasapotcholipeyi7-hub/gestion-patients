@@ -1,0 +1,665 @@
+{% extends "base.html" %}
+
+{% block title %}Détails Hospitalisation - {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3">
+                <i class="fas fa-hospital me-2 text-primary"></i>
+                Hospitalisation - {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}
+            </h1>
+            <p class="text-muted mb-0">
+                <i class="fas fa-calendar-alt me-1"></i> Admis le {{ hospitalisation.date_debut.strftime('%d/%m/%Y à %H:%M') }}
+                {% if hospitalisation.statut == 'actif' %}
+                    <span class="badge bg-success ms-2">Actif</span>
+                {% elif hospitalisation.statut == 'sorti' %}
+                    <span class="badge bg-secondary ms-2">Sorti</span>
+                {% elif hospitalisation.statut == 'transfere' %}
+                    <span class="badge bg-warning ms-2">Transféré</span>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            {% if hospitalisation.statut == 'actif' %}
+                <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cloturerModal">
+                    <i class="fas fa-check-circle me-2"></i>Clôturer
+                </button>
+            {% endif %}
+            <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Colonne gauche -->
+        <div class="col-md-4">
+            <!-- Carte Patient -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Patient</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Nom :</strong> {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}</p>
+                    <p><strong>Date naissance :</strong> {{ hospitalisation.patient.date_naissance.strftime('%d/%m/%Y') if hospitalisation.patient.date_naissance else '-' }}</p>
+                    <p><strong>Téléphone :</strong> {{ hospitalisation.patient.telephone or '-' }}</p>
+                    <p><strong>Email :</strong> {{ hospitalisation.patient.email or '-' }}</p>
+                    <p><strong>Assurance :</strong> {{ hospitalisation.patient.type_assurance or '-' }}</p>
+                    <a href="{{ url_for('patient_detail', id=hospitalisation.patient.id) }}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye me-1"></i>Voir fiche patient
+                    </a>
+                </div>
+            </div>
+
+            <!-- Carte Hospitalisation -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Hospitalisation</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Service :</strong> {{ hospitalisation.service }}</p>
+                    <p><strong>Chambre :</strong> {{ hospitalisation.chambre or 'Non spécifié' }}</p>
+                    <p><strong>Lit :</strong> {{ hospitalisation.lit or 'Non spécifié' }}</p>
+                    <p><strong>Motif :</strong> {{ hospitalisation.motif }}</p>
+                    {% if hospitalisation.notes_admission %}
+                    <p><strong>Notes admission :</strong><br>{{ hospitalisation.notes_admission }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Carte Équipe soignante -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Équipe soignante</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="text-primary">Médecins</h6>
+                    <ul class="list-unstyled">
+                        {% for m in medecins %}
+                        <li class="mb-2">
+                            <i class="fas fa-user-md text-info me-2"></i>
+                            {{ m.medecin.nom }} {{ m.medecin.prenom }}
+                            <span class="badge bg-light text-dark ms-2">{{ m.role }}</span>
+                        </li>
+                        {% else %}
+                        <li class="text-muted">Aucun médecin assigné</li>
+                        {% endfor %}
+                    </ul>
+                    
+                    <hr>
+                    
+                    <h6 class="text-success">Infirmiers</h6>
+                    <ul class="list-unstyled">
+                        {% for i in infirmiers %}
+                        <li class="mb-2">
+                            <i class="fas fa-user-nurse text-success me-2"></i>
+                            {{ i.infirmier.nom }} {{ i.infirmier.prenom }}
+                        </li>
+                        {% else %}
+                        <li class="text-muted">Aucun infirmier assigné</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Patient transféré -->
+            {% if hospitalisation.statut == 'transfere' %}
+            <div class="alert alert-warning mt-3">
+                <h6><i class="fas fa-ambulance me-2"></i>Patient transféré</h6>
+                <p><strong>Centre de transfert :</strong> 
+                    {% if hospitalisation.centre_transfert %}
+                        {{ hospitalisation.centre_transfert }}
+                    {% else %}
+                        <span class="text-danger">Non spécifié</span>
+                    {% endif %}
+                </p>
+                <p><strong>Motif :</strong> 
+                    {% if hospitalisation.motif_transfert %}
+                        {{ hospitalisation.motif_transfert }}
+                    {% else %}
+                        <span class="text-danger">Non spécifié</span>
+                    {% endif %}
+                </p>
+                {% if hospitalisation.date_transfert %}
+                <p><strong>Date :</strong> {{ hospitalisation.date_transfert.strftime('%d/%m/%Y %H:%M') }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+<!-- Colonne droite -->
+<div class="col-md-8">
+    <!-- Actions rapides -->
+<!-- Actions rapides (UNIQUEMENT SI ACTIF) -->
+{% if hospitalisation.statut == 'actif' %}
+<div class="row mb-4">
+    <div class="col-md-4">
+        <a href="{{ url_for('ajouter_evolution', id=hospitalisation.id) }}" class="btn btn-primary w-100">
+            <i class="fas fa-notes-medical me-2"></i>Évolution
+            <small class="d-block text-white-150" style="font-size: 0.65rem;">👨‍⚕️ Réservé au médecin</small>
+        </a>
+    </div>
+    <div class="col-md-4">
+        <a href="{{ url_for('ajouter_constante', id=hospitalisation.id) }}" class="btn btn-success w-100">
+            <i class="fas fa-heartbeat me-2"></i>Constantes
+            <small class="d-block text-white-150" style="font-size: 0.65rem;">🩺 Réservé aux infirmiers</small>
+        </a>
+    </div>
+    <div class="col-md-4">
+        <!-- ⭐ BOUTON AVIS EXTERNES -->
+        <button class="btn btn-info w-100 text-white" data-bs-toggle="modal" data-bs-target="#avisExternesModal">
+            <i class="fas fa-user-md me-2"></i>Avis externes
+            <small class="d-block text-white-50" style="font-size: 0.65rem;">📩 Médecins externes</small>
+        </button>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-secondary mb-4">
+    <i class="fas fa-info-circle me-2"></i>
+    <strong>Hospitalisation clôturée</strong> - Aucune modification n'est possible.
+    {% if hospitalisation.statut == 'transfere' %}
+        Patient transféré vers <strong>{{ hospitalisation.centre_transfert or 'un autre centre' }}</strong>
+    {% endif %}
+</div>
+{% endif %}
+
+            <!-- Graphique Évolution -->
+            {% if evolutions %}
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Évolution de l'état</h5>
+                    <div>
+                        <span class="badge bg-success me-1">● Bon</span>
+                        <span class="badge bg-warning me-1">● Moyen</span>
+                        <span class="badge bg-danger">● Critique</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div style="position: relative; height: 250px;">
+                        <canvas id="evolutionChart"></canvas>
+                    </div>
+                    
+                    <!-- Statistiques rapides -->
+                    <div class="row mt-3">
+                        <div class="col-4 text-center">
+                            <small class="text-muted">État actuel</small>
+                            <h4 class="mb-0 {% if evolutions[0].etat_echelle >= 7 %}text-success{% elif evolutions[0].etat_echelle >= 4 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ evolutions[0].etat_echelle }}/10
+                            </h4>
+                        </div>
+                        <div class="col-4 text-center">
+                            <small class="text-muted">Meilleur état</small>
+                            <h4 class="mb-0 text-success">
+                                {% set meilleur = evolutions|map(attribute='etat_echelle')|max %}
+                                {{ meilleur }}/10
+                            </h4>
+                        </div>
+                        <div class="col-4 text-center">
+                            <small class="text-muted">Pire état</small>
+                            <h4 class="mb-0 text-danger">
+                                {% set pire = evolutions|map(attribute='etat_echelle')|min %}
+                                {{ pire }}/10
+                            </h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Évolutions -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Évolutions</h5>
+                    <span class="badge bg-primary">{{ evolutions|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if evolutions %}
+                    <div class="timeline">
+                        {% for evolution in evolutions %}
+                        <div class="border-start border-3 ps-3 mb-3 {% if evolution.etat_echelle >= 7 %}border-success{% elif evolution.etat_echelle >= 4 %}border-warning{% else %}border-danger{% endif %}">
+                            <div class="d-flex justify-content-between">
+                                <strong>{{ evolution.date_evolution.strftime('%d/%m/%Y %H:%M') }}</strong>
+                                <span class="badge bg-{% if evolution.etat_echelle >= 7 %}success{% elif evolution.etat_echelle >= 4 %}warning{% else %}danger{% endif %}">
+                                    État: {{ evolution.etat_echelle }}/10
+                                </span>
+                            </div>
+                            <p class="mb-1">
+                                <strong>Symptômes :</strong> {{ evolution.symptomes or 'Non renseignés' }}
+                            </p>
+                            <p class="mb-1">
+                                <strong>Observations :</strong> {{ evolution.observations or 'Non renseignées' }}
+                            </p>
+                            {% if evolution.traitement_administre %}
+                            <p class="mb-1">
+                                <strong>Traitement :</strong> {{ evolution.traitement_administre }}
+                            </p>
+                            {% endif %}
+                            {% if evolution.prochaines_etapes %}
+                            <p class="mb-1">
+                                <strong>Prochaines étapes :</strong> {{ evolution.prochaines_etapes }}
+                            </p>
+                            {% endif %}
+                            <small class="text-muted">
+                                <i class="fas fa-user me-1"></i> {{ evolution.redacteur.nom }} {{ evolution.redacteur.prenom }}
+                                ({{ evolution.redacteur.role }})
+                            </small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center my-4">
+                        <i class="fas fa-info-circle me-2"></i>Aucune évolution enregistrée
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Constantes Vitales -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Constantes Vitales</h5>
+                    <span class="badge bg-success">{{ constantes|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if constantes %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date/Heure</th>
+                                    <th>Température</th>
+                                    <th>PA</th>
+                                    <th>FC</th>
+                                    <th>SpO₂</th>
+                                    <th>Glycémie</th>
+                                    <th>IMC</th>
+                                    <th>Infirmier</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in constantes %}
+                                <tr>
+                                    <td>{{ c.date_prise.strftime('%d/%m %H:%M') }}</td>
+                                    <td>{{ c.temperature or '-' }} °C</td>
+                                    <td>{{ c.pression_arterielle or '-' }}</td>
+                                    <td>{{ c.frequence_cardiaque or '-' }} bpm</td>
+                                    <td>{{ c.saturation_oxygene or '-' }} %</td>
+                                    <td>{{ c.glycemie or '-' }} g/L</td>
+                                    <td>{{ c.imc or '-' }}</td>
+                                    <td>{{ c.infirmier.nom }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center my-4">
+                        <i class="fas fa-info-circle me-2"></i>Aucune constante enregistrée
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== AVIS MÉDECINS EXTERNES ========== -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-user-md me-2"></i>
+            Avis de médecins externes
+            <span class="badge bg-light text-dark ms-2">{{ hospitalisation.avis_externes_list|length }}</span>
+        </h5>
+        {% if hospitalisation.statut == 'actif' %}
+        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#avisExternesModal">
+            <i class="fas fa-plus me-1"></i>Nouvel avis
+        </button>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if hospitalisation.avis_externes_list|length > 0 %}
+            <!-- Chronologie des avis -->
+            <div class="timeline-avis">
+                {% for avis in hospitalisation.avis_externes_list|sort(attribute='date_demande', reverse=True) %}
+                <div class="border-start border-3 border-info ps-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong>{{ avis.medecin_nom }}</strong>
+                            {% if avis.specialite %}
+                            <span class="badge bg-secondary ms-1">{{ avis.specialite }}</span>
+                            {% endif %}
+                            {% if avis.etablissement %}
+                            <span class="badge bg-light text-dark ms-1">{{ avis.etablissement }}</span>
+                            {% endif %}
+                        </div>
+                        <small class="text-muted">
+                            <i class="fas fa-calendar-alt me-1"></i>
+                            {{ avis.date_demande.strftime('%d/%m/%Y %H:%M') }}
+                        </small>
+                    </div>
+                    
+                    <div class="mt-1">
+                        <strong class="text-primary">Demande :</strong>
+                        <p class="mb-1">{{ avis.demande_avis or 'Non spécifiée' }}</p>
+                    </div>
+                    
+                    <div class="mt-1">
+                        <strong class="text-success">Avis reçu :</strong>
+                        <p class="mb-1">{{ avis.avis_recu }}</p>
+                    </div>
+                    
+                    {% if avis.date_reception %}
+                    <small class="text-muted">
+                        <i class="fas fa-check-circle text-success me-1"></i>
+                        Reçu le {{ avis.date_reception.strftime('%d/%m/%Y %H:%M') }}
+                    </small>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Aucun avis externe enregistré
+            </p>
+        {% endif %}
+    </div>
+</div>
+<!-- ========== MODAL CLÔTURER ========== -->
+<div class="modal fade" id="cloturerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('cloturer_hospitalisation', id=hospitalisation.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-check-circle me-2 text-danger"></i>Clôturer l'hospitalisation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Êtes-vous sûr de vouloir clôturer cette hospitalisation ?
+                    </div>
+                    
+                    <!-- Type de sortie -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Type de sortie *</label>
+                        <select name="type_sortie" class="form-select" id="typeSortie" required>
+                            <option value="sortie">Sortie normale (guérison/retour à domicile)</option>
+                            <option value="transfere">Transfert vers un autre centre</option>
+                            <option value="deces">Décès</option>
+                            <option value="autres">Autres motifs</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Zone Transfert -->
+                    <div id="zoneTransfert" style="display: none;" class="border p-3 rounded mb-3 bg-light">
+                        <h6 class="text-primary"><i class="fas fa-ambulance me-2"></i>Informations de transfert</h6>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Centre de transfert *</label>
+                            <input type="text" name="centre_transfert" class="form-control" placeholder="Ex: CHU Lomé, Clinique Saint-Jean...">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Motif du transfert</label>
+                            <textarea name="motif_transfert" class="form-control" rows="2" placeholder="Raison du transfert..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Date du transfert</label>
+                            <input type="datetime-local" name="date_transfert" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <!-- Zone Autres motifs -->
+                    <div id="zoneAutres" style="display: none;" class="border p-3 rounded mb-3 bg-light">
+                        <h6 class="text-warning"><i class="fas fa-pen me-2"></i>Précisez le motif</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Motif de sortie *</label>
+                            <textarea name="motif_autres" class="form-control" rows="3" placeholder="Décrivez le motif de sortie..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- Motif de sortie général -->
+                    <div class="mb-3">
+                        <label class="form-label">Observations finales</label>
+                        <textarea name="motif_sortie" class="form-control" rows="3" placeholder="Observations complémentaires..."></textarea>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="confirmCloture" required>
+                        <label class="form-check-label" for="confirmCloture">
+                            Je confirme que le patient est sorti et que toutes les informations ont été enregistrées
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-check me-2"></i>Confirmer la sortie
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- ========== MODAL AJOUTER AVIS EXTERNE ========== -->
+<div class="modal fade" id="avisExternesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('ajouter_avis_externe', id=hospitalisation.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-md me-2 text-info"></i>
+                        Nouvel avis de médecin externe
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Saisissez un nouvel avis externe pour ce patient.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">👨‍⚕️ Médecin *</label>
+                            <input type="text" name="medecin_nom" class="form-control" required 
+                                   placeholder="Dr. Kouassi, Pr. Mensah...">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Spécialité</label>
+                            <input type="text" name="specialite" class="form-control" 
+                                   placeholder="Cardiologie, Neurologie...">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">🏥 Établissement</label>
+                        <input type="text" name="etablissement" class="form-control" 
+                               placeholder="CHU Lomé, Clinique Saint-Jean...">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">📩 Demande d'avis</label>
+                        <textarea name="demande_avis" class="form-control" rows="2" 
+                                  placeholder="Ce qui a été demandé au médecin externe..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">📋 Avis reçu *</label>
+                        <textarea name="avis_recu" class="form-control" rows="4" required
+                                  placeholder="Synthèse de l'avis reçu..."></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">📅 Date de la demande</label>
+                            <input type="datetime-local" name="date_demande" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">📅 Date de réception</label>
+                            <input type="datetime-local" name="date_reception" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-info text-white">
+                        <i class="fas fa-save me-2"></i>Enregistrer l'avis
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+<!-- ========== BLOCK EXTRA_JS ========== -->
+{% block extra_js %}
+<!-- Graphique -->
+{% if evolutions %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('evolutionChart');
+    if (!ctx) return;
+    
+    const evolutions = [
+        {% for e in evolutions|reverse %}
+        {
+            date: '{{ e.date_evolution.strftime("%d/%m") }}',
+            etat: {{ e.etat_echelle }},
+            temperature: {{ e.temperature or 'null' }},
+            fc: {{ e.fc or 'null' }}
+        },
+        {% endfor %}
+    ];
+    
+    if (evolutions.length === 0) return;
+    
+    new Chart(ctx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: evolutions.map(e => e.date),
+            datasets: [
+                {
+                    label: 'État (0-10)',
+                    data: evolutions.map(e => e.etat),
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Température (°C)',
+                    data: evolutions.map(e => e.temperature),
+                    borderColor: '#dc3545',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    yAxisID: 'y1',
+                    hidden: evolutions.every(e => e.temperature === null)
+                },
+                {
+                    label: 'FC (bpm)',
+                    data: evolutions.map(e => e.fc),
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    yAxisID: 'y1',
+                    hidden: evolutions.every(e => e.fc === null)
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    min: 0,
+                    max: 10,
+                    ticks: {
+                        stepSize: 1
+                    },
+                    title: {
+                        display: true,
+                        text: 'État'
+                    }
+                },
+                y1: {
+                    position: 'right',
+                    grid: {
+                        drawOnChartArea: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Constantes'
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+
+<!-- Script pour afficher/masquer les zones du modal -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const typeSortie = document.getElementById('typeSortie');
+    const zoneTransfert = document.getElementById('zoneTransfert');
+    const zoneAutres = document.getElementById('zoneAutres');
+    
+    if (!typeSortie) return;
+    
+    function toggleZones() {
+        const valeur = typeSortie.value;
+        
+        // Cacher toutes les zones
+        zoneTransfert.style.display = 'none';
+        zoneAutres.style.display = 'none';
+        
+        // Enlever les attributs required
+        zoneTransfert.querySelectorAll('input, textarea').forEach(el => el.required = false);
+        zoneAutres.querySelectorAll('textarea').forEach(el => el.required = false);
+        
+        // Afficher la zone appropriée
+        if (valeur === 'transfere') {
+            zoneTransfert.style.display = 'block';
+            zoneTransfert.querySelectorAll('input, textarea').forEach(el => {
+                if (el.name !== 'date_transfert') el.required = true;
+            });
+        } else if (valeur === 'autres') {
+            zoneAutres.style.display = 'block';
+            zoneAutres.querySelectorAll('textarea').forEach(el => el.required = true);
+        }
+    }
+    
+    // Écouter les changements
+    typeSortie.addEventListener('change', toggleZones);
+    
+    // Appliquer au chargement
+    toggleZones();
+});
+</script>
+{% endblock %}

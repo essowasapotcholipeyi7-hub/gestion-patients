@@ -9,7 +9,8 @@
             <i class="fas fa-users me-2"></i>
             Gestion des utilisateurs
         </h1>
-        <a href="{{ url_for('structure_ajouter_utilisateur') }}" class="btn btn-primary">
+        <!-- ⭐ AJOUT DE data-loading="true" -->
+        <a href="{{ url_for('structure_ajouter_utilisateur') }}" class="btn btn-primary" data-loading="true">
             <i class="fas fa-user-plus me-2"></i>Nouvel utilisateur
         </a>
     </div>
@@ -37,12 +38,39 @@
                             <td>{{ user.prenom }}</td>
                             <td>{{ user.email }}</td>
                             <td>
+                                <!-- ⭐ TOUS LES RÔLES AVEC ICÔNES -->
                                 {% if user.role == 'admin_structure' %}
-                                    <span class="badge bg-danger">Administrateur</span>
+                                    <span class="badge bg-danger"><i class="fas fa-crown me-1"></i>Administrateur</span>
                                 {% elif user.role == 'medecin' %}
-                                    <span class="badge bg-primary">Médecin</span>
+                                    <span class="badge bg-primary"><i class="fas fa-user-md me-1"></i>Médecin</span>
+                                {% elif user.role == 'infirmier' %}
+                                    <span class="badge bg-success"><i class="fas fa-user-nurse me-1"></i>Infirmier</span>
                                 {% elif user.role == 'secretaire' %}
-                                    <span class="badge bg-info">Secrétaire</span>
+                                    <span class="badge bg-info"><i class="fas fa-file-alt me-1"></i>Secrétaire</span>
+                                {% elif user.role == 'laborantin' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-flask me-1"></i>Laborantin</span>
+                                {% elif user.role == 'radiologue' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-x-ray me-1"></i>Radiologue</span>
+                                {% elif user.role == 'kinésithérapeute' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-hand-sparkles me-1"></i>Kinésithérapeute</span>
+                                {% elif user.role == 'psychologue' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-brain me-1"></i>Psychologue</span>
+                                {% elif user.role == 'nutritionniste' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-apple-alt me-1"></i>Nutritionniste</span>
+                                {% elif user.role == 'pharmacien' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-prescription-bottle me-1"></i>Pharmacien</span>
+                                {% elif user.role == 'sage-femme' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-baby me-1"></i>Sage-femme</span>
+                                {% elif user.role == 'ambulancier' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-ambulance me-1"></i>Ambulancier</span>
+                                {% elif user.role == 'accueil' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-building me-1"></i>Accueil</span>
+                                {% elif user.role == 'comptable' %}
+                                    <span class="badge bg-warning"><i class="fas fa-calculator me-1"></i>Comptable</span>
+                                {% elif user.role == 'assistant_medical' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-hand-holding-heart me-1"></i>Assistant médical</span>
+                                {% elif user.role == 'technicien_superieur' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-microscope me-1"></i>Technicien supérieur</span>
                                 {% else %}
                                     <span class="badge bg-secondary">{{ user.role }}</span>
                                 {% endif %}
@@ -55,14 +83,16 @@
                                 {% endif %}
                             </td>
                             <td>
+                                <!-- ⭐ AJOUT DE data-loading="true" -->
                                 <a href="{{ url_for('structure_modifier_utilisateur', id=user.id) }}" 
-                                   class="btn btn-sm btn-warning">
+                                   class="btn btn-sm btn-warning" data-loading="true">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 {% if user.id != current_user.id %}
                                 <a href="{{ url_for('structure_supprimer_utilisateur', id=user.id) }}" 
                                    class="btn btn-sm btn-danger"
-                                   onclick="return confirm('Supprimer cet utilisateur ?')">
+                                   data-confirm="Supprimer définitivement {{ user.prenom }} {{ user.nom }} ?"
+                                   data-loading="true">
                                     <i class="fas fa-trash"></i>
                                 </a>
                                 {% endif %}
