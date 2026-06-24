@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Détail salle - {{ salle.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3">
+                <i class="fas fa-bed me-2 text-primary"></i>
+                Salle {{ salle.nom }}
+                <span class="badge bg-info ms-2">{{ salle.type_salle }}</span>
+            </h1>
+            <p class="text-muted">
+                Service : {{ salle.service.nom }} | 
+                {{ lits|selectattr('statut', 'equalto', 'disponible')|list|length }} lits disponibles / {{ lits|length }} total
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('liste_salles') }}" class="btn btn-secondary" data-loading="true">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>Lits de la salle</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for lit in lits %}
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="card h-100 {% if lit.statut == 'occupe' %}border-danger{% elif lit.statut == 'disponible' %}border-success{% else %}border-warning{% endif %}">
+                        <div class="card-body text-center">
+                            <h4 class="display-6">
+                                <i class="fas fa-bed me-2"></i>{{ lit.numero }}
+                            </h4>
+                            <p>
+                                {% if lit.statut == 'disponible' %}
+                                    <span class="badge bg-success">✅ Disponible</span>
+                                {% elif lit.statut == 'occupe' %}
+                                    <span class="badge bg-danger">❌ Occupé</span>
+                                {% else %}
+                                    <span class="badge bg-warning">🔧 Hors service</span>
+                                {% endif %}
+                            </p>
+                            {% if lit.statut == 'occupe' and lit.patient %}
+                            <p class="small text-muted">
+                                Patient : {{ lit.patient.prenom }} {{ lit.patient.nom }}
+                            </p>
+                            {% endif %}
+                            <p class="small text-muted">Prix : {{ salle.prix_journalier or 'N/D' }} CFA</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

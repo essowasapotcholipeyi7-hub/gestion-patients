@@ -183,190 +183,215 @@
         <!-- ==================== COLONNE DROITE ==================== -->
         <div class="col-md-8">
             
-            <!-- HISTORIQUE DES CONSULTATIONS -->
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-stethoscope me-2"></i>Historique des consultations</h5>
-                    <a href="{{ url_for('consultation_ajouter_avec_patient', id=patient.id) }}" class="btn btn-sm btn-light"data-loading="true">
-                        <i class="fas fa-plus me-1"></i>Nouvelle consultation
-                    </a>
+<!-- HISTORIQUE DES CONSULTATIONS -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-stethoscope me-2"></i>Historique des consultations</h5>
+        <a href="{{ url_for('consultation_ajouter_avec_patient', id=patient.id) }}" class="btn btn-sm btn-light" data-loading="true">
+            <i class="fas fa-plus me-1"></i>Nouvelle consultation
+        </a>
+    </div>
+    <div class="card-body">
+        {% if consultations %}
+            {% for consultation in consultations %}
+            <div class="card mb-3">
+                <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong>
+                            <i class="fas fa-calendar-alt me-2"></i>
+                            {{ consultation.date_consultation.strftime('%d/%m/%Y %H:%M') if consultation.date_consultation else '-' }}
+                        </strong>
+                        <div>
+                            <span class="badge bg-primary">{{ consultation.type_consultation or 'Consultation' }}</span>
+                            <!-- ⭐ CIM-10 dans l'en-tête -->
+                            {% if consultation.cim10 %}
+                            <span class="badge bg-info">CIM-10</span>
+                            {% endif %}
+                            <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-sm btn-outline-primary ms-2" data-loading="true">
+                                <i class="fas fa-eye me-1"></i>Voir détails
+                            </a>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
-                    {% if consultations %}
-                        {% for consultation in consultations %}
-                        <div class="card mb-3">
-                            <div class="card-header bg-light">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <strong>
-                                        <i class="fas fa-calendar-alt me-2"></i>
-                                        {{ consultation.date_consultation.strftime('%d/%m/%Y %H:%M') if consultation.date_consultation else '-' }}
-                                    </strong>
-                                    <div>
-                                        <span class="badge bg-primary">{{ consultation.type_consultation or 'Consultation' }}</span>
-                                        <!-- ⭐ LIEN VERS LA CONSULTATION -->
-                                        <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-sm btn-outline-primary ms-2">
-                                            <i class="fas fa-eye me-1"></i>Voir détails
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <strong>Motif :</strong>
-                                        <p>{{ consultation.motif or '-' }}</p>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <strong>Diagnostic :</strong>
-                                        <p>{{ consultation.diagnostic or '-' }}</p>
-                                    </div>
-                                </div>
-                                
-                                <!-- Signes vitaux -->
-                                {% if consultation.tension_arterielle or consultation.temperature_c or consultation.pulse_bpm %}
-                                <hr>
-                                <div class="row">
-                                    <div class="col-md-3">
-                                        <small class="text-muted">Tension</small><br>
-                                        <strong>{{ consultation.tension_arterielle or '-' }}</strong>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <small class="text-muted">Température</small><br>
-                                        <strong>{{ consultation.temperature_c or '-' }} °C</strong>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <small class="text-muted">Pouls</small><br>
-                                        <strong>{{ consultation.pulse_bpm or '-' }} bpm</strong>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <small class="text-muted">Saturation</small><br>
-                                        <strong>{{ consultation.oxygene_saturation or '-' }} %</strong>
-                                    </div>
-                                </div>
-                                {% endif %}
-                                
-                                <!-- Anthropométrie -->
-                                {% if consultation.poids_kg or consultation.taille_cm or consultation.imc %}
-                                <hr>
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <small class="text-muted">Poids</small><br>
-                                        <strong>{{ consultation.poids_kg or '-' }} kg</strong>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <small class="text-muted">Taille</small><br>
-                                        <strong>{{ consultation.taille_cm or '-' }} cm</strong>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <small class="text-muted">IMC</small><br>
-                                        <strong>{{ consultation.imc or '-' }}</strong>
-                                        {% if consultation.imc %}
-                                            <br>
-                                            <small class="text-{{ 'danger' if consultation.imc < 18.5 or consultation.imc > 25 else 'success' }}">
-                                                {% if consultation.imc < 18.5 %}Maigreur
-                                                {% elif consultation.imc < 25 %}Normal
-                                                {% elif consultation.imc < 30 %}Surpoids
-                                                {% elif consultation.imc < 35 %}Obésité modérée
-                                                {% elif consultation.imc < 40 %}Obésité sévère
-                                                {% else %}Obésité morbide
-                                                {% endif %}
-                                            </small>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                {% endif %}
-                                
-                                <!-- ⭐ EXAMENS (nouveaux noms) -->
-                                {% if consultation.examens_cliniques or consultation.examens_biologie or consultation.examens_imagerie %}
-                                <hr>
-                                <div class="row">
-                                    {% if consultation.examens_cliniques %}
-                                    <div class="col-md-12">
-                                        <strong>🔬 Examens cliniques :</strong>
-                                        <p class="small">{{ consultation.examens_cliniques }}</p>
-                                    </div>
-                                    {% endif %}
-                                    {% if consultation.examens_biologie %}
-                                    <div class="col-md-6">
-                                        <strong>🧪 Examens biologie :</strong>
-                                        <p class="small">{{ consultation.examens_biologie }}</p>
-                                    </div>
-                                    {% endif %}
-                                    {% if consultation.examens_imagerie %}
-                                    <div class="col-md-6">
-                                        <strong>📷 Examens imagerie :</strong>
-                                        <p class="small">{{ consultation.examens_imagerie }}</p>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                {% endif %}
-                                
-                                <!-- ⭐ RÉSULTATS -->
-                                {% if consultation.resultats_biologie or consultation.resultats_imagerie %}
-                                <hr>
-                                <div class="alert alert-success">
-                                    <strong><i class="fas fa-file-medical-alt me-2"></i>Résultats :</strong><br>
-                                    {% if consultation.resultats_biologie %}
-                                        <strong>🧪 Biologie :</strong> {{ consultation.resultats_biologie }}<br>
-                                    {% endif %}
-                                    {% if consultation.resultats_imagerie %}
-                                        <strong>📷 Imagerie :</strong> {{ consultation.resultats_imagerie }}
-                                    {% endif %}
-                                    {% if consultation.date_resultats %}
-                                        <br><small>📅 Reçu le {{ consultation.date_resultats.strftime('%d/%m/%Y %H:%M') }}</small>
-                                    {% endif %}
-                                </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Motif :</strong>
+                            <p>{{ consultation.motif or '-' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Diagnostic :</strong>
+                            <p>{{ consultation.diagnostic or '-' }}</p>
+                            
+                            <!-- ⭐ CIM-10 - Affichage ligne par ligne -->
+                            {% if consultation.cim10 %}
+                            <div class="mt-1">
+                                <small class="text-muted">CIM-10 :</small><br>
+                                {# Séparer par virgule ou espace #}
+                                {% if ',' in consultation.cim10 %}
+                                    {% set codes = consultation.cim10.split(',') %}
                                 {% else %}
-                                    {% if consultation.examens_biologie or consultation.examens_imagerie %}
-                                    <hr>
-                                    <div class="alert alert-warning">
-                                        <i class="fas fa-clock me-2"></i>
-                                        <strong>En attente des résultats</strong>
-                                    </div>
-                                    {% endif %}
+                                    {% set codes = consultation.cim10.split() %}
                                 {% endif %}
-                                
-                                <!-- Traitement -->
-                                {% if consultation.traitement_prescrit %}
-                                <hr>
-                                <div class="alert alert-info">
-                                    <strong><i class="fas fa-prescription-bottle me-2"></i>Traitement prescrit :</strong><br>
-                                    {{ consultation.traitement_prescrit }}
-                                </div>
-                                {% endif %}
-                                
-                                <!-- Notes -->
-                                {% if consultation.notes_cliniques %}
-                                <div class="alert alert-secondary">
-                                    <strong><i class="fas fa-comment me-2"></i>Notes cliniques :</strong><br>
-                                    {{ consultation.notes_cliniques }}
-                                </div>
-                                {% endif %}
-                                
-                                <!-- Arrêt de travail et prochain RDV -->
-                                <div class="row mt-2">
-                                    {% if consultation.arret_travail %}
-                                    <div class="col-md-6">
-                                        <span class="badge bg-warning">Arrêt de travail: {{ consultation.arret_jours or '?' }} jours</span>
-                                    </div>
+                                {% for code in codes %}
+                                    {% if code.strip() %}
+                                        <span class="badge bg-primary mb-1">{{ code.strip() }}</span><br>
                                     {% endif %}
-                                    {% if consultation.prochain_rdv %}
-                                    <div class="col-md-6">
-                                        <span class="badge bg-info">Prochain RDV: {{ consultation.prochain_rdv.strftime('%d/%m/%Y') }}</span>
-                                    </div>
-                                    {% endif %}
-                                </div>
+                                {% endfor %}
                             </div>
+                            {% endif %}
                         </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="alert alert-info text-center">
-                            <i class="fas fa-info-circle me-2"></i>Aucune consultation enregistrée
+                    </div>
+
+                    <!-- Signes vitaux -->
+                    {% if consultation.tension_arterielle or consultation.temperature_c or consultation.pulse_bpm %}
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <small class="text-muted">Tension</small><br>
+                            <strong>{{ consultation.tension_arterielle or '-' }}</strong>
                         </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Température</small><br>
+                            <strong>{{ consultation.temperature_c or '-' }} °C</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Pouls</small><br>
+                            <strong>{{ consultation.pulse_bpm or '-' }} bpm</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Saturation</small><br>
+                            <strong>{{ consultation.oxygene_saturation or '-' }} %</strong>
+                        </div>
+                    </div>
                     {% endif %}
+                    
+                    <!-- Anthropométrie -->
+                    {% if consultation.poids_kg or consultation.taille_cm or consultation.imc %}
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <small class="text-muted">Poids</small><br>
+                            <strong>{{ consultation.poids_kg or '-' }} kg</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">Taille</small><br>
+                            <strong>{{ consultation.taille_cm or '-' }} cm</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">IMC</small><br>
+                            <strong>{{ consultation.imc or '-' }}</strong>
+                            {% if consultation.imc %}
+                                <br>
+                                <small class="text-{{ 'danger' if consultation.imc < 18.5 or consultation.imc > 25 else 'success' }}">
+                                    {% if consultation.imc < 18.5 %}Maigreur
+                                    {% elif consultation.imc < 25 %}Normal
+                                    {% elif consultation.imc < 30 %}Surpoids
+                                    {% elif consultation.imc < 35 %}Obésité modérée
+                                    {% elif consultation.imc < 40 %}Obésité sévère
+                                    {% else %}Obésité morbide
+                                    {% endif %}
+                                </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Examens -->
+                    {% if consultation.examens_cliniques or consultation.examens_biologie or consultation.examens_imagerie %}
+                    <hr>
+                    <div class="row">
+                        {% if consultation.examens_cliniques %}
+                        <div class="col-md-12">
+                            <strong>🔬 Examens cliniques :</strong>
+                            <p class="small">{{ consultation.examens_cliniques }}</p>
+                        </div>
+                        {% endif %}
+                        {% if consultation.examens_biologie %}
+                        <div class="col-md-6">
+                            <strong>🧪 Examens biologie :</strong>
+                            <p class="small">{{ consultation.examens_biologie }}</p>
+                        </div>
+                        {% endif %}
+                        {% if consultation.examens_imagerie %}
+                        <div class="col-md-6">
+                            <strong>📷 Examens imagerie :</strong>
+                            <p class="small">{{ consultation.examens_imagerie }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+<!-- ==================== RÉSULTATS ==================== -->
+{% if consultation.resultats_biologie or consultation.resultats_imagerie %}
+<hr>
+<div class="alert alert-success">
+    <strong><i class="fas fa-file-medical-alt me-2"></i>Résultats :</strong><br>
+    {% if consultation.resultats_biologie %}
+        <strong>🧪 Biologie :</strong><br>
+        <div class="border rounded p-2 bg-white mt-1">{{ consultation.resultats_biologie|nl2br }}</div>
+        <br>
+    {% endif %}
+    {% if consultation.resultats_imagerie %}
+        <strong>📷 Imagerie :</strong><br>
+        <div class="border rounded p-2 bg-white mt-1">{{ consultation.resultats_imagerie|nl2br }}</div>
+        <br>
+    {% endif %}
+    {% if consultation.date_resultats %}
+        <small>📅 Reçu le {{ consultation.date_resultats.strftime('%d/%m/%Y %H:%M') }}</small>
+    {% endif %}
+</div>
+
+{% else %}
+    {% if consultation.examens_biologie or consultation.examens_imagerie %}
+    <hr>
+    <div class="alert alert-warning">
+        <i class="fas fa-clock me-2"></i>
+        <strong>En attente des résultats</strong>
+        <p class="mb-0 mt-1 small">Les analyses ont été prescrites mais les résultats ne sont pas encore disponibles.</p>
+    </div>
+    {% endif %}
+{% endif %}                    
+                    <!-- Traitement -->
+                    {% if consultation.traitement_prescrit %}
+                    <hr>
+                    <div class="alert alert-info">
+                        <strong><i class="fas fa-prescription-bottle me-2"></i>Traitement prescrit :</strong><br>
+                        {{ consultation.traitement_prescrit }}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Notes -->
+                    {% if consultation.notes_cliniques %}
+                    <div class="alert alert-secondary">
+                        <strong><i class="fas fa-comment me-2"></i>Notes cliniques :</strong><br>
+                        {{ consultation.notes_cliniques }}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Arrêt de travail et prochain RDV -->
+                    <div class="row mt-2">
+                        {% if consultation.arret_travail %}
+                        <div class="col-md-6">
+                            <span class="badge bg-warning">Arrêt de travail: {{ consultation.arret_jours or '?' }} jours</span>
+                        </div>
+                        {% endif %}
+                        {% if consultation.prochain_rdv %}
+                        <div class="col-md-6">
+                            <span class="badge bg-info">Prochain RDV: {{ consultation.prochain_rdv.strftime('%d/%m/%Y') }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
-            
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle me-2"></i>Aucune consultation enregistrée
+            </div>
+        {% endif %}
+    </div>
+</div>            
             <!-- PRESCRIPTIONS -->
             <div class="card">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">

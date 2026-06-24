@@ -4,26 +4,32 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">
-            <i class="fas fa-stethoscope me-2"></i>
-            Détail de la consultation
-        </h1>
-        <div>
-            <!-- ⭐ BOUTON RÉSULTATS -->
-            <button type="button" class="btn btn-success me-2" onclick="ouvrirModalResultats()">
-                <i class="fas fa-file-medical-alt me-2"></i>
-                {% if consultation.resultats_biologie or consultation.resultats_imagerie %}
-                    Modifier les résultats
-                {% else %}
-                    Ajouter les résultats
-                {% endif %}
-            </button>
-            <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left me-2"></i>Retour au patient
-            </a>
-        </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3">
+        <i class="fas fa-stethoscope me-2"></i>
+        Détail de la consultation
+    </h1>
+    <div>
+        <!-- ⭐ BOUTON RÉSULTATS -->
+        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#resultatsModal">
+            <i class="fas fa-file-medical-alt me-2"></i>
+            {% if consultation.resultats_biologie or consultation.resultats_imagerie %}
+                Modifier les résultats
+            {% else %}
+                Ajouter les résultats
+            {% endif %}
+        </button>
+        
+        <!-- ⭐ BOUTON RÉFÉRENCE (NOUVEAU) -->
+        <a href="{{ url_for('ajouter_reference', id=consultation.id) }}" class="btn btn-warning me-2" data-loading="true">
+            <i class="fas fa-ambulance me-2"></i>Référencer
+        </a>
+        
+        <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Retour au patient
+        </a>
     </div>
+</div>
 
     <div class="row">
         <!-- Informations patient -->
@@ -207,15 +213,112 @@
                         <p class="mb-0">Les résultats ne sont pas encore disponibles.</p>
                     </div>
                     {% endif %}
-                    
-                    <!-- Diagnostic et traitement -->
-                    <h5 class="mt-3 mb-3"><i class="fas fa-notes-medical me-2 text-success"></i>Diagnostic & Traitement</h5>
-                    <hr>
-                    <div class="mb-3">
-                        <strong>Diagnostic :</strong>
-                        <p class="border rounded p-2 bg-light">{{ consultation.diagnostic or '-' }}</p>
-                    </div>
-                    
+<!-- ==================== ANALYSES ==================== -->
+
+<!-- Demander une analyse -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="fas fa-flask me-2"></i>Demander une analyse</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('ajouter_analyse_demande', id=consultation.id) }}">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Type d'analyse</label>
+                    <select name="type_analyse" class="form-select" required>
+                        <option value="BIOLOGIE">Biologie</option>
+                        <option value="IMAGERIE">Imagerie</option>
+                        <option value="AUTRE">Autre</option>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Nom de l'analyse</label>
+                    <input type="text" name="nom_analyse" class="form-control" required placeholder="Ex: NFS, Glycémie, Radio...">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Description</label>
+                    <input type="text" name="description" class="form-control" placeholder="Informations complémentaires">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Demander l'analyse
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Liste des analyses demandées pour cette consultation -->
+{% if consultation.analyses_demandees %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Analyses demandées</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Analyse</th>
+                        <th>Date</th>
+                        <th>Statut</th>
+                        <th>Résultats</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in consultation.analyses_demandees %}
+                    <tr>
+                        <td>{{ a.nom_analyse }}</td>
+                        <td>{{ a.date_demande.strftime('%d/%m/%Y') }}</td>
+                        <td>
+                            {% if a.statut == 'EN_ATTENTE' %}
+                                <span class="badge bg-warning">En attente</span>
+                            {% elif a.statut == 'EN_COURS' %}
+                                <span class="badge bg-primary">En cours</span>
+                            {% elif a.statut == 'TERMINE' %}
+                                <span class="badge bg-success">Terminé ✅</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if a.statut == 'TERMINE' %}
+                                <span class="text-success">Disponibles</span>
+                            {% else %}
+                                <span class="text-muted">En attente</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Diagnostic -->
+<div class="mb-3">
+    <strong>Diagnostic :</strong>
+    <p class="border rounded p-2 bg-light">{{ consultation.diagnostic or '-' }}</p>
+</div>
+
+<!-- ⭐ CIM-10 - Affichage ligne par ligne -->
+{% if consultation.cim10 %}
+<div class="mb-3">
+    <strong>CIM-10 :</strong>
+    <div class="border rounded p-2 bg-light">
+        {# Séparer par virgule ou espace #}
+        {% if ',' in consultation.cim10 %}
+            {% set codes = consultation.cim10.split(',') %}
+        {% else %}
+            {% set codes = consultation.cim10.split() %}
+        {% endif %}
+        {% for code in codes %}
+            {% if code.strip() %}
+                <span class="badge bg-primary mb-1">{{ code.strip() }}</span><br>
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
                     <div class="mb-3">
                         <strong>Traitement prescrit :</strong>
                         <p class="border rounded p-2 bg-light">{{ consultation.traitement_prescrit or '-' }}</p>
@@ -278,21 +381,45 @@
                 <div class="modal-body">
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle me-2"></i>
-                        Saisissez les résultats des examens prescrits lors de cette consultation.
+                        Saisissez ou modifiez les résultats des examens et analyses.
                     </div>
+                    
+                    <!-- ⭐ RÉSULTATS DES ANALYSES DEMANDÉES -->
+                    {% if consultation.analyses_demandees %}
+                    <div class="alert alert-secondary">
+                        <strong><i class="fas fa-flask me-2"></i>Analyses demandées :</strong>
+                        <ul class="mb-0 mt-1">
+                            {% for a in consultation.analyses_demandees %}
+                            <li>
+                                {{ a.nom_analyse }} 
+                                <span class="badge 
+                                    {% if a.statut == 'EN_ATTENTE' %}bg-warning
+                                    {% elif a.statut == 'EN_COURS' %}bg-primary
+                                    {% elif a.statut == 'TERMINE' %}bg-success
+                                    {% endif %}">
+                                    {{ a.statut }}
+                                </span>
+                                {% if a.resultats %}
+                                    <span class="badge bg-success">✅ Résultats saisis</span>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">🧪 Résultats biologie</label>
-                            <textarea name="resultats_biologie" class="form-control" rows="5" 
+                            <textarea name="resultats_biologie" class="form-control" rows="6" 
                                       placeholder="NFS, Glycémie, Bilan hépatique...">{{ consultation.resultats_biologie or '' }}</textarea>
-                            <small class="text-muted">Ex: NFS: GB 4500/mm³, Hb 12.5g/dL</small>
+                            <small class="text-muted">Une analyse par ligne ou texte libre</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">📷 Résultats imagerie</label>
-                            <textarea name="resultats_imagerie" class="form-control" rows="5" 
+                            <textarea name="resultats_imagerie" class="form-control" rows="6" 
                                       placeholder="Radio, Échographie, Scanner...">{{ consultation.resultats_imagerie or '' }}</textarea>
-                            <small class="text-muted">Ex: Échographie: Foie normal</small>
+                            <small class="text-muted">Une analyse par ligne ou texte libre</small>
                         </div>
                     </div>
                     
@@ -313,7 +440,6 @@
         </div>
     </div>
 </div>
-
 <!-- ========== SCRIPT ========== -->
 <script>
 function ouvrirModalResultats() {

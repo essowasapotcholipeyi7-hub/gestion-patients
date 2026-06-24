@@ -54,22 +54,26 @@
                 </div>
             </div>
 
-            <!-- Carte Hospitalisation -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Hospitalisation</h5>
-                </div>
-                <div class="card-body">
-                    <p><strong>Service :</strong> {{ hospitalisation.service }}</p>
-                    <p><strong>Chambre :</strong> {{ hospitalisation.chambre or 'Non spécifié' }}</p>
-                    <p><strong>Lit :</strong> {{ hospitalisation.lit or 'Non spécifié' }}</p>
-                    <p><strong>Motif :</strong> {{ hospitalisation.motif }}</p>
-                    {% if hospitalisation.notes_admission %}
-                    <p><strong>Notes admission :</strong><br>{{ hospitalisation.notes_admission }}</p>
-                    {% endif %}
-                </div>
-            </div>
-
+<!-- Carte Hospitalisation -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Hospitalisation</h5>
+    </div>
+    <div class="card-body">
+        <p><strong>Service :</strong> {{ hospitalisation.service }}</p>
+        <p><strong>Chambre :</strong> {{ hospitalisation.chambre or 'Non spécifié' }}</p>
+        <!-- ⭐ AFFICHER LE LIT ASSIGNÉ -->
+        {% if hospitalisation.lit_id %}
+        <p><strong>Lit assigné :</strong> 
+            <span class="badge bg-success">{{ hospitalisation.lit.chambre }} - Lit {{ hospitalisation.lit.numero }}</span>
+        </p>
+        {% endif %}
+        <p><strong>Motif :</strong> {{ hospitalisation.motif }}</p>
+        {% if hospitalisation.notes_admission %}
+        <p><strong>Notes admission :</strong><br>{{ hospitalisation.notes_admission }}</p>
+        {% endif %}
+    </div>
+</div>
             <!-- Carte Équipe soignante -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -257,52 +261,162 @@
                 </div>
             </div>
 
-            <!-- Constantes Vitales -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Constantes Vitales</h5>
-                    <span class="badge bg-success">{{ constantes|length }}</span>
-                </div>
-                <div class="card-body">
-                    {% if constantes %}
-                    <div class="table-responsive">
-                        <table class="table table-sm table-striped table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Date/Heure</th>
-                                    <th>Température</th>
-                                    <th>PA</th>
-                                    <th>FC</th>
-                                    <th>SpO₂</th>
-                                    <th>Glycémie</th>
-                                    <th>IMC</th>
-                                    <th>Infirmier</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for c in constantes %}
-                                <tr>
-                                    <td>{{ c.date_prise.strftime('%d/%m %H:%M') }}</td>
-                                    <td>{{ c.temperature or '-' }} °C</td>
-                                    <td>{{ c.pression_arterielle or '-' }}</td>
-                                    <td>{{ c.frequence_cardiaque or '-' }} bpm</td>
-                                    <td>{{ c.saturation_oxygene or '-' }} %</td>
-                                    <td>{{ c.glycemie or '-' }} g/L</td>
-                                    <td>{{ c.imc or '-' }}</td>
-                                    <td>{{ c.infirmier.nom }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+<!-- Constantes Vitales -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Constantes Vitales</h5>
+        <span class="badge bg-success">{{ constantes|length }}</span>
+    </div>
+    <div class="card-body">
+        {% if constantes %}
+        <div class="table-responsive">
+            <table class="table table-sm table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Date/Heure</th>
+                        <th>Température</th>
+                        <th>PA</th>
+                        <th>FC</th>
+                        <th>SpO₂</th>
+                        <th>Glycémie</th>
+                        <th>Diurèse</th>
+                        <th>Gaz/Selles</th>
+                        <th>Douleur</th>
+                        <th>Conscience</th>
+                        <th>Autres</th>
+                        <th>Notes</th>
+                        <th>Infirmier</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in constantes %}
+                    <tr>
+                        <td><strong>{{ c.date_prise.strftime('%d/%m %H:%M') }}</strong></td>
+                        <td>
+                            {% if c.temperature %}
+                                <span class="badge {% if c.temperature > 38 %}bg-danger{% elif c.temperature > 37.5 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ c.temperature }} °C
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ c.pression_arterielle or '-' }}</td>
+                        <td>
+                            {% if c.frequence_cardiaque %}
+                                <span class="badge {% if c.frequence_cardiaque > 100 or c.frequence_cardiaque < 60 %}bg-danger{% else %}bg-success{% endif %}">
+                                    {{ c.frequence_cardiaque }} bpm
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if c.saturation_oxygene %}
+                                <span class="badge {% if c.saturation_oxygene < 95 %}bg-danger{% elif c.saturation_oxygene < 97 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ c.saturation_oxygene }} %
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ c.glycemie or '-' }} g/L</td>
+                        <td>{{ c.diurese or '-' }}</td>
+                        <td>
+                            {% if c.emission_gaz or c.selles %}
+                                {{ c.emission_gaz or '-' }} / {{ c.selles or '-' }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if c.douleur %}
+                                <span class="badge {% if c.douleur > 7 %}bg-danger{% elif c.douleur > 4 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ c.douleur }}/10
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ c.conscience or '-' }}</td>
+                        <td>
+                            {% if c.autres_constantes %}
+                                <span class="text-muted small">{{ c.autres_constantes[:30] }}{% if c.autres_constantes|length > 30 %}...{% endif %}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if c.notes %}
+                                <span class="text-muted small">{{ c.notes[:30] }}{% if c.notes|length > 30 %}...{% endif %}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ c.infirmier.nom }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Dernière constante en évidence -->
+        <div class="mt-3">
+            <div class="alert alert-info">
+                <strong>📊 Dernières constantes :</strong>
+                {% set derniere = constantes|first %}
+                <div class="row mt-2">
+                    <div class="col-md-2">
+                        <small class="text-muted">Température</small><br>
+                        <strong>{{ derniere.temperature or '-' }} °C</strong>
                     </div>
-                    {% else %}
-                    <p class="text-muted text-center my-4">
-                        <i class="fas fa-info-circle me-2"></i>Aucune constante enregistrée
-                    </p>
-                    {% endif %}
+                    <div class="col-md-2">
+                        <small class="text-muted">PA</small><br>
+                        <strong>{{ derniere.pression_arterielle or '-' }}</strong>
+                    </div>
+                    <div class="col-md-2">
+                        <small class="text-muted">FC</small><br>
+                        <strong>{{ derniere.frequence_cardiaque or '-' }} bpm</strong>
+                    </div>
+                    <div class="col-md-2">
+                        <small class="text-muted">SpO₂</small><br>
+                        <strong>{{ derniere.saturation_oxygene or '-' }} %</strong>
+                    </div>
+                    <div class="col-md-2">
+                        <small class="text-muted">Douleur</small><br>
+                        <strong>{{ derniere.douleur or '-' }}/10</strong>
+                    </div>
+                    <div class="col-md-2">
+                        <small class="text-muted">Diurèse</small><br>
+                        <strong>{{ derniere.diurese or '-' }}</strong>
+                    </div>
                 </div>
+                <div class="row mt-2">
+                    <div class="col-md-6">
+                        <small class="text-muted">Notes</small><br>
+                        <strong>{{ derniere.notes or '-' }}</strong>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted">Autres constantes</small><br>
+                        <strong>{{ derniere.autres_constantes or '-' }}</strong>
+                    </div>
+                </div>
+                <small class="text-muted mt-2 d-block">
+                    Prise le {{ derniere.date_prise.strftime('%d/%m/%Y à %H:%M') }} par {{ derniere.infirmier.nom }}
+                </small>
             </div>
         </div>
+        {% else %}
+        <div class="text-center py-4">
+            <i class="fas fa-heartbeat fa-3x text-muted mb-3"></i>
+            <p class="text-muted">Aucune constante enregistrée pour cette hospitalisation</p>
+            {% if hospitalisation.statut == 'actif' and current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
+            <a href="{{ url_for('ajouter_constante', id=hospitalisation.id) }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Prendre les constantes
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
 </div>
 

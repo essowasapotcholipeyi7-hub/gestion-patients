@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, flash, request, session
+from flask import Flask, render_template, redirect, url_for, flash, request, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime
@@ -6,6 +6,11 @@ import os
 from dotenv import load_dotenv
 from scheduler import start_scheduler, stop_scheduler
 from datetime import datetime, timedelta
+import requests
+from bs4 import BeautifulSoup
+import csv
+from io import StringIO
+from decorators import has_permission
 
 load_dotenv()
 
@@ -529,6 +534,7 @@ def structure_dashboard():
 
 @app.route('/patients')
 @login_required
+@has_permission('PATIENTS')
 def patients_list():
     # Super Admin n'a pas accès aux patients
     if current_user.role == 'super_admin':
@@ -550,6 +556,7 @@ def patients_list():
 
 @app.route('/patients/ajouter', methods=['GET', 'POST'])
 @login_required
+@has_permission('PATIENTS')
 def patient_ajouter():
     from models import Patient, Utilisateur, Consultation
     from datetime import datetime
@@ -655,6 +662,7 @@ def patient_ajouter():
 
 @app.route('/patient/<int:id>')
 @login_required
+@has_permission('PATIENTS')
 def patient_detail(id):
     from models import Patient, Consultation, Prescription
     
@@ -678,7 +686,7 @@ def patient_detail(id):
 @app.route('/consultation/ajouter', methods=['GET', 'POST'])
 @login_required
 def consultation_ajouter():
-    from models import Patient, Consultation
+    from models import Patient, Consultation, AnalyseDemande
     from datetime import datetime
     
     if current_user.role == 'medecin':
@@ -707,7 +715,7 @@ def consultation_ajouter():
         taille = request.form.get('taille')
         imc = request.form.get('imc')
         
-        # ⭐ EXAMENS (nouveaux noms)
+        # Examens
         examens_cliniques = request.form.get('examens_cliniques')
         examens_biologie = request.form.get('examens_biologie')
         examens_imagerie = request.form.get('examens_imagerie')
@@ -718,13 +726,15 @@ def consultation_ajouter():
         arret_travail = request.form.get('arret_travail') == 'on'
         arret_jours = request.form.get('arret_jours')
         statut_medical = request.form.get('statut_medical')
+        cim10 = request.form.get('cim10')
         
-        # ⭐ ANTÉCÉDENTS
+        # Antécédents
         allergies = request.form.get('allergies')
         traitements_en_cours = request.form.get('traitements_en_cours')
         antecedents_medicaux = request.form.get('antecedents_medicaux')
         antecedents_chirurgicaux = request.form.get('antecedents_chirurgicaux')
         
+        # Création de la consultation
         consultation = Consultation(
             id_patient=int(id_patient),
             id_medecin=current_user.id,
@@ -737,7 +747,6 @@ def consultation_ajouter():
             poids_kg=float(poids) if poids else None,
             taille_cm=float(taille) if taille else None,
             imc=float(imc) if imc else None,
-            # ⭐ EXAMENS (nouveaux noms)
             examens_cliniques=examens_cliniques,
             examens_biologie=examens_biologie,
             examens_imagerie=examens_imagerie,
@@ -747,15 +756,51 @@ def consultation_ajouter():
             arret_jours=int(arret_jours) if arret_jours else None,
             prochain_rdv=datetime.strptime(prochain_rdv, '%Y-%m-%d') if prochain_rdv else None,
             date_consultation=datetime.utcnow(),
-            # ⭐ ANTÉCÉDENTS
             allergies=allergies,
             traitements_en_cours=traitements_en_cours,
             antecedents_medicaux=antecedents_medicaux,
-            antecedents_chirurgicaux=antecedents_chirurgicaux
+            antecedents_chirurgicaux=antecedents_chirurgicaux,
+            cim10=cim10
         )
         
         db.session.add(consultation)
+        db.session.flush()  # Pour obtenir l'ID de la consultation
         
+        # ⭐⭐⭐ CRÉATION AUTOMATIQUE DES ANALYSES ⭐⭐⭐
+        
+        # Analyser les examens de biologie (une par ligne)
+        if examens_biologie:
+            for ligne in examens_biologie.split('\n'):
+                nom = ligne.strip()
+                if nom:
+                    analyse = AnalyseDemande(
+                        consultation_id=consultation.id,
+                        patient_id=consultation.id_patient,
+                        structure_id=current_user.id_structure,
+                        type_analyse='BIOLOGIE',
+                        nom_analyse=nom,
+                        prescrit_par=current_user.id,
+                        statut='EN_ATTENTE'
+                    )
+                    db.session.add(analyse)
+        
+        # Analyser les examens d'imagerie (une par ligne)
+        if examens_imagerie:
+            for ligne in examens_imagerie.split('\n'):
+                nom = ligne.strip()
+                if nom:
+                    analyse = AnalyseDemande(
+                        consultation_id=consultation.id,
+                        patient_id=consultation.id_patient,
+                        structure_id=current_user.id_structure,
+                        type_analyse='IMAGERIE',
+                        nom_analyse=nom,
+                        prescrit_par=current_user.id,
+                        statut='EN_ATTENTE'
+                    )
+                    db.session.add(analyse)
+        
+        # Mise à jour du patient
         patient = Patient.query.get(id_patient)
         
         if temperature:
@@ -885,6 +930,7 @@ def recherche_patients():
 
 @app.route('/patient/<int:id>/modifier', methods=['GET', 'POST'])
 @login_required
+@has_permission('PATIENTS')
 def patient_modifier(id):
     from models import Patient, Utilisateur
     
@@ -929,7 +975,7 @@ def patient_modifier(id):
 @app.route('/patient/<int:id>/consultation/ajouter', methods=['GET', 'POST'])
 @login_required
 def consultation_ajouter_avec_patient(id):
-    from models import Patient, Consultation
+    from models import Patient, Consultation, AnalyseDemande
     from datetime import datetime
     
     patient = Patient.query.get_or_404(id)
@@ -951,7 +997,7 @@ def consultation_ajouter_avec_patient(id):
         taille = request.form.get('taille')
         imc = request.form.get('imc')
         
-        # ⭐ EXAMENS (nouveaux noms)
+        # Examens
         examens_cliniques = request.form.get('examens_cliniques')
         examens_biologie = request.form.get('examens_biologie')
         examens_imagerie = request.form.get('examens_imagerie')
@@ -959,6 +1005,7 @@ def consultation_ajouter_avec_patient(id):
         # Diagnostic et traitement
         traitement = request.form.get('traitement')
         notes = request.form.get('notes')
+        cim10 = request.form.get('cim10')
         
         # Arrêt de travail
         arret_travail = request.form.get('arret_travail') == 'on'
@@ -970,7 +1017,7 @@ def consultation_ajouter_avec_patient(id):
         # Statut médical
         statut_medical = request.form.get('statut_medical')
         
-        # ⭐ ANTÉCÉDENTS
+        # Antécédents
         allergies = request.form.get('allergies')
         traitements_en_cours = request.form.get('traitements_en_cours')
         antecedents_medicaux = request.form.get('antecedents_medicaux')
@@ -990,20 +1037,21 @@ def consultation_ajouter_avec_patient(id):
             poids_kg=float(poids) if poids else None,
             taille_cm=float(taille) if taille else None,
             imc=float(imc) if imc else None,
-            # ⭐ EXAMENS (nouveaux noms)
+            # Examens
             examens_cliniques=examens_cliniques,
             examens_biologie=examens_biologie,
             examens_imagerie=examens_imagerie,
             # Diagnostic et traitement
             traitement_prescrit=traitement,
             notes_cliniques=notes,
+            cim10=cim10,
             # Arrêt de travail
             arret_travail=arret_travail,
             arret_jours=int(arret_jours) if arret_jours else None,
             # Prochain RDV
             prochain_rdv=datetime.strptime(prochain_rdv, '%Y-%m-%d') if prochain_rdv else None,
             date_consultation=datetime.utcnow(),
-            # ⭐ ANTÉCÉDENTS
+            # Antécédents
             allergies=allergies,
             traitements_en_cours=traitements_en_cours,
             antecedents_medicaux=antecedents_medicaux,
@@ -1011,6 +1059,41 @@ def consultation_ajouter_avec_patient(id):
         )
         
         db.session.add(consultation)
+        db.session.flush()  # ⭐ Pour obtenir l'ID de la consultation
+        
+        # ⭐⭐⭐ CRÉATION AUTOMATIQUE DES ANALYSES ⭐⭐⭐
+        
+        # Analyser les examens de biologie (une par ligne)
+        if examens_biologie:
+            for ligne in examens_biologie.split('\n'):
+                nom = ligne.strip()
+                if nom:
+                    analyse = AnalyseDemande(
+                        consultation_id=consultation.id,
+                        patient_id=consultation.id_patient,
+                        structure_id=current_user.id_structure,
+                        type_analyse='BIOLOGIE',
+                        nom_analyse=nom,
+                        prescrit_par=current_user.id,
+                        statut='EN_ATTENTE'
+                    )
+                    db.session.add(analyse)
+        
+        # Analyser les examens d'imagerie (une par ligne)
+        if examens_imagerie:
+            for ligne in examens_imagerie.split('\n'):
+                nom = ligne.strip()
+                if nom:
+                    analyse = AnalyseDemande(
+                        consultation_id=consultation.id,
+                        patient_id=consultation.id_patient,
+                        structure_id=current_user.id_structure,
+                        type_analyse='IMAGERIE',
+                        nom_analyse=nom,
+                        prescrit_par=current_user.id,
+                        statut='EN_ATTENTE'
+                    )
+                    db.session.add(analyse)
         
         # Mettre à jour les constantes dans Patient
         if temperature:
@@ -1049,6 +1132,7 @@ def consultation_ajouter_avec_patient(id):
 
 @app.route('/statistiques')
 @login_required
+@has_permission('STATISTIQUES')
 def statistiques():
     from models import Patient, Consultation, Utilisateur
     from datetime import datetime, timedelta
@@ -1191,6 +1275,7 @@ def statistiques():
 
 @app.route('/statistiques/export')
 @login_required
+@has_permission('STATISTIQUES')
 def export_statistiques_csv():
     import csv
     from io import StringIO
@@ -1511,6 +1596,7 @@ def admin_delete_structure(id):
 
 @app.route('/hospitalisations')
 @login_required
+@has_permission('HOSPITALISATION')
 def liste_hospitalisations():
     """Liste des hospitalisations"""
     from models import Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, Patient
@@ -1576,7 +1662,7 @@ def liste_hospitalisations():
 @login_required
 def nouvelle_hospitalisation():
     """Créer une nouvelle hospitalisation"""
-    from models import Patient, Utilisateur, Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier
+    from models import Patient, Utilisateur, Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, Service, Salle, Lit
     
     if current_user.role not in ['admin_structure', 'medecin', 'secretaire']:
         flash('Accès non autorisé', 'danger')
@@ -1587,14 +1673,20 @@ def nouvelle_hospitalisation():
         motif = request.form.get('motif')
         service = request.form.get('service')
         chambre = request.form.get('chambre')
-        lit = request.form.get('lit')
+        lit = request.form.get('lit')  # ⭐ Gardé pour compatibilité
+        lit_id = request.form.get('lit_id', type=int)  # ⭐ NOUVEAU
         notes_admission = request.form.get('notes_admission')
         medecins_ids = request.form.getlist('medecins_ids')
         infirmiers_ids = request.form.getlist('infirmiers_ids')
         
+        # Validation
+        if not patient_id or not motif or not service:
+            flash('Le patient, le motif et le service sont obligatoires', 'danger')
+            return redirect(url_for('nouvelle_hospitalisation'))
+        
         # Créer l'hospitalisation
         hospitalisation = Hospitalisation(
-            patient_id=patient_id,
+            patient_id=int(patient_id),
             motif=motif,
             service=service,
             chambre=chambre,
@@ -1606,11 +1698,20 @@ def nouvelle_hospitalisation():
         db.session.add(hospitalisation)
         db.session.flush()
         
+        # ⭐ ASSIGNER LE LIT SI SÉLECTIONNÉ
+        if lit_id:
+            lit_obj = Lit.query.get(lit_id)
+            if lit_obj and lit_obj.statut == 'disponible':
+                lit_obj.occuper(hospitalisation.id)
+                hospitalisation.lit_id = lit_obj.id
+                # Mettre à jour chambre et lit dans hospitalisation
+                hospitalisation.chambre = lit_obj.salle.nom
+        
         # Assigner les médecins
         for medecin_id in medecins_ids:
             hm = HospitalisationMedecin(
                 hospitalisation_id=hospitalisation.id,
-                medecin_id=medecin_id
+                medecin_id=int(medecin_id)
             )
             db.session.add(hm)
         
@@ -1618,17 +1719,21 @@ def nouvelle_hospitalisation():
         for infirmier_id in infirmiers_ids:
             hi = HospitalisationInfirmier(
                 hospitalisation_id=hospitalisation.id,
-                infirmier_id=infirmier_id
+                infirmier_id=int(infirmier_id)
             )
             db.session.add(hi)
         
         db.session.commit()
         
-        flash('Hospitalisation créée avec succès', 'success')
+        flash(f'Hospitalisation créée avec succès pour {hospitalisation.patient.nom} {hospitalisation.patient.prenom}', 'success')
         return redirect(url_for('detail_hospitalisation', id=hospitalisation.id))
     
     # GET: Afficher le formulaire
-    if current_user.role == 'admin_structure':
+    if current_user.role == 'super_admin':
+        patients = Patient.query.filter_by(archived=False).all()
+        medecins = Utilisateur.query.filter_by(role='medecin', actif=True).all()
+        infirmiers = Utilisateur.query.filter_by(role='infirmier', actif=True).all()
+    else:
         patients = Patient.query.filter_by(
             id_structure=current_user.id_structure,
             archived=False
@@ -1643,24 +1748,18 @@ def nouvelle_hospitalisation():
             role='infirmier',
             actif=True
         ).all()
-    else:
-        # Médecin
-        patients = Patient.query.filter_by(
-            id_structure=current_user.id_structure,
-            id_medecin_referent=current_user.id,
-            archived=False
-        ).all()
-        medecins = [current_user]
-        infirmiers = Utilisateur.query.filter_by(
-            id_structure=current_user.id_structure,
-            role='infirmier',
-            actif=True
-        ).all()
+    
+    # ⭐ Récupérer les services pour le formulaire
+    services = Service.query.filter_by(
+        structure_id=current_user.id_structure,
+        actif=True
+    ).all()
     
     return render_template('hospitalisations/nouvelle.html',
                          patients=patients,
                          medecins=medecins,
-                         infirmiers=infirmiers)
+                         infirmiers=infirmiers,
+                         services=services)
 
 
 @app.route('/hospitalisation/<int:id>')
@@ -1779,21 +1878,19 @@ def ajouter_evolution(id):
 @login_required
 def ajouter_constante(id):
     """Ajouter des constantes vitales pour un patient hospitalisé"""
-    from models import Hospitalisation, HospitalisationInfirmier, ConstanteVitale
+    from models import Hospitalisation, HospitalisationInfirmier, HospitalisationMedecin, ConstanteVitale
     
     hospitalisation = Hospitalisation.query.get_or_404(id)
     
-    # ⭐ PERMISSIONS CORRIGÉES - Médecin aussi autorisé
+    # Permissions
     if current_user.role not in ['super_admin', 'admin_structure', 'medecin', 'infirmier']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
     
-    # Vérifier l'appartenance à la structure
     if current_user.id_structure and hospitalisation.patient.id_structure != current_user.id_structure:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('liste_hospitalisations'))
     
-    # Si c'est un infirmier, vérifier qu'il est assigné
     if current_user.role == 'infirmier':
         assigne = HospitalisationInfirmier.query.filter_by(
             hospitalisation_id=id,
@@ -1804,9 +1901,7 @@ def ajouter_constante(id):
             flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
             return redirect(url_for('liste_hospitalisations'))
     
-    # Si c'est un médecin, vérifier qu'il est assigné
     if current_user.role == 'medecin':
-        from models import HospitalisationMedecin
         assigne = HospitalisationMedecin.query.filter_by(
             hospitalisation_id=id,
             medecin_id=current_user.id,
@@ -1825,10 +1920,20 @@ def ajouter_constante(id):
         glycemie = request.form.get('glycemie', type=float)
         poids = request.form.get('poids', type=float)
         taille = request.form.get('taille', type=float)
+        
+        # ⭐ NOUVEAUX CHAMPS
+        diurese = request.form.get('diurese')
+        emission_gaz = request.form.get('emission_gaz')
+        selles = request.form.get('selles')
+        vomissements = request.form.get('vomissements')
+        douleur = request.form.get('douleur', type=int)
+        conscience = request.form.get('conscience')
+        pouls_peripherique = request.form.get('pouls_peripherique')
+        temperature_cutanee = request.form.get('temperature_cutanee')
+        
         autres_constantes = request.form.get('autres_constantes')
         notes = request.form.get('notes')
         
-        # Calculer l'IMC si poids et taille sont fournis
         imc = None
         if poids and taille and taille > 0:
             imc = round(poids / ((taille/100) ** 2), 1)
@@ -1845,6 +1950,15 @@ def ajouter_constante(id):
             poids=poids,
             taille=taille,
             imc=imc,
+            # ⭐ NOUVEAUX CHAMPS
+            diurese=diurese,
+            emission_gaz=emission_gaz,
+            selles=selles,
+            vomissements=vomissements,
+            douleur=douleur,
+            conscience=conscience,
+            pouls_peripherique=pouls_peripherique,
+            temperature_cutanee=temperature_cutanee,
             autres_constantes=autres_constantes,
             notes=notes
         )
@@ -1857,12 +1971,11 @@ def ajouter_constante(id):
     return render_template('hospitalisations/constante.html',
                          hospitalisation=hospitalisation)
 
-
 @app.route('/hospitalisation/<int:id>/cloturer', methods=['POST'])
 @login_required
 def cloturer_hospitalisation(id):
     """Clôturer une hospitalisation (sortie du patient)"""
-    from models import Hospitalisation, HospitalisationMedecin
+    from models import Hospitalisation, HospitalisationMedecin, Lit
     from datetime import datetime
     
     hospitalisation = Hospitalisation.query.get_or_404(id)
@@ -1870,7 +1983,7 @@ def cloturer_hospitalisation(id):
     if current_user.role not in ['super_admin', 'admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
-    
+
     # Vérifier l'appartenance à la structure
     if current_user.id_structure and hospitalisation.patient.id_structure != current_user.id_structure:
         flash('Accès non autorisé', 'danger')
@@ -1917,6 +2030,13 @@ def cloturer_hospitalisation(id):
     else:  # sortie normale
         hospitalisation.statut = 'sorti'
     
+    # ⭐ LIBÉRER LE LIT (corrigé)
+    if hospitalisation.lit_id:
+        lit = Lit.query.get(hospitalisation.lit_id)
+        if lit:
+            lit.liberer()
+            hospitalisation.lit_id = None
+
     # --- Gestion des avis externes ---
     medecins_externes = request.form.get('medecins_externes')
     demandes_avis = request.form.get('demandes_avis')
@@ -2073,6 +2193,1047 @@ def ajouter_resultats(id):
     
     flash('✅ Résultats enregistrés avec succès', 'success')
     return redirect(url_for('consultation_detail', id=id))
+
+
+# ==================== CIM-10 ====================
+
+import csv
+import os
+
+_cim10_cache = None
+_cim10_last_update = None
+
+def get_cim10_list():
+    """Récupère la liste des codes CIM-10 depuis le fichier local"""
+    global _cim10_cache, _cim10_last_update
+    
+    if _cim10_cache and _cim10_last_update:
+        from datetime import datetime
+        if (datetime.now() - _cim10_last_update).seconds < 3600:
+            return _cim10_cache
+    
+    try:
+        cim10_file = os.path.join(os.path.dirname(__file__), 'cim10.csv')
+        
+        if not os.path.exists(cim10_file):
+            print(f"❌ Fichier {cim10_file} non trouvé !")
+            return []
+        
+        cim10_list = []
+        with open(cim10_file, 'r', encoding='utf-8') as f:
+            csv_reader = csv.reader(f)
+            for i, row in enumerate(csv_reader):
+                if i == 0:  # Ignorer l'en-tête "id,code"
+                    continue
+                if row and len(row) > 1:
+                    code = row[1].strip()  # Colonne "code"
+                    if code:
+                        code = code.strip('"')
+                        code = code.replace('""', '"')
+                        cim10_list.append(code)
+        
+        _cim10_cache = cim10_list
+        from datetime import datetime
+        _cim10_last_update = datetime.now()
+        
+        return cim10_list
+    except Exception as e:
+        print(f"❌ Erreur chargement CIM-10: {e}")
+        return []
+
+def search_cim10(search_term, limit=30):
+    """Recherche dans les codes CIM-10"""
+    if not search_term or len(search_term) < 2:
+        return []
+    
+    all_codes = get_cim10_list()
+    search_term = search_term.lower().strip()
+    
+    results = []
+    for code in all_codes:
+        if search_term in code.lower():
+            results.append({'nom': code})
+            if len(results) >= limit:
+                break
+    
+    return results
+
+@app.route('/api/cim10/search')
+@login_required
+def api_cim10_search():
+    """API de recherche CIM-10"""
+    term = request.args.get('term', '')
+    if len(term) < 2:
+        return jsonify([])
+    
+    results = search_cim10(term)
+    return jsonify(results)
+# ==================== ANALYSES ====================
+
+@app.route('/analyses')
+@login_required
+@has_permission('ANALYSES')  # ⭐ AJOUTER LE DÉCORATEUR
+def liste_analyses():
+    """Liste des analyses regroupées par patient"""
+    from models import AnalyseDemande, Patient
+    from sqlalchemy import or_
+    
+    # ⭐ ACCÈS POUR MÉDECIN, LABORANTIN ET ADMIN
+    if current_user.role not in ['admin_structure', 'laborantin', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Récupérer les paramètres
+    statut = request.args.get('statut', '')
+    search = request.args.get('search', '')
+    
+    # Requête de base
+    query = AnalyseDemande.query.filter_by(structure_id=current_user.id_structure)
+    
+    # Filtrer par statut
+    if statut:
+        query = query.filter_by(statut=statut)
+    
+    # Recherche
+    if search:
+        search = search.strip()
+        filters = []
+        filters.append(Patient.nom.ilike(f'%{search}%'))
+        filters.append(Patient.prenom.ilike(f'%{search}%'))
+        
+        if search.upper().startswith('P'):
+            try:
+                num = int(search[1:])
+                filters.append(Patient.id == num)
+            except ValueError:
+                pass
+        elif search.isdigit():
+            filters.append(Patient.id == int(search))
+        
+        if filters:
+            patients_trouves = Patient.query.filter(or_(*filters)).all()
+            patient_ids = [p.id for p in patients_trouves]
+            if patient_ids:
+                query = query.filter(AnalyseDemande.patient_id.in_(patient_ids))
+            else:
+                query = query.filter(AnalyseDemande.patient_id == -1)
+    
+    # Regrouper par patient
+    analyses = query.order_by(AnalyseDemande.date_demande.desc()).all()
+    
+    patients_dict = {}
+    for analyse in analyses:
+        patient_id = analyse.patient_id
+        if patient_id not in patients_dict:
+            patients_dict[patient_id] = {
+                'patient': analyse.patient,
+                'analyses': []
+            }
+        patients_dict[patient_id]['analyses'].append(analyse)
+    
+    patients = list(patients_dict.values())
+    statuts = ['EN_ATTENTE', 'EN_COURS', 'TERMINE']
+    
+    return render_template('analyses/liste.html',
+                         patients=patients,
+                         statut_actuel=statut,
+                         statuts=statuts,
+                         search=search)
+
+@app.route('/analyse/<int:id>')
+@login_required
+def detail_analyse(id):
+    """Détail d'une analyse demandée"""
+    from models import AnalyseDemande
+    
+    analyse = AnalyseDemande.query.get_or_404(id)
+    
+    # ⭐ PERMISSIONS - Médecin, Laborantin, Admin, Super Admin
+    if current_user.role not in ['super_admin', 'admin_structure', 'laborantin', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Vérifier la structure
+    if current_user.role not in ['super_admin']:
+        if analyse.structure_id != current_user.id_structure:
+            flash('Accès non autorisé', 'danger')
+            return redirect(url_for('liste_analyses'))
+    
+    return render_template('analyses/detail.html', analyse=analyse)
+
+@app.route('/analyse/<int:id>/resultats', methods=['POST'])
+@login_required
+def saisir_resultats_analyse(id):
+    """Le laborantin saisit les résultats"""
+    from models import AnalyseDemande, Consultation
+    from datetime import datetime
+    
+    analyse = AnalyseDemande.query.get_or_404(id)
+    
+    if current_user.role not in ['laborantin', 'admin_structure', 'super_admin']:
+        flash('Accès non autorisé - réservé au laborantin', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if analyse.structure_id != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_analyses'))
+    
+    resultats = request.form.get('resultats')
+    statut = request.form.get('statut', 'TERMINE')
+    
+    if not resultats and statut == 'TERMINE':
+        flash('Veuillez saisir les résultats', 'danger')
+        return redirect(url_for('detail_analyse', id=id))
+    
+    # Mettre à jour l'analyse
+    analyse.resultats = resultats
+    analyse.statut = statut
+    analyse.date_resultats = datetime.utcnow()
+    analyse.resultats_par = current_user.id
+    
+    # ⭐⭐⭐ METTRE À JOUR LES RÉSULTATS DE LA CONSULTATION ⭐⭐⭐
+    consultation = Consultation.query.get(analyse.consultation_id)
+    if consultation:
+        # Ajouter les résultats dans le champ approprié selon le type
+        if analyse.type_analyse == 'BIOLOGIE':
+            if consultation.resultats_biologie:
+                consultation.resultats_biologie += f"\n\n--- {analyse.nom_analyse} ---\n{resultats}"
+            else:
+                consultation.resultats_biologie = f"--- {analyse.nom_analyse} ---\n{resultats}"
+        elif analyse.type_analyse == 'IMAGERIE':
+            if consultation.resultats_imagerie:
+                consultation.resultats_imagerie += f"\n\n--- {analyse.nom_analyse} ---\n{resultats}"
+            else:
+                consultation.resultats_imagerie = f"--- {analyse.nom_analyse} ---\n{resultats}"
+        
+        # Mettre à jour la date des résultats
+        consultation.date_resultats = datetime.utcnow()
+    
+    db.session.commit()
+    
+    flash('✅ Résultats enregistrés avec succès', 'success')
+    return redirect(url_for('liste_analyses'))
+
+@app.route('/consultation/<int:id>/analyse/ajouter', methods=['POST'])
+@login_required
+def ajouter_analyse_demande(id):
+    """Le médecin ajoute une demande d'analyse"""
+    from models import Consultation, AnalyseDemande
+    
+    consultation = Consultation.query.get_or_404(id)
+    
+    if current_user.role not in ['medecin', 'admin_structure']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    type_analyse = request.form.get('type_analyse')
+    nom_analyse = request.form.get('nom_analyse')
+    description = request.form.get('description')
+    
+    if not type_analyse or not nom_analyse:
+        flash('Le type et le nom de l\'analyse sont obligatoires', 'danger')
+        return redirect(url_for('consultation_detail', id=id))
+    
+    analyse = AnalyseDemande(
+        consultation_id=consultation.id,
+        patient_id=consultation.id_patient,
+        structure_id=current_user.id_structure,
+        type_analyse=type_analyse,
+        nom_analyse=nom_analyse,
+        description=description,
+        prescrit_par=current_user.id,
+        statut='EN_ATTENTE'
+    )
+    
+    db.session.add(analyse)
+    db.session.commit()
+    
+    flash(f'✅ Demande d\'analyse "{nom_analyse}" envoyée au laborantin', 'success')
+    return redirect(url_for('consultation_detail', id=id))
+
+@app.route('/patient/<int:patient_id>/analyses')
+@login_required
+def patient_analyses(patient_id):
+    """Voir toutes les analyses d'un patient"""
+    from models import Patient, AnalyseDemande
+    
+    patient = Patient.query.get_or_404(patient_id)
+    
+    # ⭐ PERMISSIONS
+    if current_user.role not in ['super_admin', 'admin_structure', 'laborantin', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Vérifier la structure
+    if current_user.role not in ['super_admin']:
+        if patient.id_structure != current_user.id_structure:
+            flash('Accès non autorisé - patient d\'une autre structure', 'danger')
+            return redirect(url_for('liste_analyses'))
+    
+    # Récupérer les analyses
+    analyses = AnalyseDemande.query.filter_by(
+        patient_id=patient_id,
+        structure_id=current_user.id_structure
+    ).order_by(AnalyseDemande.date_demande.desc()).all()
+    
+    return render_template('analyses/patient_analyses.html',
+                         patient=patient,
+                         analyses=analyses)
+
+@app.route('/consultation/<int:id>/reference/ajouter', methods=['GET', 'POST'])
+@login_required
+def ajouter_reference(id):
+    """Ajouter une référence depuis une consultation"""
+    from models import Consultation, Reference, Patient
+    
+    consultation = Consultation.query.get_or_404(id)
+    patient = Patient.query.get(consultation.id_patient)
+    
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        motif = request.form.get('motif')
+        diagnostic = request.form.get('diagnostic')
+        centre_reference = request.form.get('centre_reference')
+        service_reference = request.form.get('service_reference')
+        medecin_referent = request.form.get('medecin_referent')
+        resume_clinique = request.form.get('resume_clinique')
+        examens_realises = request.form.get('examens_realises')
+        traitements_en_cours = request.form.get('traitements_en_cours')
+        
+        if not motif or not centre_reference:
+            flash('Le motif et le centre de référence sont obligatoires', 'danger')
+            return redirect(url_for('ajouter_reference', id=id))
+        
+        # Créer la référence avec les dernières constantes du patient
+        reference = Reference(
+            patient_id=patient.id,
+            consultation_id=consultation.id,
+            structure_id=current_user.id_structure,
+            motif=motif,
+            diagnostic=diagnostic or consultation.diagnostic,
+            centre_reference=centre_reference,
+            service_reference=service_reference,
+            medecin_referent=medecin_referent,
+            derniere_tension=patient.tension_arterielle,
+            derniere_temperature=patient.temperature_c,
+            derniere_pulse=patient.pulse_bpm,
+            derniere_saturation=patient.oxygene_saturation,
+            dernier_poids=patient.poids_kg,
+            derniere_taille=patient.taille_cm,
+            dernier_imc=patient.imc,
+            resume_clinique=resume_clinique,
+            examens_realises=examens_realises,
+            traitements_en_cours=traitements_en_cours,
+            statut='ENVOYE',
+            created_by=current_user.id
+        )
+        
+        db.session.add(reference)
+        db.session.commit()
+        
+        flash('✅ Référence créée avec succès', 'success')
+        return redirect(url_for('imprimer_reference', id=reference.id))
+    
+    return render_template('consultations/ajouter_reference.html',
+                         consultation=consultation,
+                         patient=patient)
+@app.route('/reference/<int:id>/imprimer')
+@login_required
+def imprimer_reference(id):
+    """Imprimer une fiche de référence"""
+    from models import Reference
+    
+    reference = Reference.query.get_or_404(id)
+    
+    if current_user.role not in ['super_admin', 'admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if reference.structure_id != current_user.id_structure and current_user.role != 'super_admin':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('references/imprimer.html', reference=reference)
+# ==================== GESTION DES RÉFÉRENCES ====================
+
+@app.route('/references')
+@login_required
+@has_permission('REFERENCE')  # ⭐ AJOUTER LE DÉCORATEUR
+def liste_references():
+    """Liste des références effectuées"""
+    from models import Reference, Patient
+    from sqlalchemy import or_
+    
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Filtres
+    search = request.args.get('search', '')
+    statut = request.args.get('statut', '')
+    
+    query = Reference.query.filter_by(structure_id=current_user.id_structure)
+    
+    # ⭐ RECHERCHE CORRIGÉE
+    if search:
+        search = search.strip()
+        filters = []
+        
+        # Recherche par nom ou prénom
+        filters.append(Patient.nom.ilike(f'%{search}%'))
+        filters.append(Patient.prenom.ilike(f'%{search}%'))
+        
+        # Recherche par numéro de dossier (P00001)
+        if search.upper().startswith('P'):
+            try:
+                num = int(search[1:])
+                filters.append(Patient.id == num)
+            except ValueError:
+                pass
+        elif search.isdigit():
+            filters.append(Patient.id == int(search))
+        
+        # Recherche par numéro de référence (REF-00001)
+        if search.upper().startswith('REF'):
+            try:
+                num = int(search[3:])
+                filters.append(Reference.id == num)
+            except ValueError:
+                pass
+        
+        # Appliquer les filtres
+        if filters:
+            query = query.join(Patient).filter(or_(*filters))
+    
+    # Filtre par statut
+    if statut:
+        query = query.filter_by(statut=statut)
+    
+    references = query.order_by(Reference.date_reference.desc()).all()
+    statuts = ['ENVOYE', 'ACCEPTE', 'REFUSE', 'EN_ATTENTE']
+    
+    return render_template('references/liste.html',
+                         references=references,
+                         search=search,
+                         statut_actuel=statut,
+                         statuts=statuts)
+
+@app.route('/reference/<int:id>/reimprimer')
+@login_required
+def reimprimer_reference(id):
+    """Réimprimer une référence existante"""
+    from models import Reference
+    
+    reference = Reference.query.get_or_404(id)
+    
+    if current_user.role not in ['super_admin', 'admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if reference.structure_id != current_user.id_structure and current_user.role != 'super_admin':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_references'))
+    
+    return render_template('references/imprimer.html', reference=reference)
+@app.route('/reference/<int:id>/suivi', methods=['POST'])
+@login_required
+def suivi_reference(id):
+    """Mettre à jour le suivi d'une référence"""
+    from models import Reference
+    from datetime import datetime
+    
+    reference = Reference.query.get_or_404(id)
+    
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if reference.structure_id != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_references'))
+    
+    statut = request.form.get('statut')
+    retour_info = request.form.get('retour_info')
+    
+    if statut:
+        reference.statut = statut
+        if statut in ['ACCEPTE', 'REFUSE']:
+            reference.date_retour = datetime.utcnow()
+    
+    if retour_info:
+        reference.retour_info = retour_info
+    
+    db.session.commit()
+    
+    flash('✅ Suivi mis à jour', 'success')
+    return redirect(url_for('liste_references'))
+# ==================== PERMISSIONS TEMPORAIRES ====================
+
+@app.route('/structure/permissions')
+@login_required
+def gestion_permissions():
+    """Gestion des permissions temporaires"""
+    if current_user.role not in ['admin_structure']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    from models import Utilisateur, PermissionTemp
+    from datetime import datetime
+    
+    # Liste des utilisateurs de la structure (sauf admin)
+    users = Utilisateur.query.filter(
+        Utilisateur.id_structure == current_user.id_structure,
+        Utilisateur.role != 'admin_structure',
+        Utilisateur.actif == True
+    ).all()
+    
+    # Permissions actives
+    permissions_actives = PermissionTemp.query.filter_by(
+        structure_id=current_user.id_structure,
+        actif=True
+    ).all()
+    
+    # Historique
+    historique = PermissionTemp.query.filter_by(
+        structure_id=current_user.id_structure
+    ).order_by(PermissionTemp.created_at.desc()).limit(50).all()
+    
+    # Liste des permissions disponibles
+    permissions_list = [
+        {'key': 'ANALYSES', 'label': '🧪 Accès Analyses', 'description': 'Voir et saisir les résultats d\'analyses'},
+        {'key': 'REFERENCE', 'label': '🚑 Accès Références', 'description': 'Créer et gérer les références'},
+        {'key': 'HOSPITALISATION', 'label': '🏥 Accès Hospitalisations', 'description': 'Gérer les hospitalisations'},
+        {'key': 'STATISTIQUES', 'label': '📊 Accès Statistiques', 'description': 'Voir les statistiques'},
+        {'key': 'PATIENTS', 'label': '👤 Accès Patients', 'description': 'Voir et modifier les patients'},
+    ]
+    
+    # ⭐ PASSER now AU TEMPLATE
+    return render_template('structure/permissions.html',
+                         users=users,
+                         permissions_actives=permissions_actives,
+                         historique=historique,
+                         permissions_list=permissions_list,
+                         now=datetime.utcnow())  # ⭐ AJOUTER CETTE LIGNE
+
+@app.route('/structure/permissions/ajouter', methods=['POST'])
+@login_required
+def ajouter_permission():
+    """Ajouter une permission temporaire"""
+    if current_user.role not in ['admin_structure']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    from models import Utilisateur, PermissionTemp
+    from datetime import datetime, timedelta
+    
+    user_id = request.form.get('user_id')
+    permission = request.form.get('permission')
+    duree = request.form.get('duree', 24)  # Heures par défaut
+    motif = request.form.get('motif', '')
+    
+    if not user_id or not permission:
+        flash('Veuillez sélectionner un utilisateur et une permission', 'danger')
+        return redirect(url_for('gestion_permissions'))
+    
+    # Vérifier que l'utilisateur est dans la structure
+    user = Utilisateur.query.get(user_id)
+    if not user or user.id_structure != current_user.id_structure:
+        flash('Utilisateur non trouvé', 'danger')
+        return redirect(url_for('gestion_permissions'))
+    
+    # Vérifier si une permission active existe déjà
+    existing = PermissionTemp.query.filter_by(
+        user_id=user_id,
+        permission=permission,
+        actif=True
+    ).first()
+    
+    if existing:
+        flash(f'{user.prenom} {user.nom} a déjà cette permission active', 'warning')
+        return redirect(url_for('gestion_permissions'))
+    
+    # Créer la permission
+    permission_temp = PermissionTemp(
+        user_id=user_id,
+        granted_by=current_user.id,
+        structure_id=current_user.id_structure,
+        permission=permission,
+        date_debut=datetime.utcnow(),
+        date_fin=datetime.utcnow() + timedelta(hours=int(duree)),
+        motif=motif
+    )
+    
+    db.session.add(permission_temp)
+    db.session.commit()
+    
+    flash(f'✅ Permission "{permission}" accordée à {user.prenom} {user.nom} pour {duree}h', 'success')
+    return redirect(url_for('gestion_permissions'))
+
+
+@app.route('/structure/permissions/revoke/<int:id>', methods=['POST'])
+@login_required
+def revoke_permission(id):
+    """Révoquer une permission temporaire"""
+    if current_user.role not in ['admin_structure']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    from models import PermissionTemp
+    
+    permission = PermissionTemp.query.get_or_404(id)
+    
+    if permission.structure_id != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('gestion_permissions'))
+    
+    motif = request.form.get('motif_revocation', 'Révoquée par admin')
+    
+    permission.actif = False
+    permission.date_revocation = datetime.utcnow()
+    permission.revoked_by = current_user.id
+    permission.motif_revocation = motif
+    
+    db.session.commit()
+    
+    flash(f'✅ Permission révoquée avec succès', 'success')
+    return redirect(url_for('gestion_permissions'))
+
+
+@app.route('/api/permissions/check')
+@login_required
+def check_permission():
+    """Vérifier si l'utilisateur a une permission (pour les routes)"""
+    permission = request.args.get('permission', '')
+    
+    if not permission:
+        return jsonify({'has_permission': False})
+    
+    from models import PermissionTemp
+    from datetime import datetime
+    
+    has_permission = PermissionTemp.query.filter_by(
+        user_id=current_user.id,
+        permission=permission,
+        actif=True
+    ).filter(
+        PermissionTemp.date_fin > datetime.utcnow()
+    ).first()
+    
+    # Vérifier le rôle de base
+    role_permissions = {
+        'medecin': ['PATIENTS', 'REFERENCE', 'HOSPITALISATION', 'STATISTIQUES'],
+        'infirmier': ['PATIENTS', 'HOSPITALISATION'],
+        'laborantin': ['ANALYSES'],
+        'admin_structure': ['PATIENTS', 'REFERENCE', 'HOSPITALISATION', 'STATISTIQUES', 'ANALYSES']
+    }
+    
+    base_permissions = role_permissions.get(current_user.role, [])
+    
+    return jsonify({
+        'has_permission': bool(has_permission) or permission in base_permissions,
+        'permission': permission
+    })
+@app.route('/reference/nouvelle', methods=['GET', 'POST'])
+@login_required
+def nouvelle_reference():
+    """Créer une référence directement depuis l'onglet Références"""
+    from models import Patient, Consultation, Reference
+    from sqlalchemy import or_
+    from datetime import datetime
+    
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Récupérer les paramètres de recherche
+    search = request.args.get('search', '')
+    
+    # Requête de base
+    query = Patient.query.filter_by(
+        id_structure=current_user.id_structure,
+        archived=False
+    )
+    
+    # Filtrer par recherche
+    if search:
+        query = query.filter(
+            or_(
+                Patient.nom.ilike(f'%{search}%'),
+                Patient.prenom.ilike(f'%{search}%'),
+                Patient.id.cast().ilike(f'%{search}%')
+            )
+        )
+    
+    patients = query.order_by(Patient.nom).all()
+    
+    if request.method == 'POST':
+        patient_id = request.form.get('patient_id')
+        motif = request.form.get('motif')
+        diagnostic = request.form.get('diagnostic')
+        centre_reference = request.form.get('centre_reference')
+        service_reference = request.form.get('service_reference')
+        medecin_referent = request.form.get('medecin_referent')
+        resume_clinique = request.form.get('resume_clinique')
+        examens_realises = request.form.get('examens_realises')
+        traitements_en_cours = request.form.get('traitements_en_cours')
+        
+        if not patient_id or not motif or not centre_reference:
+            flash('Le patient, le motif et le centre de référence sont obligatoires', 'danger')
+            return redirect(url_for('nouvelle_reference'))
+        
+        patient = Patient.query.get(patient_id)
+        
+        # Créer une consultation automatique
+        consultation = Consultation(
+            id_patient=patient.id,
+            id_medecin=current_user.id,
+            motif=f"Référence vers {centre_reference}",
+            diagnostic=diagnostic,
+            date_consultation=datetime.utcnow()
+        )
+        db.session.add(consultation)
+        db.session.flush()
+        
+        # ⭐ RÉCUPÉRER LE DERNIER DIAGNOSTIC CORRECTEMENT
+        dernier_diagnostic = None
+        if patient.consultations:
+            # Trier les consultations par date et prendre la plus récente
+            consultations_triees = sorted(patient.consultations, key=lambda c: c.date_consultation, reverse=True)
+            if consultations_triees and consultations_triees[0].diagnostic:
+                dernier_diagnostic = consultations_triees[0].diagnostic
+        
+        # Créer la référence
+        reference = Reference(
+            patient_id=patient.id,
+            consultation_id=consultation.id,
+            structure_id=current_user.id_structure,
+            motif=motif,
+            diagnostic=diagnostic or dernier_diagnostic,
+            centre_reference=centre_reference,
+            service_reference=service_reference,
+            medecin_referent=medecin_referent,
+            derniere_tension=patient.tension_arterielle,
+            derniere_temperature=patient.temperature_c,
+            derniere_pulse=patient.pulse_bpm,
+            derniere_saturation=patient.oxygene_saturation,
+            dernier_poids=patient.poids_kg,
+            derniere_taille=patient.taille_cm,
+            dernier_imc=patient.imc,
+            resume_clinique=resume_clinique,
+            examens_realises=examens_realises,
+            traitements_en_cours=traitements_en_cours,
+            statut='ENVOYE',
+            created_by=current_user.id
+        )
+        
+        db.session.add(reference)
+        db.session.commit()
+        
+        flash('✅ Référence créée avec succès', 'success')
+        return redirect(url_for('imprimer_reference', id=reference.id))
+    
+    return render_template('references/nouvelle.html',
+                         patients=patients,
+                         search=search)
+
+@app.route('/api/patient/<int:patient_id>/constantes')
+@login_required
+def api_patient_constantes(patient_id):
+    """Récupérer les constantes d'un patient (pour AJAX)"""
+    from models import Patient
+    
+    patient = Patient.query.get_or_404(patient_id)
+    
+    return jsonify({
+        'tension': patient.tension_arterielle,
+        'temperature': patient.temperature_c,
+        'pouls': patient.pulse_bpm,
+        'saturation': patient.oxygene_saturation,
+        'poids': patient.poids_kg,
+        'taille': patient.taille_cm,
+        'imc': patient.imc
+    })
+@app.route('/api/patients/search')
+@login_required
+def api_patients_search():
+    """Recherche de patients pour autocomplétion"""
+    from models import Patient
+    from sqlalchemy import or_, cast, String
+    
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify([])
+    
+    patients = Patient.query.filter(
+        Patient.id_structure == current_user.id_structure,
+        Patient.archived == False,
+        or_(
+            Patient.nom.ilike(f'%{q}%'),
+            Patient.prenom.ilike(f'%{q}%'),
+            cast(Patient.id, String).ilike(f'%{q}%')
+        )
+    ).limit(20).all()
+    
+    result = []
+    for p in patients:
+        result.append({
+            'id': p.id,
+            'nom': p.nom,
+            'prenom': p.prenom,
+            'telephone': p.telephone,
+            'id_padded': f"{p.id:05d}"
+        })
+    
+    return jsonify(result)
+@app.context_processor
+def utility_processor():
+    from models import PermissionTemp
+    from datetime import datetime
+    
+    def has_temp_permission(permission):
+        if not current_user.is_authenticated:
+            return False
+        
+        # Vérifier les permissions temporaires
+        temp_perm = PermissionTemp.query.filter(
+            PermissionTemp.user_id == current_user.id,
+            PermissionTemp.permission == permission,
+            PermissionTemp.actif == True,
+            PermissionTemp.date_fin > datetime.utcnow()
+        ).first()
+        
+        return temp_perm is not None
+    
+    return dict(has_temp_permission=has_temp_permission)
+# ==================== GESTION DES SALLES ====================
+
+# ==================== GESTION DES SALLES ====================
+
+@app.route('/salles')
+@login_required
+def liste_salles():
+    """Liste des salles par service"""
+    from models import Service, Salle, Lit  # ⭐ AJOUTER CET IMPORT
+    
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    services = Service.query.filter_by(
+        structure_id=current_user.id_structure,
+        actif=True
+    ).all()
+    
+    return render_template('salles/liste.html', services=services)
+
+
+@app.route('/salles/service/ajouter', methods=['GET', 'POST'])
+@login_required
+def ajouter_service():
+    """Ajouter un service"""
+    from models import Service  # ⭐ AJOUTER CET IMPORT
+    
+    if current_user.role != 'admin_structure':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        nom = request.form.get('nom')
+        description = request.form.get('description')
+        
+        if not nom:
+            flash('Le nom du service est obligatoire', 'danger')
+            return redirect(url_for('ajouter_service'))
+        
+        service = Service(
+            structure_id=current_user.id_structure,
+            nom=nom,
+            description=description
+        )
+        db.session.add(service)
+        db.session.commit()
+        
+        flash(f'Service "{nom}" créé avec succès', 'success')
+        return redirect(url_for('liste_salles'))
+    
+    return render_template('salles/ajouter_service.html')
+
+
+@app.route('/salles/salle/ajouter', methods=['GET', 'POST'])
+@login_required
+def ajouter_salle():
+    """Ajouter une salle"""
+    from models import Service, Salle, Lit  # ⭐ AJOUTER CES IMPORTS
+    
+    if current_user.role != 'admin_structure':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    services = Service.query.filter_by(
+        structure_id=current_user.id_structure,
+        actif=True
+    ).all()
+    
+    if request.method == 'POST':
+        service_id = request.form.get('service_id')
+        nom = request.form.get('nom')
+        type_salle = request.form.get('type_salle')
+        nombre_lits = request.form.get('nombre_lits', type=int)
+        prix_journalier = request.form.get('prix_journalier', type=float)
+        description = request.form.get('description')
+        
+        if not service_id or not nom or not type_salle or not nombre_lits:
+            flash('Tous les champs obligatoires doivent être remplis', 'danger')
+            return redirect(url_for('ajouter_salle'))
+        
+        salle = Salle(
+            service_id=int(service_id),
+            nom=nom,
+            type_salle=type_salle,
+            nombre_lits=nombre_lits,
+            prix_journalier=prix_journalier,
+            description=description
+        )
+        db.session.add(salle)
+        db.session.flush()
+        
+        # Créer les lits
+        for i in range(nombre_lits):
+            lit = Lit(
+                salle_id=salle.id,
+                numero=chr(65 + i)  # A, B, C, D, ...
+            )
+            db.session.add(lit)
+        
+        db.session.commit()
+        
+        flash(f'Salle "{nom}" créée avec {nombre_lits} lits', 'success')
+        return redirect(url_for('liste_salles'))
+    
+    return render_template('salles/ajouter_salle.html', services=services)
+
+
+@app.route('/salles/salle/<int:id>')
+@login_required
+def detail_salle(id):
+    """Détail d'une salle avec ses lits"""
+    from models import Salle, Lit, Hospitalisation, Patient  # ⭐ AJOUTER CES IMPORTS
+    
+    salle = Salle.query.get_or_404(id)
+    
+    if salle.service.structure_id != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_salles'))
+    
+    lits = Lit.query.filter_by(salle_id=id).all()
+    
+    # Récupérer les infos des patients pour les lits occupés
+    for lit in lits:
+        if lit.statut == 'occupe' and lit.hospitalisation_id:
+            hospitalisation = Hospitalisation.query.get(lit.hospitalisation_id)
+            if hospitalisation:
+                lit.patient = hospitalisation.patient
+    
+    return render_template('salles/detail_salle.html', salle=salle, lits=lits)
+
+
+@app.route('/hospitalisation/<int:id>/assigner-lit', methods=['POST'])
+@login_required
+def assigner_lit(id):
+    """Assigner un lit à une hospitalisation"""
+    from models import Hospitalisation, Lit
+    
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    lit_id = request.form.get('lit_id', type=int)
+    
+    if not lit_id:
+        flash('Veuillez sélectionner un lit', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+    
+    lit = Lit.query.get(lit_id)
+    
+    if not lit or lit.statut != 'disponible':
+        flash('Ce lit n\'est pas disponible', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+    
+    # Occuper le lit
+    lit.occuper(id)
+    hospitalisation.lit_id = lit.id
+    hospitalisation.chambre = lit.salle.nom
+    hospitalisation.lit = lit.numero
+    
+    db.session.commit()
+    
+    flash(f'Lit {lit.salle.nom} - {lit.numero} attribué avec succès', 'success')
+    return redirect(url_for('detail_hospitalisation', id=id))
+
+@app.route('/api/salles/disponibles')
+@login_required
+def api_salles_disponibles():
+    from models import Salle, Service, Lit  # ⭐ TOUS LES IMPORTS
+    
+    service_nom = request.args.get('service', '')
+    
+    if not service_nom:
+        return jsonify([])
+    
+    # Récupérer les salles du service
+    salles = Salle.query.join(Service).filter(
+        Service.nom == service_nom,
+        Service.structure_id == current_user.id_structure,
+        Salle.actif == True
+    ).all()
+    
+    result = []
+    for salle in salles:
+        # Compter les lits disponibles
+        lits_disponibles = Lit.query.filter_by(
+            salle_id=salle.id,
+            statut='disponible'
+        ).count()
+        
+        result.append({
+            'id': salle.id,
+            'nom': salle.nom,
+            'type': salle.type_salle,
+            'lits_disponibles': lits_disponibles,
+            'prix': salle.prix_journalier
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/lits/disponibles')
+@login_required
+def api_lits_disponibles():
+    """Récupérer les lits disponibles d'une salle"""
+    from models import Lit
+    
+    salle_id = request.args.get('salle_id', type=int)
+    
+    if not salle_id:
+        return jsonify([])
+    
+    lits = Lit.query.filter_by(
+        salle_id=salle_id,
+        statut='disponible'
+    ).all()
+    
+    result = []
+    for lit in lits:
+        result.append({
+            'id': lit.id,
+            'numero': lit.numero
+        })
+    
+    return jsonify(result)
 
 if __name__ == '__main__':
     app.run(debug=True)

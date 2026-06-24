@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des salles{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-bed me-2 text-primary"></i>
+            Gestion des salles
+        </h1>
+        {% if current_user.role == 'admin_structure' %}
+        <div>
+            <a href="{{ url_for('ajouter_service') }}" class="btn btn-primary me-2" data-loading="true">
+                <i class="fas fa-plus me-2"></i>Nouveau service
+            </a>
+            <a href="{{ url_for('ajouter_salle') }}" class="btn btn-success" data-loading="true">
+                <i class="fas fa-plus me-2"></i>Nouvelle salle
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if services %}
+        <div class="row">
+            {% for service in services %}
+            <div class="col-md-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-building me-2"></i>
+                            {{ service.nom }}
+                            <span class="badge bg-secondary ms-2">{{ service.salles.count() }} salle(s)</span>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for salle in service.salles %}
+                            <div class="col-md-4 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <strong>{{ salle.nom }}</strong>
+                                        <span class="badge bg-info">{{ salle.type_salle }}</span>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>
+                                            <strong>Lits :</strong>
+                                            <span class="badge bg-success">{{ salle.lits_disponibles() }} disponibles</span>
+                                            <span class="badge bg-danger">{{ salle.lits_occupes() }} occupés</span>
+                                        </p>
+                                        <p><strong>Prix journalier :</strong> {{ salle.prix_journalier or 'Non défini' }} CFA</p>
+                                        <a href="{{ url_for('detail_salle', id=salle.id) }}" class="btn btn-sm btn-primary" data-loading="true">
+                                            <i class="fas fa-eye me-1"></i>Voir les lits
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center py-5">
+            <i class="fas fa-bed fa-3x mb-3 d-block"></i>
+            <h5>Aucun service configuré</h5>
+            <p class="mb-0">Commencez par créer un service et des salles.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

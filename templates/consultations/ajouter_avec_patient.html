@@ -91,39 +91,71 @@
                     </div>
                 </div>
                 
-<!-- Examens -->
-<h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2 text-info"></i>Examens</h5>
+<!-- ==================== EXAMENS & ANALYSES ==================== -->
+<h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2 text-info"></i>Examens et analyses</h5>
 <hr>
 
-<div class="mb-3">
-    <label class="form-label fw-bold">🔬 Examens cliniques (médecin)</label>
-    <textarea name="examens_cliniques" class="form-control" rows="2" 
-              placeholder="Ex: Palpation, Auscultation, Examen neurologique..."></textarea>
-    <small class="text-muted">Examens réalisés par le médecin lors de la consultation</small>
+<div class="row">
+    <!-- Examens cliniques -->
+    <div class="col-md-12 mb-3">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="fw-bold text-primary"><i class="fas fa-stethoscope me-2"></i>🔬 Examens cliniques (médecin)</h6>
+                <textarea name="examens_cliniques" class="form-control" rows="2" 
+                          placeholder="Ex: Palpation, Auscultation, Examen neurologique..."></textarea>
+                <small class="text-muted">Examens réalisés par le médecin lors de la consultation</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Biologie et Imagerie -->
+    <div class="col-md-6 mb-3">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="fw-bold text-success"><i class="fas fa-flask me-2"></i>🧪 Analyses de biologie</h6>
+                <textarea name="examens_biologie" class="form-control" rows="4" 
+                          placeholder="Ex: NFS&#10;Glycémie&#10;Bilan hépatique&#10;Bilan rénal&#10;CRP&#10;VS..."></textarea>
+                <small class="text-muted">Une analyse par ligne</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="fw-bold text-warning"><i class="fas fa-image me-2"></i>📷 Examens d'imagerie</h6>
+                <textarea name="examens_imagerie" class="form-control" rows="4" 
+                          placeholder="Ex: Radiographie thoracique&#10;Échographie abdominale&#10;Scanner cérébral&#10;IRM lombaire&#10;Mammographie..."></textarea>
+                <small class="text-muted">Un examen par ligne</small>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="row">
-    <div class="col-md-6 mb-3">
-        <label class="form-label fw-bold">🧪 Examens de biologie</label>
-        <textarea name="examens_biologie" class="form-control" rows="3" 
-                  placeholder="Ex: NFS, Glycémie, Bilan hépatique, Bilan rénal, CRP, VS..."></textarea>
-        <small class="text-muted">Analyses biologiques prescrites</small>
+<hr>
+
+<!-- Diagnostic avec CIM-10 intégré -->
+<div class="mb-3">
+    <label class="form-label">Diagnostic <span class="text-muted">(CIM-10)</span></label>
+    <div class="input-group">
+        <textarea name="diagnostic" id="diagnostic" class="form-control" rows="3" 
+                  placeholder="Ex: Choléra classique (A00.0)">{% if consultation %}{{ consultation.diagnostic or '' }}{% endif %}</textarea>
     </div>
-    <div class="col-md-6 mb-3">
-        <label class="form-label fw-bold">📷 Examens d'imagerie</label>
-        <textarea name="examens_imagerie" class="form-control" rows="3" 
-                  placeholder="Ex: Radiographie, Échographie, Scanner, IRM, Mammographie..."></textarea>
-        <small class="text-muted">Examens d'imagerie prescrits</small>
+    <div class="mt-2">
+        <div class="input-group">
+            <input type="text" id="cim10_search" class="form-control" 
+                   placeholder="Rechercher un code CIM-10..." autocomplete="off">
+            <button class="btn btn-primary" type="button" onclick="insertCIM10()">
+                <i class="fas fa-plus"></i> Insérer
+            </button>
+            <button class="btn btn-outline-secondary" type="button" onclick="clearCIM10Search()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="cim10_results" class="list-group mt-1" style="max-height: 150px; overflow-y: auto; display: none;"></div>
+        <small class="text-muted">Recherchez un code CIM-10 et cliquez sur "Insérer" pour l'ajouter au diagnostic</small>
     </div>
-</div>                
-                <!-- Diagnostic et traitement -->
-                <h5 class="mt-3 mb-3"><i class="fas fa-notes-medical me-2"></i>Diagnostic & Traitement</h5>
-                <hr>
-                <div class="mb-3">
-                    <label class="form-label">Diagnostic</label>
-                    <textarea name="diagnostic" class="form-control" rows="3"></textarea>
-                </div>
-                
+</div>
                 <div class="mb-3">
                     <label class="form-label">Traitement prescrit</label>
                     <textarea name="traitement" class="form-control" rows="3"></textarea>
@@ -149,7 +181,6 @@
                         <input type="number" name="arret_jours" class="form-control">
                     </div>
                 </div>
-
                 <!-- Statut médical -->
                 <h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2"></i>Statut médical</h5>
                 <hr>
@@ -221,5 +252,115 @@
     arretTravail.addEventListener('change', function() {
         arretJoursDiv.style.display = this.checked ? 'block' : 'none';
     });
+// ==================== CIM-10 INTÉGRÉ AU DIAGNOSTIC ====================
+let cim10Timeout = null;
+const cim10Search = document.getElementById('cim10_search');
+const cim10Results = document.getElementById('cim10_results');
+const diagnosticField = document.getElementById('diagnostic');
+let lastSelectedCIM10 = '';
+
+// Recherche en temps réel
+if (cim10Search) {
+    cim10Search.addEventListener('input', function() {
+        clearTimeout(cim10Timeout);
+        const term = this.value.trim();
+        
+        if (term.length < 2) {
+            cim10Results.style.display = 'none';
+            cim10Results.innerHTML = '';
+            return;
+        }
+        
+        cim10Timeout = setTimeout(() => {
+            fetch(`/api/cim10/search?term=${encodeURIComponent(term)}`)
+                .then(response => response.json())
+                .then(data => {
+                    cim10Results.innerHTML = '';
+                    if (data.length === 0) {
+                        cim10Results.innerHTML = '<div class="list-group-item text-muted">Aucun résultat</div>';
+                        cim10Results.style.display = 'block';
+                        return;
+                    }
+                    
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'list-group-item list-group-item-action';
+                        div.textContent = item.nom;
+                        div.onclick = function() {
+                            cim10Search.value = item.nom;
+                            lastSelectedCIM10 = item.nom;
+                            cim10Results.style.display = 'none';
+                            // Insérer automatiquement
+                            insertCIM10();
+                        };
+                        cim10Results.appendChild(div);
+                    });
+                    cim10Results.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Erreur:', error);
+                });
+        }, 300);
+    });
+}
+
+// Insérer le code CIM-10 dans le diagnostic
+function insertCIM10() {
+    const value = cim10Search.value.trim();
+    if (!value) {
+        alert('Veuillez sélectionner un code CIM-10');
+        return;
+    }
+    
+    // Récupérer le texte actuel du diagnostic
+    let currentText = diagnosticField.value;
+    
+    // Si le diagnostic est vide, ajouter juste le code
+    if (!currentText.trim()) {
+        diagnosticField.value = value;
+    } else {
+        // Ajouter le code à la fin avec un séparateur
+        // Vérifier si le code est déjà présent
+        if (currentText.includes(value)) {
+            alert('Ce code est déjà dans le diagnostic !');
+            return;
+        }
+        diagnosticField.value = currentText + '\n' + value;
+    }
+    
+    // Vider la recherche
+    cim10Search.value = '';
+    cim10Results.style.display = 'none';
+    cim10Results.innerHTML = '';
+    
+    // Mettre à jour le textearea
+    diagnosticField.focus();
+    diagnosticField.scrollTop = diagnosticField.scrollHeight;
+}
+
+// Vider la recherche
+function clearCIM10Search() {
+    cim10Search.value = '';
+    cim10Results.style.display = 'none';
+    cim10Results.innerHTML = '';
+}
+
+// Fermer les résultats en cliquant ailleurs
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#cim10_search') && !e.target.closest('#cim10_results')) {
+        cim10Results.style.display = 'none';
+    }
+});
+
+// Ajouter avec la touche Entrée
+if (cim10Search) {
+    cim10Search.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            insertCIM10();
+        }
+    });
+}
+
 </script>
 {% endblock %}

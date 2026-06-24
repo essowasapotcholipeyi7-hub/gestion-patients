@@ -16,6 +16,7 @@
         <div class="card-body">
             <form method="POST">
                 <div class="row">
+                    <!-- Patient -->
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Patient *</label>
                         <select name="patient_id" class="form-select" required>
@@ -27,12 +28,20 @@
                             {% endfor %}
                         </select>
                     </div>
+                    
+                    <!-- Service -->
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Service *</label>
-                        <input type="text" name="service" class="form-control" placeholder="Ex: Médecine Interne, Chirurgie..." required>
+                        <select name="service" id="serviceSelect" class="form-select" required>
+                            <option value="">Sélectionnez un service</option>
+                            {% for service in services %}
+                            <option value="{{ service.nom }}">{{ service.nom }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                 </div>
 
+                <!-- Motif -->
                 <div class="row">
                     <div class="col-12 mb-3">
                         <label class="form-label">Motif d'hospitalisation *</label>
@@ -40,16 +49,32 @@
                     </div>
                 </div>
 
+                <!-- Salle et Lit -->
                 <div class="row">
                     <div class="col-md-4 mb-3">
-                        <label class="form-label">Chambre</label>
-                        <input type="text" name="chambre" class="form-control" placeholder="Ex: 301">
+                        <label class="form-label">Salle</label>
+                        <select name="salle_id" id="salleSelect" class="form-select">
+                            <option value="">Sélectionnez d'abord un service</option>
+                        </select>
+                        <small class="text-muted">Choisissez une salle disponible</small>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Lit</label>
-                        <input type="text" name="lit" class="form-control" placeholder="Ex: A">
+                        <select name="lit_id" id="litSelect" class="form-select">
+                            <option value="">Sélectionnez d'abord une salle</option>
+                        </select>
+                        <small class="text-muted">Choisissez un lit disponible</small>
                     </div>
                     <div class="col-md-4 mb-3">
+                        <label class="form-label">Chambre (manuel)</label>
+                        <input type="text" name="chambre" class="form-control" placeholder="Ex: 301">
+                        <small class="text-muted">Laisser vide si un lit est sélectionné</small>
+                    </div>
+                </div>
+
+                <!-- Médecins et Infirmiers -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
                         <label class="form-label">Médecins référents</label>
                         <select name="medecins_ids" class="form-select" multiple>
                             {% for medecin in medecins %}
@@ -60,9 +85,6 @@
                         </select>
                         <small class="text-muted">Maintenez Ctrl pour sélectionner plusieurs</small>
                     </div>
-                </div>
-
-                <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Infirmiers assignés</label>
                         <select name="infirmiers_ids" class="form-select" multiple>
@@ -74,7 +96,11 @@
                         </select>
                         <small class="text-muted">Maintenez Ctrl pour sélectionner plusieurs</small>
                     </div>
-                    <div class="col-md-6 mb-3">
+                </div>
+
+                <!-- Notes -->
+                <div class="row">
+                    <div class="col-12 mb-3">
                         <label class="form-label">Notes d'admission</label>
                         <textarea name="notes_admission" class="form-control" rows="3" placeholder="Informations complémentaires..."></textarea>
                     </div>
@@ -92,4 +118,68 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const serviceSelect = document.getElementById('serviceSelect');
+    const salleSelect = document.getElementById('salleSelect');
+    const litSelect = document.getElementById('litSelect');
+    
+    // Charger les salles quand un service est sélectionné
+    serviceSelect.addEventListener('change', function() {
+        const serviceNom = this.value;
+        salleSelect.innerHTML = '<option value="">Chargement...</option>';
+        litSelect.innerHTML = '<option value="">Sélectionnez d\'abord une salle</option>';
+        
+        if (serviceNom) {
+            fetch(`/api/salles/disponibles?service=${encodeURIComponent(serviceNom)}`)
+                .then(response => response.json())
+                .then(data => {
+                    salleSelect.innerHTML = '<option value="">Sélectionnez une salle</option>';
+                    data.forEach(salle => {
+                        const option = document.createElement('option');
+                        option.value = salle.id;
+                        option.textContent = `${salle.nom} (${salle.type}) - ${salle.lits_disponibles} lit(s) disponible(s)`;
+                        salleSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Erreur:', error);
+                    salleSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+                });
+        } else {
+            salleSelect.innerHTML = '<option value="">Sélectionnez d\'abord un service</option>';
+        }
+    });
+    
+    // Charger les lits quand une salle est sélectionnée
+    salleSelect.addEventListener('change', function() {
+        const salleId = this.value;
+        litSelect.innerHTML = '<option value="">Chargement...</option>';
+        
+        if (salleId) {
+            fetch(`/api/lits/disponibles?salle_id=${salleId}`)
+                .then(response => response.json())
+                .then(data => {
+                    litSelect.innerHTML = '<option value="">Sélectionnez un lit</option>';
+                    data.forEach(lit => {
+                        const option = document.createElement('option');
+                        option.value = lit.id;
+                        option.textContent = `Lit ${lit.numero}`;
+                        litSelect.appendChild(option);
+                    });
+                    if (data.length === 0) {
+                        litSelect.innerHTML = '<option value="">Aucun lit disponible dans cette salle</option>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur:', error);
+                    litSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+                });
+        } else {
+            litSelect.innerHTML = '<option value="">Sélectionnez d\'abord une salle</option>';
+        }
+    });
+});
+</script>
 {% endblock %}

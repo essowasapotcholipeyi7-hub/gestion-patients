@@ -124,7 +124,9 @@ class Consultation(db.Model):
     examens_realises = db.Column(db.Text)
     notes_cliniques = db.Column(db.Text)
     traitement_prescrit = db.Column(db.Text)
-    
+
+    cim10 = db.Column(db.Text, nullable=True)  # Pour plusieurs codes
+
     # ⭐ ANTÉCÉDENTS (NOUVEAU)
     allergies = db.Column(db.Text)
     antecedents_medicaux = db.Column(db.Text)
@@ -264,7 +266,7 @@ class Hospitalisation(db.Model):
     motif = db.Column(db.Text, nullable=False)
     service = db.Column(db.String(100), nullable=False)
     chambre = db.Column(db.String(20), nullable=True)
-    lit = db.Column(db.String(20), nullable=True)
+    lit_id = db.Column(db.Integer, db.ForeignKey('lits.id'), nullable=True)
     statut = db.Column(db.String(20), default='actif')
     centre_transfert = db.Column(db.String(200), nullable=True)
     motif_transfert = db.Column(db.Text, nullable=True)
@@ -282,7 +284,7 @@ class Hospitalisation(db.Model):
     infirmiers = db.relationship('HospitalisationInfirmier', backref='hospitalisation', lazy='dynamic', cascade='all, delete-orphan')
     evolutions = db.relationship('EvolutionPatient', backref='hospitalisation', lazy='dynamic', cascade='all, delete-orphan')
     constantes = db.relationship('ConstanteVitale', backref='hospitalisation', lazy='dynamic', cascade='all, delete-orphan')
-
+    lit = db.relationship('Lit', foreign_keys=[lit_id], backref='hospitalisation_associee')
 
 class HospitalisationMedecin(db.Model):
     __tablename__ = 'hospitalisation_medecins'
@@ -317,6 +319,7 @@ class ConstanteVitale(db.Model):
     infirmier_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
     date_prise = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
+    # Constantes vitales de base
     temperature = db.Column(db.Float, nullable=True)
     pression_arterielle = db.Column(db.String(20), nullable=True)
     frequence_cardiaque = db.Column(db.Integer, nullable=True)
@@ -326,12 +329,23 @@ class ConstanteVitale(db.Model):
     poids = db.Column(db.Float, nullable=True)
     taille = db.Column(db.Float, nullable=True)
     imc = db.Column(db.Float, nullable=True)
+    
+    # ⭐ NOUVEAUX CHAMPS
+    diurese = db.Column(db.String(50), nullable=True)          # Ex: 1200 mL/24h
+    emission_gaz = db.Column(db.String(50), nullable=True)    # Oui/Non, Normal
+    selles = db.Column(db.String(50), nullable=True)          # Ex: Normale, Constipation, Diarrhée
+    vomissements = db.Column(db.String(50), nullable=True)    # Oui/Non, Fréquence
+    douleur = db.Column(db.Integer, nullable=True)             # Échelle 0-10
+    conscience = db.Column(db.String(50), nullable=True)      # Alerte, Obnubilé, Coma
+    pouls_peripherique = db.Column(db.String(50), nullable=True) # Présent, Absent
+    temperature_cutanee = db.Column(db.String(50), nullable=True) # Normale, Froide, Chaude
+    
     autres_constantes = db.Column(db.Text, nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     infirmier = db.relationship('Utilisateur', backref='constantes_prises')
-
 
 class EvolutionPatient(db.Model):
     __tablename__ = 'evolutions_patient'
@@ -370,3 +384,189 @@ class AvisExterne(db.Model):
     
     hospitalisation = db.relationship('Hospitalisation', backref='avis_externes_list')
     createur = db.relationship('Utilisateur', backref='avis_externes_crees')
+
+class AnalyseDemande(db.Model):
+    __tablename__ = 'analyses_demandes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    consultation_id = db.Column(db.Integer, db.ForeignKey('consultations.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    structure_id = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False)
+    
+    # Type d'analyse
+    type_analyse = db.Column(db.String(50), nullable=False)  # BIOLOGIE, IMAGERIE, AUTRE
+    nom_analyse = db.Column(db.String(255), nullable=False)  # NFS, Glycémie, Radio...
+    description = db.Column(db.Text, nullable=True)
+    
+    # Prescription
+    prescrit_par = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))
+    date_prescription = db.Column(db.DateTime, default=datetime.utcnow)
+    date_demande = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Résultats
+    resultats = db.Column(db.Text, nullable=True)  # Les résultats proprement dits
+    date_resultats = db.Column(db.DateTime, nullable=True)
+    resultats_par = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))  # Laborantin
+    
+    # Statut
+    statut = db.Column(db.String(20), default='EN_ATTENTE')  # EN_ATTENTE, EN_COURS, TERMINE
+    
+    # Fichiers joints
+    fichiers = db.Column(db.Text, nullable=True)  # Stockage des noms de fichiers PDF/JPG
+    
+    # Métadonnées
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    
+    # Relations
+    consultation = db.relationship('Consultation', backref='analyses_demandees')
+    patient = db.relationship('Patient', backref='analyses_demandees')
+    structure = db.relationship('Structure', backref='analyses_demandees')
+    prescripteur = db.relationship('Utilisateur', foreign_keys=[prescrit_par], backref='analyses_prescrites')
+    responsable = db.relationship('Utilisateur', foreign_keys=[resultats_par], backref='analyses_resultats')
+
+class Reference(db.Model):
+    __tablename__ = 'references'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    consultation_id = db.Column(db.Integer, db.ForeignKey('consultations.id'), nullable=False)
+    structure_id = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False)
+    
+    # Informations de référence
+    motif = db.Column(db.Text, nullable=False)
+    diagnostic = db.Column(db.Text, nullable=True)
+    centre_reference = db.Column(db.String(200), nullable=False)
+    service_reference = db.Column(db.String(100), nullable=True)
+    medecin_referent = db.Column(db.String(100), nullable=True)
+    
+    # Dernières constantes (copiées au moment de la référence)
+    derniere_tension = db.Column(db.String(20), nullable=True)
+    derniere_temperature = db.Column(db.Float, nullable=True)
+    derniere_pulse = db.Column(db.Integer, nullable=True)
+    derniere_saturation = db.Column(db.Integer, nullable=True)
+    dernier_poids = db.Column(db.Float, nullable=True)
+    derniere_taille = db.Column(db.Float, nullable=True)
+    dernier_imc = db.Column(db.Float, nullable=True)
+    
+    # Résumé
+    resume_clinique = db.Column(db.Text, nullable=True)
+    examens_realises = db.Column(db.Text, nullable=True)
+    traitements_en_cours = db.Column(db.Text, nullable=True)
+    
+    # Suivi
+    statut = db.Column(db.String(20), default='ENVOYE')  # ENVOYE, ACCEPTE, REFUSE, EN_ATTENTE
+    date_reference = db.Column(db.DateTime, default=datetime.utcnow)
+    date_retour = db.Column(db.DateTime, nullable=True)
+    retour_info = db.Column(db.Text, nullable=True)
+    
+    # Métadonnées
+    created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relations
+    patient = db.relationship('Patient', backref='references')
+    consultation = db.relationship('Consultation', backref='references')
+    structure = db.relationship('Structure', backref='references')
+    createur = db.relationship('Utilisateur', backref='references_crees')
+class PermissionTemp(db.Model):
+    __tablename__ = 'permissions_temp'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
+    granted_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
+    structure_id = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False)
+    
+    # Permission accordée
+    permission = db.Column(db.String(50), nullable=False)  # ANALYSES, REFERENCE, HOSPITALISATION, STATISTIQUES, etc.
+    
+    # Durée
+    date_debut = db.Column(db.DateTime, default=datetime.utcnow)
+    date_fin = db.Column(db.DateTime, nullable=False)
+    
+    # Motif
+    motif = db.Column(db.String(255), nullable=True)
+    
+    # Statut
+    actif = db.Column(db.Boolean, default=True)
+    date_revocation = db.Column(db.DateTime, nullable=True)
+    revoked_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
+    motif_revocation = db.Column(db.String(255), nullable=True)
+    
+    # Métadonnées
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relations
+    user = db.relationship('Utilisateur', foreign_keys=[user_id], backref='permissions_temp')
+    grantor = db.relationship('Utilisateur', foreign_keys=[granted_by], backref='permissions_temp_donnees')
+    revoker = db.relationship('Utilisateur', foreign_keys=[revoked_by], backref='permissions_temp_revoquees')
+    structure = db.relationship('Structure', backref='permissions_temp')
+
+# ==================== GESTION DES SALLES ====================
+
+# ==================== GESTION DES SALLES ====================
+
+class Service(db.Model):
+    __tablename__ = 'services'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    structure_id = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False)
+    nom = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    actif = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relations
+    structure = db.relationship('Structure', backref='services')
+    salles = db.relationship('Salle', backref='service_associe', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class Salle(db.Model):
+    __tablename__ = 'salles'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    service_id = db.Column(db.Integer, db.ForeignKey('services.id'), nullable=False)
+    nom = db.Column(db.String(50), nullable=False)
+    type_salle = db.Column(db.String(50), nullable=False)
+    nombre_lits = db.Column(db.Integer, nullable=False, default=1)
+    prix_journalier = db.Column(db.Float, nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    actif = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relations - Utiliser des noms uniques
+    service = db.relationship('Service', backref='salles_list')
+    lits = db.relationship('Lit', backref='salle_associee', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def lits_disponibles(self):
+        return self.lits.filter_by(statut='disponible').count()
+    
+    def lits_occupes(self):
+        return self.lits.filter_by(statut='occupe').count()
+
+
+class Lit(db.Model):
+    __tablename__ = 'lits'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    salle_id = db.Column(db.Integer, db.ForeignKey('salles.id'), nullable=False)
+    numero = db.Column(db.String(10), nullable=False)
+    statut = db.Column(db.String(20), default='disponible')
+    hospitalisation_id = db.Column(db.Integer, db.ForeignKey('hospitalisations.id'), nullable=True)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relations - Utiliser des noms uniques
+    salle = db.relationship('Salle', backref='lits_list')
+    hospitalisation = db.relationship('Hospitalisation', backref='lit_occupe_associe', foreign_keys=[hospitalisation_id])
+    
+    def liberer(self):
+        self.statut = 'disponible'
+        self.hospitalisation_id = None
+        self.updated_at = datetime.utcnow()
+    
+    def occuper(self, hospitalisation_id):
+        self.statut = 'occupe'
+        self.hospitalisation_id = hospitalisation_id
+        self.updated_at = datetime.utcnow()

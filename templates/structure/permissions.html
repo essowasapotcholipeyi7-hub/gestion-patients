@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des permissions temporaires{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-user-shield me-2 text-primary"></i>
+            Gestion des permissions temporaires
+        </h1>
+        <a href="{{ url_for('structure_utilisateurs') }}" class="btn btn-secondary" data-loading="true">
+            <i class="fas fa-arrow-left me-2"></i>Retour
+        </a>
+    </div>
+
+    <!-- Formulaire d'ajout -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-plus me-2"></i>Accorder une permission</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ajouter_permission') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Utilisateur</label>
+                    <select name="user_id" class="form-select" required>
+                        <option value="">Sélectionner...</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.prenom }} {{ user.nom }} ({{ user.role }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Permission</label>
+                    <select name="permission" class="form-select" required>
+                        <option value="">Sélectionner...</option>
+                        {% for p in permissions_list %}
+                        <option value="{{ p.key }}">{{ p.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Durée (heures)</label>
+                    <input type="number" name="duree" class="form-control" value="24" min="1" max="720">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Motif</label>
+                    <input type="text" name="motif" class="form-control" placeholder="Raison...">
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-check"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Permissions actives -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Permissions actives</h5>
+        </div>
+        <div class="card-body">
+            {% if permissions_actives %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Utilisateur</th>
+                            <th>Permission</th>
+                            <th>Date début</th>
+                            <th>Date fin</th>
+                            <th>Motif</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in permissions_actives %}
+                        <tr>
+                            <td>{{ p.user.prenom }} {{ p.user.nom }}</td>
+                            <td>
+                                {% for perm in permissions_list %}
+                                    {% if perm.key == p.permission %}
+                                        {{ perm.label }}
+                                    {% endif %}
+                                {% endfor %}
+                            </td>
+                            <td>{{ p.date_debut.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>
+                                {{ p.date_fin.strftime('%d/%m/%Y %H:%M') }}
+                                {% if p.date_fin < now %}
+                                    <span class="badge bg-danger">Expirée</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ p.motif or '-' }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('revoke_permission', id=p.id) }}" style="display:inline;">
+                                    <input type="hidden" name="motif_revocation" value="Révoquée par admin">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Révoquer cette permission ?')">
+                                        <i class="fas fa-times"></i> Révoquer
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center my-3">Aucune permission active</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Historique -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-history me-2"></i>Historique</h5>
+        </div>
+        <div class="card-body">
+            {% if historique %}
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Utilisateur</th>
+                            <th>Permission</th>
+                            <th>Accordée par</th>
+                            <th>Début</th>
+                            <th>Fin</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in historique %}
+                        <tr>
+                            <td>{{ p.user.prenom }} {{ p.user.nom }}</td>
+                            <td>{{ p.permission }}</td>
+                            <td>{{ p.grantor.prenom }} {{ p.grantor.nom }}</td>
+                            <td>{{ p.date_debut.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>{{ p.date_fin.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>
+                                {% if p.actif %}
+                                    <span class="badge bg-success">Actif</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Révoqué</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center my-3">Aucun historique</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

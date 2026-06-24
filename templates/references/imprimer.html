@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Fiche de référence - {{ reference.patient.nom }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.2cm;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Times New Roman', serif;
+            font-size: 11pt;
+            line-height: 1.3;
+            color: #1a1a1a;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px double #1a1a1a;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+        }
+        .header h1 {
+            font-size: 16pt;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0;
+        }
+        .header .sub {
+            font-size: 9pt;
+            color: #555;
+        }
+        .header .sub strong {
+            color: #1a1a1a;
+        }
+        
+        .info-box {
+            border: 1px solid #aaa;
+            padding: 8px 10px;
+            margin-bottom: 10px;
+            background: #f7f7f7;
+        }
+        .info-box table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .info-box td {
+            padding: 2px 6px;
+            font-size: 10pt;
+        }
+        .info-box .label {
+            font-weight: bold;
+            width: 22%;
+            color: #333;
+        }
+        
+        .section {
+            margin-bottom: 8px;
+        }
+        .section h3 {
+            font-size: 11pt;
+            border-bottom: 1.5px solid #aaa;
+            padding: 3px 8px;
+            margin-bottom: 5px;
+            background: #e9ecef;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .section p {
+            padding: 0 8px;
+            font-size: 10.5pt;
+            margin: 3px 0;
+        }
+        .section .content {
+            padding: 0 8px;
+            font-size: 10.5pt;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .constantes-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 3px 0;
+        }
+        .constantes-table td {
+            padding: 2px 8px;
+            font-size: 10pt;
+            width: 25%;
+        }
+        .constantes-table .val {
+            font-weight: bold;
+            color: #1a1a1a;
+        }
+        
+        .signature {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #aaa;
+            display: flex;
+            justify-content: space-between;
+        }
+        .signature div {
+            width: 45%;
+        }
+        .signature p {
+            font-size: 10pt;
+        }
+        .signature .line {
+            margin-top: 25px;
+            border-bottom: 1px solid #333;
+            width: 80%;
+        }
+        
+        .footer {
+            text-align: center;
+            font-size: 8pt;
+            color: #888;
+            border-top: 1px solid #ddd;
+            padding-top: 6px;
+            margin-top: 12px;
+        }
+        
+        .ref-number {
+            font-weight: bold;
+            font-size: 10pt;
+            color: #1a1a1a;
+        }
+        
+        @media print {
+            .no-print { display: none; }
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 8px 25px;
+            font-size: 13px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            text-decoration: none;
+            margin: 3px;
+        }
+        .btn-primary { background: #0d6efd; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+
+    <!-- ==================== EN-TÊTE ==================== -->
+    <div class="header">
+        <h1>FICHE DE RÉFÉRENCE</h1>
+        <div class="sub">
+            <strong>{{ reference.structure.nom }}</strong> - {{ reference.structure.adresse }}<br>
+            Tél: {{ reference.structure.telephone }}
+        </div>
+        <div class="sub" style="margin-top:3px;">
+            N° Référence: <span class="ref-number">REF-{{ "%05d" % reference.id }}</span>
+            &nbsp;&nbsp;|&nbsp;&nbsp;
+            Date: <strong>{{ reference.date_reference.strftime('%d/%m/%Y à %H:%M') }}</strong>
+        </div>
+    </div>
+
+    <!-- ==================== PATIENT ==================== -->
+    <div class="info-box">
+        <table>
+            <tr>
+                <td class="label">Patient</td>
+                <td><strong>{{ reference.patient.nom }} {{ reference.patient.prenom }}</strong></td>
+                <td class="label">N° dossier</td>
+                <td><strong>P{{ "%05d" % reference.patient.id }}</strong></td>
+            </tr>
+            <tr>
+                <td class="label">Date naissance</td>
+                <td>{{ reference.patient.date_naissance.strftime('%d/%m/%Y') if reference.patient.date_naissance else '-' }}</td>
+                <td class="label">Téléphone</td>
+                <td>{{ reference.patient.telephone or '-' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Assurance</td>
+                <td>{{ reference.patient.type_assurance or '-' }}</td>
+                <td class="label">N° assuré</td>
+                <td>{{ reference.patient.num_assure or '-' }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== CONSTANTES ==================== -->
+    <div class="section">
+        <h3>Dernières constantes</h3>
+        <table class="constantes-table">
+            <tr>
+                <td><strong>Tension</strong></td>
+                <td class="val">{{ reference.derniere_tension or '-' }} mmHg</td>
+                <td><strong>Température</strong></td>
+                <td class="val">{{ reference.derniere_temperature or '-' }} °C</td>
+            </tr>
+            <tr>
+                <td><strong>Pouls</strong></td>
+                <td class="val">{{ reference.derniere_pulse or '-' }} bpm</td>
+                <td><strong>Saturation O₂</strong></td>
+                <td class="val">{{ reference.derniere_saturation or '-' }} %</td>
+            </tr>
+            <tr>
+                <td><strong>Poids</strong></td>
+                <td class="val">{{ reference.dernier_poids or '-' }} kg</td>
+                <td><strong>Taille</strong></td>
+                <td class="val">{{ reference.derniere_taille or '-' }} cm</td>
+            </tr>
+            <tr>
+                <td><strong>IMC</strong></td>
+                <td class="val">{{ reference.dernier_imc or '-' }}</td>
+                <td></td>
+                <td></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== MOTIF & DIAGNOSTIC ==================== -->
+    <div class="section">
+        <h3>Motif de référence</h3>
+        <div class="content">{{ reference.motif }}</div>
+        {% if reference.diagnostic %}
+        <p><strong>Diagnostic :</strong> {{ reference.diagnostic }}</p>
+        {% endif %}
+    </div>
+
+    <!-- ==================== CENTRE ==================== -->
+    <div class="section">
+        <h3>Centre de référence</h3>
+        <p><strong>Centre :</strong> {{ reference.centre_reference }}</p>
+        {% if reference.service_reference %}
+        <p><strong>Service :</strong> {{ reference.service_reference }}</p>
+        {% endif %}
+        {% if reference.medecin_referent %}
+        <p><strong>Médecin :</strong> {{ reference.medecin_referent }}</p>
+        {% endif %}
+    </div>
+
+    <!-- ==================== RÉSUMÉ CLINIQUE ==================== -->
+    {% if reference.resume_clinique %}
+    <div class="section">
+        <h3>Résumé clinique</h3>
+        <div class="content">{{ reference.resume_clinique }}</div>
+    </div>
+    {% endif %}
+
+    <!-- ==================== EXAMENS ==================== -->
+    {% if reference.examens_realises %}
+    <div class="section">
+        <h3>Examens réalisés</h3>
+        <div class="content">{{ reference.examens_realises }}</div>
+    </div>
+    {% endif %}
+
+    <!-- ==================== TRAITEMENTS ==================== -->
+    {% if reference.traitements_en_cours %}
+    <div class="section">
+        <h3>Traitements en cours</h3>
+        <div class="content">{{ reference.traitements_en_cours }}</div>
+    </div>
+    {% endif %}
+
+    <!-- ==================== SIGNATURE ==================== -->
+    <div class="signature">
+        <div>
+            <p><strong>Médecin référent</strong></p>
+            <div class="line"></div>
+            <p style="font-size:9pt; color:#888; margin-top:3px;">Signature &amp; date</p>
+        </div>
+        <div>
+            <p><strong>Cachet du médecin</strong></p>
+            <div class="line"></div>
+            <p style="font-size:9pt; color:#888; margin-top:3px;">Cachet &amp; signature</p>
+        </div>
+    </div>
+
+    <!-- ==================== PIED DE PAGE ==================== -->
+    <div class="footer">
+        Document généré par MediLogic le {{ reference.date_reference.strftime('%d/%m/%Y à %H:%M') }}
+        &nbsp;•&nbsp; Fiche de référence n° REF-{{ "%05d" % reference.id }}
+    </div>
+
+    <!-- ==================== BOUTONS D'IMPRESSION ==================== -->
+    <div class="no-print" style="text-align:center; margin-top:20px;">
+        <button onclick="window.print()" class="btn btn-primary">
+            🖨️ Imprimer / PDF
+        </button>
+        <a href="{{ url_for('consultation_detail', id=reference.consultation_id) }}" class="btn btn-secondary">
+            ⬅️ Retour
+        </a>
+    </div>
+
+</body>
+</html>

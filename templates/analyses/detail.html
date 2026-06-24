@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Détail analyse - {{ analyse.nom_analyse }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-flask me-2 text-primary"></i>
+            Détail de l'analyse
+        </h1>
+        <div>
+            <a href="{{ url_for('liste_analyses') }}" class="btn btn-secondary" data-loading="true">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <!-- Informations générales -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informations</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Patient :</strong> {{ analyse.patient.nom }} {{ analyse.patient.prenom }}</p>
+                    <p><strong>N° dossier :</strong> P{{ "%05d" % analyse.patient.id }}</p>
+                    <p><strong>Analyse :</strong> {{ analyse.nom_analyse }}</p>
+                    <p><strong>Type :</strong> {{ analyse.type_analyse }}</p>
+                    <p><strong>Prescrit par :</strong> 
+                        {% if analyse.prescripteur %}
+                            Dr {{ analyse.prescripteur.prenom }} {{ analyse.prescripteur.nom }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </p>
+                    <p><strong>Date prescription :</strong> {{ analyse.date_prescription.strftime('%d/%m/%Y %H:%M') }}</p>
+                    <p><strong>Statut :</strong> 
+                        {% if analyse.statut == 'EN_ATTENTE' %}
+                            <span class="badge bg-warning">En attente</span>
+                        {% elif analyse.statut == 'EN_COURS' %}
+                            <span class="badge bg-primary">En cours</span>
+                        {% elif analyse.statut == 'TERMINE' %}
+                            <span class="badge bg-success">Terminé ✅</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <!-- Description -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-comment me-2"></i>Description / Notes</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ analyse.description or 'Aucune description' }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Résultats -->
+        <div class="col-md-12" id="resultats">
+            <div class="card">
+                <div class="card-header {% if analyse.statut == 'TERMINE' %}bg-success text-white{% else %}bg-secondary text-white{% endif %}">
+                    <h5 class="mb-0"><i class="fas fa-file-medical-alt me-2"></i>Résultats</h5>
+                </div>
+                <div class="card-body">
+                    {% if analyse.statut == 'TERMINE' %}
+                        <div class="alert alert-success">
+                            <strong>✅ Résultats disponibles :</strong>
+                            <p class="mt-2">{{ analyse.resultats or 'Résultats non saisis' }}</p>
+                            <small class="text-muted">
+                                Saisis par : {{ analyse.responsable.prenom }} {{ analyse.responsable.nom }}
+                                le {{ analyse.date_resultats.strftime('%d/%m/%Y %H:%M') }}
+                            </small>
+                        </div>
+                    {% elif analyse.statut == 'EN_COURS' %}
+                        <div class="alert alert-primary">
+                            <i class="fas fa-spinner fa-spin me-2"></i>
+                            Analyse en cours de traitement
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-clock me-2"></i>
+                            Analyse en attente de résultats
+                        </div>
+                    {% endif %}
+
+                    <!-- Formulaire pour laborantin -->
+                    {% if current_user.role in ['laborantin', 'admin_structure'] and analyse.statut != 'TERMINE' %}
+                    <hr>
+                    <form method="POST" action="{{ url_for('saisir_resultats_analyse', id=analyse.id) }}">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Saisir les résultats</label>
+                            <textarea name="resultats" class="form-control" rows="5" 
+                                      placeholder="Saisissez les résultats de l'analyse..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Statut</label>
+                            <select name="statut" class="form-select">
+                                <option value="EN_COURS">En cours</option>
+                                <option value="TERMINE">Terminé - résultats disponibles</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save me-2"></i>Enregistrer les résultats
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Références effectuées{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-ambulance me-2 text-warning"></i>
+            Références effectuées
+            <span class="badge bg-secondary ms-2">{{ references|length }}</span>
+        </h1>
+        <div>
+        <!-- ⭐ BOUTON NOUVELLE RÉFÉRENCE -->
+        <a href="{{ url_for('nouvelle_reference') }}" class="btn btn-warning me-2" data-loading="true">
+            <i class="fas fa-plus me-2"></i>Nouvelle référence
+        </a>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" data-loading="true">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtres et recherche -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Statut</label>
+                    <select name="statut" class="form-select">
+                        <option value="">Tous</option>
+                        <option value="ENVOYE" {% if statut_actuel == 'ENVOYE' %}selected{% endif %}>Envoyé</option>
+                        <option value="ACCEPTE" {% if statut_actuel == 'ACCEPTE' %}selected{% endif %}>Accepté</option>
+                        <option value="REFUSE" {% if statut_actuel == 'REFUSE' %}selected{% endif %}>Refusé</option>
+                        <option value="EN_ATTENTE" {% if statut_actuel == 'EN_ATTENTE' %}selected{% endif %}>En attente</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Rechercher un patient</label>
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" 
+                               placeholder="Nom, prénom ou N° référence..." value="{{ search }}">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <a href="{{ url_for('liste_references') }}" class="btn btn-secondary">
+                        <i class="fas fa-undo me-1"></i>Réinitialiser
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des références -->
+    <div class="card">
+        <div class="card-body">
+            {% if references %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead>
+                        <tr>
+                            <th>N° Réf.</th>
+                            <th>Patient</th>
+                            <th>Centre</th>
+                            <th>Motif</th>
+                            <th>Date</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ref in references %}
+                        <tr>
+                            <td><strong>REF-{{ "%05d" % ref.id }}</strong></td>
+                            <td>
+                                <strong>{{ ref.patient.nom }} {{ ref.patient.prenom }}</strong><br>
+                                <small class="text-muted">P{{ "%05d" % ref.patient.id }}</small>
+                            </td>
+                            <td>{{ ref.centre_reference }}</td>
+                            <td>{{ ref.motif[:50] }}{% if ref.motif|length > 50 %}...{% endif %}</td>
+                            <td>{{ ref.date_reference.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>
+                                {% if ref.statut == 'ENVOYE' %}
+                                    <span class="badge bg-warning">📤 Envoyé</span>
+                                {% elif ref.statut == 'ACCEPTE' %}
+                                    <span class="badge bg-success">✅ Accepté</span>
+                                {% elif ref.statut == 'REFUSE' %}
+                                    <span class="badge bg-danger">❌ Refusé</span>
+                                {% elif ref.statut == 'EN_ATTENTE' %}
+                                    <span class="badge bg-info">⏳ En attente</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('reimprimer_reference', id=ref.id) }}" class="btn btn-sm btn-warning" data-loading="true">
+                                    <i class="fas fa-print"></i> Réimprimer
+                                </a>
+                                {% if ref.statut != 'ACCEPTE' and ref.statut != 'REFUSE' %}
+                                <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#suiviModal{{ ref.id }}">
+                                    <i class="fas fa-edit"></i> Suivi
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-ambulance fa-4x text-muted mb-3"></i>
+                <p class="text-muted">Aucune référence trouvée</p>
+                <p class="text-muted small">Les références apparaîtront ici après leur création.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modals de suivi -->
+{% for ref in references %}
+{% if ref.statut != 'ACCEPTE' and ref.statut != 'REFUSE' %}
+<div class="modal fade" id="suiviModal{{ ref.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('suivi_reference', id=ref.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Suivi de la référence</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Patient :</strong> {{ ref.patient.nom }} {{ ref.patient.prenom }}</p>
+                    <p><strong>Centre :</strong> {{ ref.centre_reference }}</p>
+                    <hr>
+                    <div class="mb-3">
+                        <label class="form-label">Statut</label>
+                        <select name="statut" class="form-select">
+                            <option value="ENVOYE" {% if ref.statut == 'ENVOYE' %}selected{% endif %}>📤 Envoyé</option>
+                            <option value="ACCEPTE" {% if ref.statut == 'ACCEPTE' %}selected{% endif %}>✅ Accepté</option>
+                            <option value="REFUSE" {% if ref.statut == 'REFUSE' %}selected{% endif %}>❌ Refusé</option>
+                            <option value="EN_ATTENTE" {% if ref.statut == 'EN_ATTENTE' %}selected{% endif %}>⏳ En attente</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Informations de retour</label>
+                        <textarea name="retour_info" class="form-control" rows="3" placeholder="Résultat du retour...">{{ ref.retour_info or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}

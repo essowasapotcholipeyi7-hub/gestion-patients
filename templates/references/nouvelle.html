@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Nouvelle référence{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-ambulance me-2 text-warning"></i>
+            Nouvelle référence
+        </h1>
+        <div>
+            <a href="{{ url_for('liste_references') }}" class="btn btn-secondary" data-loading="true">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-header bg-warning text-white">
+            <h5 class="mb-0"><i class="fas fa-file-medical me-2"></i>Formulaire de référence</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <!-- ⭐ RECHERCHE DYNAMIQUE DE PATIENT -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Patient *</label>
+                    <input type="text" id="patientSearch" class="form-control" 
+                           placeholder="Rechercher par nom, prénom ou N° dossier..." 
+                           autocomplete="off">
+                    <input type="hidden" name="patient_id" id="patientId">
+                    <div id="patientResults" class="list-group mt-1" style="max-height: 250px; overflow-y: auto; display: none;"></div>
+                    <div id="patientSelected" class="mt-2" style="display: none;">
+                        <div class="alert alert-success py-1 px-2">
+                            <strong>✅ Patient sélectionné :</strong> 
+                            <span id="selectedPatientName"></span>
+                            <button type="button" class="btn btn-sm btn-outline-danger float-end" onclick="clearPatient()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Constantes du patient -->
+                <div class="alert alert-info" id="constantesBox" style="display: none;">
+                    <h6><i class="fas fa-heartbeat me-2 text-danger"></i>Dernières constantes du patient</h6>
+                    <div class="row" id="constantes_patient">
+                        <div class="col-md-3">
+                            <small class="text-muted">Tension</small><br>
+                            <strong id="const_tension">-</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Température</small><br>
+                            <strong id="const_temperature">-</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Pouls</small><br>
+                            <strong id="const_pouls">-</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Saturation</small><br>
+                            <strong id="const_saturation">-</strong>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3">
+                            <small class="text-muted">Poids</small><br>
+                            <strong id="const_poids">-</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Taille</small><br>
+                            <strong id="const_taille">-</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">IMC</small><br>
+                            <strong id="const_imc">-</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- Motif et diagnostic -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Motif de référence *</label>
+                        <textarea name="motif" class="form-control" rows="3" required></textarea>
+                    </div>
+<div class="col-md-6 mb-3">
+    <label class="form-label fw-bold">Diagnostic</label>
+    <textarea name="diagnostic" class="form-control" rows="3"></textarea>
+    <!-- ⭐ ALERTE INFORMATIVE -->
+    <div class="alert alert-light border mt-2 py-1 px-2" style="font-size: 0.85rem; background: #f8f9fa;">
+        <i class="fas fa-lock me-1 text-secondary"></i>
+        <strong>Confidentialité :</strong> Saisissez le <strong>code CIM-10</strong> 
+        (ex: A00, C10, E11, I10) plutôt que le libellé complet.
+    </div>
+</div>
+                <!-- Centre de référence -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Centre de référence *</label>
+                        <input type="text" name="centre_reference" class="form-control" required placeholder="Ex: CHU Lomé, Clinique Saint-Jean...">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Service demandé</label>
+                        <input type="text" name="service_reference" class="form-control" placeholder="Ex: Cardiologie, Neurologie...">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Médecin référent (destinataire)</label>
+                    <input type="text" name="medecin_referent" class="form-control" placeholder="Nom du médecin au centre de référence">
+                </div>
+
+                <hr>
+
+                <!-- Résumé clinique -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Résumé clinique</label>
+                    <textarea name="resume_clinique" class="form-control" rows="4" placeholder="Résumé de l'état du patient..."></textarea>
+                </div>
+
+                <!-- Examens réalisés -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Examens réalisés</label>
+                    <textarea name="examens_realises" class="form-control" rows="3" placeholder="Liste des examens déjà réalisés..."></textarea>
+                </div>
+
+                <!-- Traitements en cours -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Traitements en cours</label>
+                    <textarea name="traitements_en_cours" class="form-control" rows="3" placeholder="Traitements actuels du patient..."></textarea>
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{{ url_for('liste_references') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Annuler
+                    </a>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-file-pdf me-2"></i>Créer et imprimer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== RECHERCHE DYNAMIQUE DE PATIENT ====================
+let searchTimeout = null;
+const patientSearch = document.getElementById('patientSearch');
+const patientResults = document.getElementById('patientResults');
+const patientId = document.getElementById('patientId');
+const patientSelected = document.getElementById('patientSelected');
+const selectedPatientName = document.getElementById('selectedPatientName');
+const constantesBox = document.getElementById('constantesBox');
+
+// Recherche en temps réel
+patientSearch.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    const term = this.value.trim();
+    
+    if (term.length < 2) {
+        patientResults.style.display = 'none';
+        patientResults.innerHTML = '';
+        return;
+    }
+    
+    searchTimeout = setTimeout(() => {
+        fetch(`/api/patients/search?q=${encodeURIComponent(term)}`)
+            .then(response => response.json())
+            .then(data => {
+                patientResults.innerHTML = '';
+                if (data.length === 0) {
+                    patientResults.innerHTML = '<div class="list-group-item text-muted">Aucun patient trouvé</div>';
+                    patientResults.style.display = 'block';
+                    return;
+                }
+                
+                data.forEach(patient => {
+                    const div = document.createElement('div');
+                    div.className = 'list-group-item list-group-item-action';
+                    div.innerHTML = `
+                        <strong>${patient.nom} ${patient.prenom}</strong>
+                        <span class="text-muted">(P${patient.id_padded})</span>
+                        ${patient.telephone ? `- ${patient.telephone}` : ''}
+                    `;
+                    div.onclick = function() {
+                        selectPatient(patient.id, patient.nom, patient.prenom);
+                    };
+                    patientResults.appendChild(div);
+                });
+                patientResults.style.display = 'block';
+            })
+            .catch(error => console.error('Erreur:', error));
+    }, 300);
+});
+
+// Fermer les résultats en cliquant ailleurs
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#patientSearch') && !e.target.closest('#patientResults')) {
+        patientResults.style.display = 'none';
+    }
+});
+
+// Sélectionner un patient
+function selectPatient(id, nom, prenom) {
+    patientId.value = id;
+    patientSearch.value = '';
+    patientSearch.placeholder = `${prenom} ${nom} sélectionné`;
+    patientResults.style.display = 'none';
+    patientResults.innerHTML = '';
+    
+    patientSelected.style.display = 'block';
+    selectedPatientName.textContent = `${prenom} ${nom}`;
+    
+    // Charger les constantes
+    chargerConstantes(id);
+}
+
+// Effacer la sélection
+function clearPatient() {
+    patientId.value = '';
+    patientSearch.value = '';
+    patientSearch.placeholder = 'Rechercher par nom, prénom ou N° dossier...';
+    patientSelected.style.display = 'none';
+    constantesBox.style.display = 'none';
+    resetConstantes();
+}
+
+// ==================== CHARGEMENT DES CONSTANTES ====================
+function chargerConstantes(patientId) {
+    fetch(`/api/patient/${patientId}/constantes`)
+        .then(response => response.json())
+        .then(data => {
+            constantesBox.style.display = 'block';
+            document.getElementById('const_tension').textContent = data.tension || '-';
+            document.getElementById('const_temperature').textContent = data.temperature ? data.temperature + ' °C' : '-';
+            document.getElementById('const_pouls').textContent = data.pouls ? data.pouls + ' bpm' : '-';
+            document.getElementById('const_saturation').textContent = data.saturation ? data.saturation + ' %' : '-';
+            document.getElementById('const_poids').textContent = data.poids ? data.poids + ' kg' : '-';
+            document.getElementById('const_taille').textContent = data.taille ? data.taille + ' cm' : '-';
+            document.getElementById('const_imc').textContent = data.imc || '-';
+        })
+        .catch(error => console.error('Erreur:', error));
+}
+
+function resetConstantes() {
+    document.getElementById('const_tension').textContent = '-';
+    document.getElementById('const_temperature').textContent = '-';
+    document.getElementById('const_pouls').textContent = '-';
+    document.getElementById('const_saturation').textContent = '-';
+    document.getElementById('const_poids').textContent = '-';
+    document.getElementById('const_taille').textContent = '-';
+    document.getElementById('const_imc').textContent = '-';
+}
+</script>
+{% endblock %}

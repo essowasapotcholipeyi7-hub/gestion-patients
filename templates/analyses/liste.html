@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Analyses demandées{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-flask me-2 text-primary"></i>
+            Analyses demandées
+            <span class="badge bg-secondary ms-2">{{ patients|length }} patient(s)</span>
+        </h1>
+        <div>
+            {% if current_user.role == 'laborantin' %}
+            <span class="badge bg-success fs-6 me-2">
+                <i class="fas fa-user-nurse me-1"></i> Laborantin: {{ current_user.prenom }} {{ current_user.nom }}
+            </span>
+            {% endif %}
+            {% if current_user.role == 'medecin' %}
+            <span class="badge bg-primary fs-6">
+                <i class="fas fa-user-md me-1"></i> Médecin: {{ current_user.prenom }} {{ current_user.nom }}
+            </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Filtres et recherche -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Statut</label>
+                    <select name="statut" class="form-select">
+                        <option value="">Tous</option>
+                        <option value="EN_ATTENTE" {% if statut_actuel == 'EN_ATTENTE' %}selected{% endif %}>En attente</option>
+                        <option value="EN_COURS" {% if statut_actuel == 'EN_COURS' %}selected{% endif %}>En cours</option>
+                        <option value="TERMINE" {% if statut_actuel == 'TERMINE' %}selected{% endif %}>Terminé</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Rechercher un patient</label>
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" 
+                               placeholder="Nom, prénom ou N° dossier..." value="{{ search }}">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <a href="{{ url_for('liste_analyses') }}" class="btn btn-secondary" data-loading="true">
+                        <i class="fas fa-undo me-1"></i>Réinitialiser
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des patients -->
+    {% if patients %}
+        <div class="row">
+            {% for item in patients %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ item.patient.nom }} {{ item.patient.prenom }}</strong><br>
+                            <small class="text-muted">N° dossier: P{{ "%05d" % item.patient.id }}</small>
+                        </div>
+                        <div class="text-end">
+                            {% set en_attente = item.analyses|selectattr('statut', 'equalto', 'EN_ATTENTE')|list|length %}
+                            {% set termine = item.analyses|selectattr('statut', 'equalto', 'TERMINE')|list|length %}
+                            {% if en_attente > 0 %}
+                            <span class="badge bg-warning d-block mb-1">{{ en_attente }} en attente</span>
+                            {% endif %}
+                            {% if termine > 0 %}
+                            <span class="badge bg-success d-block">{{ termine }} terminé</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <small class="text-muted">Total: {{ item.analyses|length }} analyse(s)</small>
+                        </div>
+                        <div class="list-group list-group-flush" style="max-height: 200px; overflow-y: auto;">
+                            {% for analyse in item.analyses %}
+                            <div class="list-group-item px-0 py-1 d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    {% if analyse.type_analyse == 'BIOLOGIE' %}
+                                        <span class="text-success me-1">🧪</span>
+                                    {% elif analyse.type_analyse == 'IMAGERIE' %}
+                                        <span class="text-warning me-1">📷</span>
+                                    {% else %}
+                                        <span class="text-secondary me-1">🔬</span>
+                                    {% endif %}
+                                    <span class="small">{{ analyse.nom_analyse }}</span>
+                                </div>
+                                <div>
+                                    {% if analyse.statut == 'EN_ATTENTE' %}
+                                        <span class="badge bg-warning" style="font-size: 0.65rem;">En attente</span>
+                                    {% elif analyse.statut == 'EN_COURS' %}
+                                        <span class="badge bg-primary" style="font-size: 0.65rem;">En cours</span>
+                                    {% elif analyse.statut == 'TERMINE' %}
+                                        <span class="badge bg-success" style="font-size: 0.65rem;">✅ Terminé</span>
+                                    {% endif %}
+                                    {% if analyse.resultats %}
+                                        <span class="badge bg-info" style="font-size: 0.6rem;"></span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="{{ url_for('patient_analyses', patient_id=item.patient.id) }}" 
+                           class="btn btn-sm btn-primary w-100" data-loading="true">
+                            <i class="fas fa-eye me-1"></i>Voir toutes les analyses ({{ item.analyses|length }})
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center py-5">
+            <i class="fas fa-flask fa-3x mb-3 d-block"></i>
+            <h5>Aucune analyse trouvée</h5>
+            <p class="mb-0">
+                {% if search %}
+                    Aucun patient ne correspond à "{{ search }}"
+                {% else %}
+                    Aucune analyse demandée pour le moment.
+                {% endif %}
+            </p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Effet de survol sur les cartes
+    document.querySelectorAll('.card.h-100').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'scale(1.02)';
+            this.style.transition = 'transform 0.2s, box-shadow 0.2s';
+            this.style.boxShadow = '0 10px 25px rgba(0,0,0,0.15)';
+        });
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'scale(1)';
+            this.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+        });
+    });
+});
+</script>
+{% endblock %}
