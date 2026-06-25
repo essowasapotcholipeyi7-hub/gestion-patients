@@ -502,7 +502,6 @@ class PermissionTemp(db.Model):
     revoker = db.relationship('Utilisateur', foreign_keys=[revoked_by], backref='permissions_temp_revoquees')
     structure = db.relationship('Structure', backref='permissions_temp')
 
-# ==================== GESTION DES SALLES ====================
 
 # ==================== GESTION DES SALLES ====================
 
@@ -518,7 +517,7 @@ class Service(db.Model):
     
     # Relations
     structure = db.relationship('Structure', backref='services')
-    salles = db.relationship('Salle', backref='service_associe', lazy='dynamic', cascade='all, delete-orphan')
+    salles = db.relationship('Salle', backref='service_associe', lazy='dynamic', cascade='all, delete-orphan', overlaps="salles_list")
 
 
 class Salle(db.Model):
@@ -535,8 +534,8 @@ class Salle(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relations - Utiliser des noms uniques
-    service = db.relationship('Service', backref='salles_list')
-    lits = db.relationship('Lit', backref='salle_associee', lazy='dynamic', cascade='all, delete-orphan')
+    service = db.relationship('Service', backref='salles_list', overlaps="salles")
+    lits = db.relationship('Lit', backref='salle_associee', lazy='dynamic', cascade='all, delete-orphan', overlaps="lits_list")
     
     def lits_disponibles(self):
         return self.lits.filter_by(statut='disponible').count()
@@ -558,8 +557,8 @@ class Lit(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relations - Utiliser des noms uniques
-    salle = db.relationship('Salle', backref='lits_list')
-    hospitalisation = db.relationship('Hospitalisation', backref='lit_occupe_associe', foreign_keys=[hospitalisation_id])
+    salle = db.relationship('Salle', backref='lits_list', overlaps="lits")
+    hospitalisation = db.relationship('Hospitalisation', foreign_keys=[hospitalisation_id], backref='lit_occupe')
     
     def liberer(self):
         self.statut = 'disponible'

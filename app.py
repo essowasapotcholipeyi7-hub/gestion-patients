@@ -46,8 +46,8 @@ login_manager.login_message = 'Veuillez vous connecter pour accéder à cette pa
 
 @login_manager.user_loader
 def load_user(user_id):
-    from models import Utilisateur
-    return Utilisateur.query.get(int(user_id))
+    from models import db, Utilisateur
+    return db.session.get(Utilisateur, int(user_id))
 
 @app.context_processor
 def inject_non_lus():
@@ -1132,9 +1132,8 @@ def consultation_ajouter_avec_patient(id):
 
 @app.route('/statistiques')
 @login_required
-@has_permission('STATISTIQUES')
 def statistiques():
-    from models import Patient, Consultation, Utilisateur
+    from models import Patient, Consultation, Utilisateur, Hospitalisation, ConstanteVitale, AnalyseDemande, HospitalisationInfirmier
     from datetime import datetime, timedelta
     from sqlalchemy import func, extract
     
@@ -1145,8 +1144,7 @@ def statistiques():
     medecin_id = request.args.get('medecin_id', '')
     type_assurance = request.args.get('type_assurance', '')
     
-    # ========== Construction de la requête de base correctement ==========
-    # Commencer par une requête sur Consultation avec jointure à Patient
+    # ========== Construction de la requête de base ==========
     base_query = Consultation.query.join(Patient, Consultation.id_patient == Patient.id)
     
     # Filtrer selon le rôle
@@ -1184,7 +1182,6 @@ def statistiques():
             func.count(func.distinct(Consultation.id_patient)).label('nb')
         ).group_by('jour').order_by('jour').limit(30).all()
         patients_par_periode = [{'periode': p.jour.strftime('%d/%m/%Y'), 'nb': p.nb} for p in periodes]
-        
     elif periode == 'semaine':
         periodes = base_query.with_entities(
             extract('year', Consultation.date_consultation).label('annee'),
@@ -1192,15 +1189,13 @@ def statistiques():
             func.count(func.distinct(Consultation.id_patient)).label('nb')
         ).group_by('annee', 'semaine').order_by('annee', 'semaine').limit(30).all()
         patients_par_periode = [{'periode': f"S{int(p.semaine)}-{int(p.annee)}", 'nb': p.nb} for p in periodes]
-        
     elif periode == 'mois':
         periodes = base_query.with_entities(
             func.to_char(Consultation.date_consultation, 'YYYY-MM').label('mois'),
             func.count(func.distinct(Consultation.id_patient)).label('nb')
         ).group_by('mois').order_by('mois').limit(12).all()
         patients_par_periode = [{'periode': p.mois, 'nb': p.nb} for p in periodes]
-        
-    else:  # année
+    else:
         periodes = base_query.with_entities(
             extract('year', Consultation.date_consultation).label('annee'),
             func.count(func.distinct(Consultation.id_patient)).label('nb')
@@ -1213,7 +1208,8 @@ def statistiques():
         func.count(Consultation.id).label('total')
     ).filter(
         Consultation.diagnostic.isnot(None),
-        Consultation.diagnostic != ''
+        Consultation.diagnostic != '',
+        Consultation.diagnostic != '-'
     ).group_by(Consultation.diagnostic).order_by(func.count(Consultation.id).desc()).limit(10).all()
     
     # ========== Répartition assurances ==========
@@ -1224,7 +1220,7 @@ def statistiques():
         Consultation.id.in_(base_query.with_entities(Consultation.id))
     ).group_by(Patient.type_assurance).all()
     
-    # ========== Statistiques par médecin (admin structure uniquement) ==========
+    # ========== 📊 PERFORMANCE DES MÉDECINS ==========
     if current_user.role == 'admin_structure':
         stats_medecins = db.session.query(
             Utilisateur.id,
@@ -1238,7 +1234,111 @@ def statistiques():
     else:
         stats_medecins = []
     
-    # ========== Évolution quotidienne (graphique) ==========
+    # ========== 🩺 PERFORMANCE DES INFIRMIERS ==========
+    stats_infirmiers = []
+    if current_user.role == 'admin_structure':
+        infirmiers = Utilisateur.query.filter_by(
+            id_structure=current_user.id_structure,
+            role='infirmier',
+            actif=True
+        ).all()
+        
+        for inf in infirmiers:
+            nb_constantes = ConstanteVitale.query.filter_by(infirmier_id=inf.id).count()
+            nb_hospitalisations = HospitalisationInfirmier.query.filter_by(
+                infirmier_id=inf.id,
+                actif=True
+            ).count()
+            derniere_constante = ConstanteVitale.query.filter_by(
+                infirmier_id=inf.id
+            ).order_by(ConstanteVitale.date_prise.desc()).first()
+            
+            stats_infirmiers.append({
+                'id': inf.id,
+                'nom': inf.nom,
+                'prenom': inf.prenom,
+                'nb_constantes': nb_constantes,
+                'nb_hospitalisations': nb_hospitalisations,
+                'derniere_constante': derniere_constante.date_prise if derniere_constante else None
+            })
+        
+        stats_infirmiers.sort(key=lambda x: x['nb_constantes'], reverse=True)
+    
+    # ========== 📊 STATISTIQUES HOSPITALISATIONS ==========
+    stats_hospitalisations = {}
+    if current_user.role == 'admin_structure' or current_user.role == 'medecin':
+        structure_id = current_user.id_structure if current_user.id_structure else 1
+        
+        # Récupérer les IDs des patients de la structure
+        patient_ids = db.session.query(Patient.id).filter(
+            Patient.id_structure == structure_id
+        ).all()
+        patient_ids = [p[0] for p in patient_ids]
+        
+        if patient_ids:
+            total_hosp = Hospitalisation.query.filter(
+                Hospitalisation.patient_id.in_(patient_ids)
+            ).count()
+            
+            hosp_actives = Hospitalisation.query.filter(
+                Hospitalisation.patient_id.in_(patient_ids),
+                Hospitalisation.statut == 'actif'
+            ).count()
+            
+            hosp_par_service = db.session.query(
+                Hospitalisation.service,
+                func.count(Hospitalisation.id).label('total')
+            ).filter(
+                Hospitalisation.patient_id.in_(patient_ids)
+            ).group_by(Hospitalisation.service).all()
+            
+            stats_hospitalisations = {
+                'total': total_hosp,
+                'actives': hosp_actives,
+                'par_service': [{'service': s[0], 'total': s[1]} for s in hosp_par_service]
+            }
+        else:
+            stats_hospitalisations = {'total': 0, 'actives': 0, 'par_service': []}
+    
+    # ========== 📊 STATISTIQUES ANALYSES ==========
+    stats_analyses = {}
+    if current_user.role == 'admin_structure' or current_user.role == 'medecin' or current_user.role == 'laborantin':
+        structure_id = current_user.id_structure if current_user.id_structure else 1
+        
+        # Récupérer les IDs des patients de la structure
+        patient_ids = db.session.query(Patient.id).filter(
+            Patient.id_structure == structure_id
+        ).all()
+        patient_ids = [p[0] for p in patient_ids]
+        
+        if patient_ids:
+            total_analyses = AnalyseDemande.query.filter(
+                AnalyseDemande.patient_id.in_(patient_ids)
+            ).count()
+            
+            analyses_par_statut = db.session.query(
+                AnalyseDemande.statut,
+                func.count(AnalyseDemande.id).label('total')
+            ).filter(
+                AnalyseDemande.patient_id.in_(patient_ids)
+            ).group_by(AnalyseDemande.statut).all()
+            
+            analyses_par_type = db.session.query(
+                AnalyseDemande.type_analyse,
+                func.count(AnalyseDemande.id).label('total')
+            ).filter(
+                AnalyseDemande.patient_id.in_(patient_ids)
+            ).group_by(AnalyseDemande.type_analyse).all()
+            
+            stats_analyses = {
+                'total': total_analyses,
+                'par_statut': [{'statut': s[0], 'total': s[1]} for s in analyses_par_statut],
+                'par_type': [{'type': t[0], 'total': t[1]} for t in analyses_par_type]
+            }
+        else:
+            stats_analyses = {'total': 0, 'par_statut': [], 'par_type': []}
+    
+    # ========== Évolution quotidienne ==========
     evolution = base_query.with_entities(
         func.date_trunc('day', Consultation.date_consultation).label('date'),
         func.count(Consultation.id).label('total')
@@ -1253,7 +1353,6 @@ def statistiques():
     else:
         medecins = []
     
-    # Types d'assurance pour le filtre
     types_assurance = ['AMU-CNSS', 'AMU-INAM', 'AUTRE_ASSURANCE', 'NON_ASSURÉ']
     
     return render_template('statistiques.html',
@@ -1263,6 +1362,9 @@ def statistiques():
                          top_pathologies=top_pathologies,
                          assurances=assurances,
                          stats_medecins=stats_medecins,
+                         stats_infirmiers=stats_infirmiers,
+                         stats_hospitalisations=stats_hospitalisations,
+                         stats_analyses=stats_analyses,
                          medecins=medecins,
                          types_assurance=types_assurance,
                          evolution_labels=evolution_labels,

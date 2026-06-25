@@ -119,7 +119,7 @@
         </div>
     </div>
 
-    <!-- Graphique évolution (réduit) -->
+    <!-- Graphique évolution -->
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card">
@@ -136,7 +136,7 @@
     </div>
 
     <div class="row">
-        <!-- Top pathologies - CORRIGÉ -->
+        <!-- Top pathologies -->
         <div class="col-md-6 mb-4">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -186,7 +186,7 @@
             </div>
         </div>
 
-        <!-- Répartition assurances (réduit) -->
+        <!-- Répartition assurances -->
         <div class="col-md-6 mb-4">
             <div class="card h-100">
                 <div class="card-header">
@@ -223,9 +223,15 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Fréquentation par période -->
-        <div class="col-md-12 mb-4">
+    <!-- ============================================================ -->
+    <!-- NOUVELLES SECTIONS STATISTIQUES                               -->
+    <!-- ============================================================ -->
+
+    <!-- Fréquentation par période -->
+    <div class="row mb-4">
+        <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="fas fa-calendar-week me-2"></i>Fréquentation par période</h5>
@@ -264,10 +270,12 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Stats par médecin -->
-        {% if stats_medecins %}
-        <div class="col-md-12 mb-4">
+    <!-- Performance des médecins -->
+    {% if stats_medecins %}
+    <div class="row mb-4">
+        <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Performance par médecin</h5>
@@ -302,14 +310,160 @@
                 </div>
             </div>
         </div>
+    </div>
+    {% endif %}
+
+    <!-- Performance des infirmiers -->
+    {% if stats_infirmiers %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-user-nurse me-2 text-success"></i>Performance des infirmiers</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Infirmier</th>
+                                    <th class="text-center">Constantes prises</th>
+                                    <th class="text-center">Hospitalisations suivies</th>
+                                    <th>Dernière constante</th>
+                                    <th class="text-center">Performance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for inf in stats_infirmiers %}
+                                <tr>
+                                    <td><strong>{{ inf.prenom }} {{ inf.nom }}</strong></td>
+                                    <td class="text-center"><span class="badge bg-primary">{{ inf.nb_constantes }}</span></td>
+                                    <td class="text-center"><span class="badge bg-info">{{ inf.nb_hospitalisations }}</span></td>
+                                    <td>
+                                        {% if inf.derniere_constante %}
+                                            {{ inf.derniere_constante.strftime('%d/%m/%Y %H:%M') }}
+                                        {% else %}
+                                            <span class="text-muted">Jamais</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if inf.nb_constantes > 50 %}
+                                            <span class="badge bg-success">⭐⭐⭐ Excellent</span>
+                                        {% elif inf.nb_constantes > 20 %}
+                                            <span class="badge bg-warning">⭐⭐ Bon</span>
+                                        {% elif inf.nb_constantes > 5 %}
+                                            <span class="badge bg-info">⭐ Moyen</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">À renforcer</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Statistiques hospitalisations -->
+    {% if stats_hospitalisations %}
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-hospital me-2 text-danger"></i>Hospitalisations</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6 text-center">
+                            <h3 class="text-primary">{{ stats_hospitalisations.total }}</h3>
+                            <small class="text-muted">Total</small>
+                        </div>
+                        <div class="col-6 text-center">
+                            <h3 class="text-success">{{ stats_hospitalisations.actives }}</h3>
+                            <small class="text-muted">Actives</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <h6 class="mt-2">Par service</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th>Service</th><th class="text-center">Nb</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for s in stats_hospitalisations.par_service %}
+                                <tr>
+                                    <td>{{ s.service }}</td>
+                                    <td class="text-center"><span class="badge bg-primary">{{ s.total }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistiques analyses -->
+        {% if stats_analyses %}
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-flask me-2 text-warning"></i>Analyses</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <h3 class="text-primary">{{ stats_analyses.total }}</h3>
+                        <small class="text-muted">Total des analyses demandées</small>
+                    </div>
+                    <div class="row">
+                        {% for s in stats_analyses.par_statut %}
+                        <div class="col-4 text-center">
+                            <span class="badge 
+                                {% if s.statut == 'EN_ATTENTE' %}bg-warning
+                                {% elif s.statut == 'EN_COURS' %}bg-primary
+                                {% elif s.statut == 'TERMINE' %}bg-success
+                                {% endif %}">
+                                {{ s.total }}
+                            </span>
+                            <br><small>{{ s.statut }}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <hr>
+                    <h6 class="mt-2">Par type</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th>Type</th><th class="text-center">Nb</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for t in stats_analyses.par_type %}
+                                <tr>
+                                    <td>{{ t.type }}</td>
+                                    <td class="text-center"><span class="badge bg-primary">{{ t.total }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
         {% endif %}
     </div>
+    {% endif %}
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Graphique évolution (réduit)
+    // Graphique évolution
     const ctx1 = document.getElementById('evolutionChart');
     if (ctx1) {
         new Chart(ctx1, {
@@ -335,7 +489,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Graphique assurances (réduit)
+    // Graphique assurances
     const ctx2 = document.getElementById('assurancesChart');
     if (ctx2) {
         new Chart(ctx2, {
