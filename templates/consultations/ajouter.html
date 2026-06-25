@@ -17,64 +17,80 @@
     <div class="card">
         <div class="card-body">
             <form method="POST">
-                <!-- Patient -->
+                <!-- Patient avec recherche dynamique -->
                 <div class="mb-3">
                     <label class="form-label">Patient *</label>
-                    <select name="id_patient" class="form-select" required>
-                        <option value="">Sélectionner un patient</option>
-                        {% for patient in patients %}
-                        <option value="{{ patient.id }}">{{ patient.prenom }} {{ patient.nom }} ({{ patient.telephone or 'pas de tel' }})</option>
-                        {% endfor %}
-                    </select>
+                    <div class="input-group">
+                        <input type="text" id="patientSearch" class="form-control" 
+                               placeholder="Rechercher par nom, prénom ou N° dossier..." autocomplete="off">
+                        <input type="hidden" name="id_patient" id="patientId">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearPatient()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div id="patientResults" class="list-group mt-1" style="max-height: 250px; overflow-y: auto; display: none;"></div>
+                    <div id="patientSelected" class="mt-2" style="display: none;">
+                        <div class="alert alert-success py-1 px-2">
+                            <strong>✅ Patient sélectionné :</strong> 
+                            <span id="selectedPatientName"></span>
+                            <button type="button" class="btn btn-sm btn-outline-danger float-end" onclick="clearPatient()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                
+
                 <!-- Motif -->
                 <div class="mb-3">
                     <label class="form-label">Motif *</label>
                     <textarea name="motif" class="form-control" rows="2" required></textarea>
                 </div>
-                
-                <!-- Signes vitaux -->
-                <h5 class="mt-3 mb-3"><i class="fas fa-heartbeat me-2"></i>Signes vitaux</h5>
-                <hr>
-                <div class="row">
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Tension artérielle</label>
-                        <input type="text" name="tension" class="form-control" placeholder="Ex: 120/80">
+
+                <!-- Constantes du patient -->
+                <div id="constantesPatient" style="display: none;" class="alert alert-info mt-3">
+                    <h6><i class="fas fa-heartbeat me-2 text-danger"></i>Dernières constantes du patient</h6>
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small text-muted">Tension artérielle</label>
+                            <input type="text" name="tension" id="const_tension" class="form-control form-control-sm" placeholder="120/80">
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small text-muted">Température (°C)</label>
+                            <input type="number" step="0.1" name="temperature" id="const_temperature" class="form-control form-control-sm" placeholder="37.5">
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small text-muted">Pouls (bpm)</label>
+                            <input type="number" name="pouls" id="const_pouls" class="form-control form-control-sm" placeholder="72">
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small text-muted">Saturation O₂ (%)</label>
+                            <input type="number" name="saturation" id="const_saturation" class="form-control form-control-sm" placeholder="98">
+                        </div>
                     </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Température (°C)</label>
-                        <input type="number" step="0.1" name="temperature" class="form-control">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small text-muted">Poids (kg)</label>
+                            <input type="number" step="0.1" name="poids" id="const_poids" class="form-control form-control-sm" placeholder="75">
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small text-muted">Taille (cm)</label>
+                            <input type="number" step="0.5" name="taille" id="const_taille" class="form-control form-control-sm" placeholder="175">
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small text-muted">IMC</label>
+                            <input type="text" name="imc" id="const_imc" class="form-control form-control-sm" readonly style="background-color: #e9ecef;">
+                        </div>
+                        <div class="col-md-3 mb-2 d-flex align-items-end">
+                            <small class="text-muted">Calculé automatiquement</small>
+                        </div>
                     </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Pouls (bpm)</label>
-                        <input type="number" name="pouls" class="form-control" placeholder="Ex: 72">
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Saturation O₂ (%)</label>
-                        <input type="number" name="saturation" class="form-control" placeholder="Ex: 98">
-                    </div>
-                </div>
-                
-                <!-- Anthropométrie -->
-                <h5 class="mt-3 mb-3"><i class="fas fa-ruler me-2"></i>Anthropométrie</h5>
-                <hr>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Poids (kg)</label>
-                        <input type="number" step="0.1" name="poids" class="form-control" id="poids">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Taille (cm)</label>
-                        <input type="number" step="0.1" name="taille" class="form-control" id="taille">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">IMC</label>
-                        <input type="text" name="imc" class="form-control" id="imc" readonly style="background-color: #e9ecef;">
-                    </div>
+                    <small class="text-muted">
+                        <i class="fas fa-edit me-1"></i>
+                        Modifiez les valeurs si nécessaire avant d'enregistrer la consultation.
+                    </small>
                 </div>
 
-                <!-- ⭐ ANTÉCÉDENTS (juste après les constantes) -->
+                <!-- Antécédents -->
                 <h5 class="mt-3 mb-3"><i class="fas fa-history me-2"></i>Antécédents du patient</h5>
                 <hr>
                 <div class="row">
@@ -97,80 +113,78 @@
                         <textarea name="antecedents_chirurgicaux" class="form-control" rows="2" placeholder="Ex: Appendicectomie, Césarienne..."></textarea>
                     </div>
                 </div>
-                
-<!-- ==================== EXAMENS & ANALYSES ==================== -->
-<h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2 text-info"></i>Examens et analyses</h5>
-<hr>
 
-<div class="row">
-    <!-- Examens cliniques -->
-    <div class="col-md-12 mb-3">
-        <div class="card bg-light">
-            <div class="card-body">
-                <h6 class="fw-bold text-primary"><i class="fas fa-stethoscope me-2"></i>🔬 Examens cliniques (médecin)</h6>
-                <textarea name="examens_cliniques" class="form-control" rows="2" 
-                          placeholder="Ex: Palpation, Auscultation, Examen neurologique..."></textarea>
-                <small class="text-muted">Examens réalisés par le médecin lors de la consultation</small>
-            </div>
-        </div>
-    </div>
+                <!-- Examens & Analyses -->
+                <h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2 text-info"></i>Examens et analyses</h5>
+                <hr>
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-primary"><i class="fas fa-stethoscope me-2"></i>🔬 Examens cliniques (médecin)</h6>
+                                <textarea name="examens_cliniques" class="form-control" rows="2" 
+                                          placeholder="Ex: Palpation, Auscultation, Examen neurologique..."></textarea>
+                                <small class="text-muted">Examens réalisés par le médecin lors de la consultation</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-success"><i class="fas fa-flask me-2"></i>🧪 Analyses de biologie</h6>
+                                <textarea name="examens_biologie" class="form-control" rows="4" 
+                                          placeholder="Ex: NFS&#10;Glycémie&#10;Bilan hépatique&#10;Bilan rénal&#10;CRP&#10;VS..."></textarea>
+                                <small class="text-muted">Une analyse par ligne</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-warning"><i class="fas fa-image me-2"></i>📷 Examens d'imagerie</h6>
+                                <textarea name="examens_imagerie" class="form-control" rows="4" 
+                                          placeholder="Ex: Radiographie thoracique&#10;Échographie abdominale&#10;Scanner cérébral&#10;IRM lombaire&#10;Mammographie..."></textarea>
+                                <small class="text-muted">Un examen par ligne</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-    <!-- Biologie et Imagerie -->
-    <div class="col-md-6 mb-3">
-        <div class="card bg-light">
-            <div class="card-body">
-                <h6 class="fw-bold text-success"><i class="fas fa-flask me-2"></i>🧪 Analyses de biologie</h6>
-                <textarea name="examens_biologie" class="form-control" rows="4" 
-                          placeholder="Ex: NFS&#10;Glycémie&#10;Bilan hépatique&#10;Bilan rénal&#10;CRP&#10;VS..."></textarea>
-                <small class="text-muted">Une analyse par ligne</small>
-            </div>
-        </div>
-    </div>
+                <hr>
 
-    <div class="col-md-6 mb-3">
-        <div class="card bg-light">
-            <div class="card-body">
-                <h6 class="fw-bold text-warning"><i class="fas fa-image me-2"></i>📷 Examens d'imagerie</h6>
-                <textarea name="examens_imagerie" class="form-control" rows="4" 
-                          placeholder="Ex: Radiographie thoracique&#10;Échographie abdominale&#10;Scanner cérébral&#10;IRM lombaire&#10;Mammographie..."></textarea>
-                <small class="text-muted">Un examen par ligne</small>
-            </div>
-        </div>
-    </div>
-</div>
+                <!-- Diagnostic avec CIM-10 -->
+                <div class="mb-3">
+                    <label class="form-label">Diagnostic <span class="text-muted">(CIM-10)</span></label>
+                    <div class="input-group">
+                        <textarea name="diagnostic" id="diagnostic" class="form-control" rows="3" 
+                                  placeholder="Ex: Choléra classique (A00.0)">{% if consultation %}{{ consultation.diagnostic or '' }}{% endif %}</textarea>
+                    </div>
+                    <div class="mt-2">
+                        <div class="input-group">
+                            <input type="text" id="cim10_search" class="form-control" 
+                                   placeholder="Rechercher un code CIM-10..." autocomplete="off">
+                            <button class="btn btn-primary" type="button" onclick="insertCIM10()">
+                                <i class="fas fa-plus"></i> Insérer
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearCIM10Search()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="cim10_results" class="list-group mt-1" style="max-height: 150px; overflow-y: auto; display: none;"></div>
+                        <small class="text-muted">Recherchez un code CIM-10 et cliquez sur "Insérer" pour l'ajouter au diagnostic</small>
+                    </div>
+                </div>
 
-<hr>
-<!-- Diagnostic avec CIM-10 intégré -->
-<div class="mb-3">
-    <label class="form-label">Diagnostic <span class="text-muted">(CIM-10)</span></label>
-    <div class="input-group">
-        <textarea name="diagnostic" id="diagnostic" class="form-control" rows="3" 
-                  placeholder="Ex: Choléra classique (A00.0)">{% if consultation %}{{ consultation.diagnostic or '' }}{% endif %}</textarea>
-    </div>
-    <div class="mt-2">
-        <div class="input-group">
-            <input type="text" id="cim10_search" class="form-control" 
-                   placeholder="Rechercher un code CIM-10..." autocomplete="off">
-            <button class="btn btn-primary" type="button" onclick="insertCIM10()">
-                <i class="fas fa-plus"></i> Insérer
-            </button>
-            <button class="btn btn-outline-secondary" type="button" onclick="clearCIM10Search()">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div id="cim10_results" class="list-group mt-1" style="max-height: 150px; overflow-y: auto; display: none;"></div>
-        <small class="text-muted">Recherchez un code CIM-10 et cliquez sur "Insérer" pour l'ajouter au diagnostic</small>
-    </div>
-</div>
                 <div class="mb-3">
                     <label class="form-label">Traitement prescrit</label>
                     <textarea name="traitement" class="form-control" rows="2"></textarea>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label">Notes cliniques</label>
                     <textarea name="notes" class="form-control" rows="2"></textarea>
                 </div>
+
                 <!-- Arrêt de travail -->
                 <h5 class="mt-3 mb-3"><i class="fas fa-file-medical me-2"></i>Arrêt de travail</h5>
                 <hr>
@@ -200,7 +214,7 @@
                     </select>
                     <small class="text-muted">Ce statut sera appliqué au patient</small>
                 </div>
-                
+
                 <!-- Rendez-vous -->
                 <h5 class="mt-3 mb-3"><i class="fas fa-calendar-alt me-2"></i>Rendez-vous</h5>
                 <hr>
@@ -208,7 +222,7 @@
                     <label class="form-label">Prochain rendez-vous</label>
                     <input type="date" name="prochain_rdv" class="form-control">
                 </div>
-                
+
                 <button type="submit" class="btn btn-primary mt-3">
                     <i class="fas fa-save me-2"></i>Enregistrer la consultation
                 </button>
@@ -218,47 +232,218 @@
 </div>
 
 <script>
-    // Calcul automatique de l'IMC
-    const poids = document.getElementById('poids');
-    const taille = document.getElementById('taille');
-    const imcField = document.getElementById('imc');
-    
-    function calculerIMC() {
-        let p = parseFloat(poids.value);
-        let t = parseFloat(taille.value);
-        
-        if (p && t && t > 0) {
-            let tailleM = t / 100;
-            let imc = p / (tailleM * tailleM);
-            imcField.value = imc.toFixed(1);
-        } else {
-            imcField.value = '';
-        }
-    }
-    
-    poids.addEventListener('input', calculerIMC);
-    taille.addEventListener('input', calculerIMC);
-    
-    // Arrêt de travail
+// ==================== ARRÊT DE TRAVAIL ====================
+document.addEventListener('DOMContentLoaded', function() {
     const arretTravail = document.getElementById('arretTravail');
     const arretJoursDiv = document.getElementById('arretJoursDiv');
     
-    arretTravail.addEventListener('change', function() {
-        if (this.checked) {
-            arretJoursDiv.style.display = 'block';
+    if (arretTravail && arretJoursDiv) {
+        arretTravail.addEventListener('change', function() {
+            arretJoursDiv.style.display = this.checked ? 'block' : 'none';
+        });
+    }
+});
+
+// ==================== RECHERCHE DYNAMIQUE DE PATIENT ====================
+document.addEventListener('DOMContentLoaded', function() {
+    const patientSearch = document.getElementById('patientSearch');
+    const patientResults = document.getElementById('patientResults');
+    const patientId = document.getElementById('patientId');
+    const patientSelected = document.getElementById('patientSelected');
+    const selectedPatientName = document.getElementById('selectedPatientName');
+    
+    if (!patientSearch) return;
+    
+    let searchTimeout = null;
+    
+    // Références des champs de constantes
+    const constTension = document.getElementById('const_tension');
+    const constTemperature = document.getElementById('const_temperature');
+    const constPouls = document.getElementById('const_pouls');
+    const constSaturation = document.getElementById('const_saturation');
+    const constPoids = document.getElementById('const_poids');
+    const constTaille = document.getElementById('const_taille');
+    const constImc = document.getElementById('const_imc');
+    const constantesContainer = document.getElementById('constantesPatient');
+
+    // Recherche en temps réel
+    patientSearch.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        const term = this.value.trim();
+        
+        if (term.length < 2) {
+            patientResults.style.display = 'none';
+            patientResults.innerHTML = '';
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => {
+            fetch(`/api/patients/search?q=${encodeURIComponent(term)}`)
+                .then(response => response.json())
+                .then(data => {
+                    patientResults.innerHTML = '';
+                    if (data.length === 0) {
+                        patientResults.innerHTML = '<div class="list-group-item text-muted">Aucun patient trouvé</div>';
+                        patientResults.style.display = 'block';
+                        return;
+                    }
+                    
+                    data.forEach(patient => {
+                        const div = document.createElement('div');
+                        div.className = 'list-group-item list-group-item-action';
+                        div.innerHTML = `
+                            <strong>${patient.nom} ${patient.prenom}</strong>
+                            <span class="text-muted">(P${patient.id_padded})</span>
+                            ${patient.telephone ? `- ${patient.telephone}` : ''}
+                            ${patient.assurance ? `<br><small class="text-muted">Assurance: ${patient.assurance}</small>` : ''}
+                        `;
+                        div.onclick = function() {
+                            selectPatient(patient.id, patient.nom, patient.prenom);
+                        };
+                        patientResults.appendChild(div);
+                    });
+                    patientResults.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Erreur recherche:', error);
+                    patientResults.innerHTML = '<div class="list-group-item text-danger">Erreur de recherche</div>';
+                    patientResults.style.display = 'block';
+                });
+        }, 300);
+    });
+
+    // Sélectionner un patient
+    function selectPatient(id, nom, prenom) {
+        patientId.value = id;
+        patientSearch.value = '';
+        patientSearch.placeholder = `${prenom} ${nom} sélectionné`;
+        patientResults.style.display = 'none';
+        patientResults.innerHTML = '';
+        
+        patientSelected.style.display = 'block';
+        selectedPatientName.textContent = `${prenom} ${nom}`;
+        
+        chargerConstantesPatient(id);
+    }
+
+    // Charger les constantes du patient
+    function chargerConstantesPatient(patientId) {
+        fetch(`/api/patient/${patientId}/constantes`)
+            .then(response => response.json())
+            .then(data => {
+                if (constantesContainer) {
+                    constantesContainer.style.display = 'block';
+                    
+                    if (constTension) constTension.value = data.tension || '';
+                    if (constTemperature) constTemperature.value = data.temperature || '';
+                    if (constPouls) constPouls.value = data.pouls || '';
+                    if (constSaturation) constSaturation.value = data.saturation || '';
+                    if (constPoids) constPoids.value = data.poids || '';
+                    if (constTaille) constTaille.value = data.taille || '';
+                    if (constImc) constImc.value = data.imc || '';
+                    
+                    // Sauvegarder les valeurs originales pour détecter les modifications
+                    const fields = [constTension, constTemperature, constPouls, constSaturation, constPoids, constTaille];
+                    fields.forEach(field => {
+                        if (field) {
+                            field.dataset.original = field.value;
+                            field.classList.remove('border-warning');
+                            field.style.backgroundColor = '';
+                        }
+                    });
+                }
+            })
+            .catch(error => console.error('Erreur chargement constantes:', error));
+    }
+
+    // Effacer la sélection
+    window.clearPatient = function() {
+        patientId.value = '';
+        patientSearch.value = '';
+        patientSearch.placeholder = 'Rechercher par nom, prénom ou N° dossier...';
+        patientSelected.style.display = 'none';
+        if (constantesContainer) {
+            constantesContainer.style.display = 'none';
+        }
+        resetConstantes();
+    };
+
+    // Réinitialiser les constantes
+    function resetConstantes() {
+        if (constTension) constTension.value = '';
+        if (constTemperature) constTemperature.value = '';
+        if (constPouls) constPouls.value = '';
+        if (constSaturation) constSaturation.value = '';
+        if (constPoids) constPoids.value = '';
+        if (constTaille) constTaille.value = '';
+        if (constImc) constImc.value = '';
+    }
+
+    // Calcul automatique de l'IMC
+    function calculerIMC() {
+        if (!constPoids || !constTaille || !constImc) return;
+        const poids = parseFloat(constPoids.value);
+        const taille = parseFloat(constTaille.value);
+        
+        if (poids && taille && taille > 0) {
+            const imc = poids / ((taille/100) ** 2);
+            constImc.value = imc.toFixed(1);
         } else {
-            arretJoursDiv.style.display = 'none';
+            constImc.value = '';
+        }
+    }
+
+    if (constPoids) constPoids.addEventListener('input', calculerIMC);
+    if (constTaille) constTaille.addEventListener('input', calculerIMC);
+
+    // Marquer les champs modifiés
+    function highlightChangedFields() {
+        const fields = [constTension, constTemperature, constPouls, constSaturation, constPoids, constTaille];
+        fields.forEach(field => {
+            if (field) {
+                field.addEventListener('change', function() {
+                    if (this.dataset.original !== undefined && this.value !== this.dataset.original) {
+                        this.classList.add('border-warning');
+                        this.style.backgroundColor = '#fff3cd';
+                    } else {
+                        this.classList.remove('border-warning');
+                        this.style.backgroundColor = '';
+                    }
+                });
+            }
+        });
+    }
+
+    // Fermer les résultats en cliquant ailleurs
+    document.addEventListener('click', function(e) {
+        if (patientResults && !e.target.closest('#patientSearch') && !e.target.closest('#patientResults')) {
+            patientResults.style.display = 'none';
         }
     });
-// ==================== CIM-10 INTÉGRÉ AU DIAGNOSTIC ====================
-let cim10Timeout = null;
-const cim10Search = document.getElementById('cim10_search');
-const cim10Results = document.getElementById('cim10_results');
-const diagnosticField = document.getElementById('diagnostic');
-let lastSelectedCIM10 = '';
 
-// Recherche en temps réel
-if (cim10Search) {
+    // Recherche avec la touche Entrée
+    patientSearch.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const firstResult = patientResults ? patientResults.querySelector('.list-group-item-action') : null;
+            if (firstResult) {
+                firstResult.click();
+            }
+        }
+    });
+});
+
+// ==================== CIM-10 ====================
+document.addEventListener('DOMContentLoaded', function() {
+    const cim10Search = document.getElementById('cim10_search');
+    const cim10Results = document.getElementById('cim10_results');
+    const diagnosticField = document.getElementById('diagnostic');
+    
+    if (!cim10Search) return;
+    
+    let cim10Timeout = null;
+    let lastSelectedCIM10 = '';
+
     cim10Search.addEventListener('input', function() {
         clearTimeout(cim10Timeout);
         const term = this.value.trim();
@@ -288,7 +473,6 @@ if (cim10Search) {
                             cim10Search.value = item.nom;
                             lastSelectedCIM10 = item.nom;
                             cim10Results.style.display = 'none';
-                            // Insérer automatiquement
                             insertCIM10();
                         };
                         cim10Results.appendChild(div);
@@ -296,69 +480,58 @@ if (cim10Search) {
                     cim10Results.style.display = 'block';
                 })
                 .catch(error => {
-                    console.error('Erreur:', error);
+                    console.error('Erreur CIM-10:', error);
                 });
         }, 300);
     });
-}
 
-// Insérer le code CIM-10 dans le diagnostic
-function insertCIM10() {
-    const value = cim10Search.value.trim();
-    if (!value) {
-        alert('Veuillez sélectionner un code CIM-10');
-        return;
-    }
-    
-    // Récupérer le texte actuel du diagnostic
-    let currentText = diagnosticField.value;
-    
-    // Si le diagnostic est vide, ajouter juste le code
-    if (!currentText.trim()) {
-        diagnosticField.value = value;
-    } else {
-        // Ajouter le code à la fin avec un séparateur
-        // Vérifier si le code est déjà présent
-        if (currentText.includes(value)) {
-            alert('Ce code est déjà dans le diagnostic !');
+    window.insertCIM10 = function() {
+        const value = cim10Search.value.trim();
+        if (!value) {
+            alert('Veuillez sélectionner un code CIM-10');
             return;
         }
-        diagnosticField.value = currentText + '\n' + value;
-    }
-    
-    // Vider la recherche
-    cim10Search.value = '';
-    cim10Results.style.display = 'none';
-    cim10Results.innerHTML = '';
-    
-    // Mettre à jour le textearea
-    diagnosticField.focus();
-    diagnosticField.scrollTop = diagnosticField.scrollHeight;
-}
-
-// Vider la recherche
-function clearCIM10Search() {
-    cim10Search.value = '';
-    cim10Results.style.display = 'none';
-    cim10Results.innerHTML = '';
-}
-
-// Fermer les résultats en cliquant ailleurs
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('#cim10_search') && !e.target.closest('#cim10_results')) {
+        
+        let currentText = diagnosticField ? diagnosticField.value : '';
+        
+        if (!currentText.trim()) {
+            diagnosticField.value = value;
+        } else {
+            if (currentText.includes(value)) {
+                alert('Ce code est déjà dans le diagnostic !');
+                return;
+            }
+            diagnosticField.value = currentText + '\n' + value;
+        }
+        
+        cim10Search.value = '';
         cim10Results.style.display = 'none';
-    }
-});
+        cim10Results.innerHTML = '';
+        
+        if (diagnosticField) {
+            diagnosticField.focus();
+            diagnosticField.scrollTop = diagnosticField.scrollHeight;
+        }
+    };
 
-// Ajouter avec la touche Entrée
-if (cim10Search) {
+    window.clearCIM10Search = function() {
+        cim10Search.value = '';
+        cim10Results.style.display = 'none';
+        cim10Results.innerHTML = '';
+    };
+
     cim10Search.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
             insertCIM10();
         }
     });
-}
 
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#cim10_search') && !e.target.closest('#cim10_results')) {
+            cim10Results.style.display = 'none';
+        }
+    });
+});
 </script>
 {% endblock %}

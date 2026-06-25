@@ -16,19 +16,29 @@
         <div class="card-body">
             <form method="POST">
                 <div class="row">
-                    <!-- Patient -->
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Patient *</label>
-                        <select name="patient_id" class="form-select" required>
-                            <option value="">Sélectionnez un patient</option>
-                            {% for patient in patients %}
-                            <option value="{{ patient.id }}">
-                                {{ patient.nom }} {{ patient.prenom }} - {{ patient.date_naissance.strftime('%d/%m/%Y') if patient.date_naissance else '-' }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
+<!-- Patient avec recherche dynamique -->
+<div class="col-md-6 mb-3">
+    <label class="form-label">Patient *</label>
+    <div class="input-group">
+        <input type="text" id="patientSearch" class="form-control" 
+               placeholder="Rechercher par nom, prénom ou N° dossier..." autocomplete="off">
+        <input type="hidden" name="patient_id" id="patientId">
+        <button class="btn btn-outline-secondary" type="button" onclick="clearPatient()">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div id="patientResults" class="list-group mt-1" style="max-height: 200px; overflow-y: auto; display: none;"></div>
+    <div id="patientSelected" class="mt-2" style="display: none;">
+        <div class="alert alert-success py-1 px-2">
+            <strong>✅ Patient sélectionné :</strong> 
+            <span id="selectedPatientName"></span>
+            <button type="button" class="btn btn-sm btn-outline-danger float-end" onclick="clearPatient()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
                     <!-- Service -->
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Service *</label>
@@ -181,5 +191,117 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+// ==================== RECHERCHE DYNAMIQUE DE PATIENT ====================
+let searchTimeout = null;
+const patientSearch = document.getElementById('patientSearch');
+const patientResults = document.getElementById('patientResults');
+const patientId = document.getElementById('patientId');
+const patientSelected = document.getElementById('patientSelected');
+const selectedPatientName = document.getElementById('selectedPatientName');
+
+// Recherche en temps réel
+patientSearch.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    const term = this.value.trim();
+    
+    if (term.length < 2) {
+        patientResults.style.display = 'none';
+        patientResults.innerHTML = '';
+        return;
+    }
+    
+    searchTimeout = setTimeout(() => {
+        fetch(`/api/patients/search?q=${encodeURIComponent(term)}`)
+            .then(response => response.json())
+            .then(data => {
+                patientResults.innerHTML = '';
+                if (data.length === 0) {
+                    patientResults.innerHTML = '<div class="list-group-item text-muted">Aucun patient trouvé</div>';
+                    patientResults.style.display = 'block';
+                    return;
+                }
+                
+                data.forEach(patient => {
+                    const div = document.createElement('div');
+                    div.className = 'list-group-item list-group-item-action';
+                    div.innerHTML = `
+                        <strong>${patient.nom} ${patient.prenom}</strong>
+                        <span class="text-muted">(P${patient.id_padded})</span>
+                        ${patient.telephone ? `- ${patient.telephone}` : ''}
+                        ${patient.assurance ? `<br><small class="text-muted">Assurance: ${patient.assurance}</small>` : ''}
+                    `;
+                    div.onclick = function() {
+                        selectPatient(patient.id, patient.nom, patient.prenom);
+                    };
+                    patientResults.appendChild(div);
+                });
+                patientResults.style.display = 'block';
+            })
+            .catch(error => console.error('Erreur:', error));
+    }, 300);
+});
+
+// Sélectionner un patient
+function selectPatient(id, nom, prenom) {
+    patientId.value = id;
+    patientSearch.value = '';
+    patientSearch.placeholder = `${prenom} ${nom} sélectionné`;
+    patientResults.style.display = 'none';
+    patientResults.innerHTML = '';
+    
+    patientSelected.style.display = 'block';
+    selectedPatientName.textContent = `${prenom} ${nom}`;
+    
+    // ⭐ Charger les constantes du patient si disponible
+    chargerConstantesPatient(id);
+}
+
+// Effacer la sélection
+function clearPatient() {
+    patientId.value = '';
+    patientSearch.value = '';
+    patientSearch.placeholder = 'Rechercher par nom, prénom ou N° dossier...';
+    patientSelected.style.display = 'none';
+    document.getElementById('constantesPatient').style.display = 'none';
+}
+
+// ⭐ Charger les constantes du patient (optionnel)
+function chargerConstantesPatient(patientId) {
+    fetch(`/api/patient/${patientId}/constantes`)
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('constantesPatient');
+            if (container) {
+                container.style.display = 'block';
+                document.getElementById('const_tension').textContent = data.tension || '-';
+                document.getElementById('const_temperature').textContent = data.temperature ? data.temperature + ' °C' : '-';
+                document.getElementById('const_pouls').textContent = data.pouls ? data.pouls + ' bpm' : '-';
+                document.getElementById('const_saturation').textContent = data.saturation ? data.saturation + ' %' : '-';
+                document.getElementById('const_poids').textContent = data.poids ? data.poids + ' kg' : '-';
+                document.getElementById('const_taille').textContent = data.taille ? data.taille + ' cm' : '-';
+                document.getElementById('const_imc').textContent = data.imc || '-';
+            }
+        })
+        .catch(error => console.error('Erreur:', error));
+}
+
+// Fermer les résultats en cliquant ailleurs
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#patientSearch') && !e.target.closest('#patientResults')) {
+        patientResults.style.display = 'none';
+    }
+});
+
+// Recherche avec la touche Entrée
+patientSearch.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const firstResult = patientResults.querySelector('.list-group-item-action');
+        if (firstResult) {
+            firstResult.click();
+        }
+    }
+});
+
 </script>
 {% endblock %}
