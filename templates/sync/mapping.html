@@ -14,6 +14,13 @@
         </a>
     </div>
 
+    <!-- ⭐ Message Render -->
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>🌐 En production (Render) :</strong> 
+        L'URL de l'API GHP est <code>https://medilogic-ghp.onrender.com/api</code>
+    </div>
+
     <div class="row">
         <!-- Configuration -->
         <div class="col-md-6">
@@ -46,7 +53,12 @@
                         <div class="mb-3">
                             <label class="form-label">URL de l'API GHP *</label>
                             <input type="url" name="api_url" class="form-control" required 
-                                   placeholder="https://ghp.medilogic.com/api" value="https://ghp.medilogic.com/api">
+                                   placeholder="https://medilogic-ghp.onrender.com/api" 
+                                   value="https://medilogic-ghp.onrender.com/api">
+                            <small class="text-muted">
+                                Local: <code>http://192.168.1.69:5000/api</code><br>
+                                Production: <code>https://medilogic-ghp.onrender.com/api</code>
+                            </small>
                         </div>
                         
                         <div class="mb-3">
@@ -86,6 +98,10 @@
                                         {% else %}
                                             Jamais synchronisé
                                         {% endif %}
+                                    </small>
+                                    <br>
+                                    <small class="text-muted">
+                                        🔗 {{ m.api_url }}
                                     </small>
                                 </div>
                                 <div>
