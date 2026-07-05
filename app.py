@@ -4290,16 +4290,13 @@ def sync_patients_from_ghp(structure_mapping):
                     print(f"❌ Patient sans ID ignoré")
                     continue
                 
-                # ⭐⭐⭐ NORMALISATION DES DONNÉES D'ASSURANCE ⭐⭐⭐
+                # ⭐⭐⭐ NORMALISATION DES DONNÉES ⭐⭐⭐
                 
                 # -------- ASSURANCE PRINCIPALE --------
                 raw_type = p_data.get('type_assurance') or p_data.get('TypeAssurance') or 'non_assure'
                 type_assurance = normalize_assurance_type(raw_type)
                 
-                # Taux de prise en charge
                 taux_prise_charge = p_data.get('taux_assurance') or p_data.get('taux_prise_charge') or 0
-                
-                # Numéro d'assuré
                 numero_assure = p_data.get('numero_assure') or p_data.get('NumeroAssure') or p_data.get('num_assure') or ''
                 
                 # -------- ASSURANCE 2 --------
@@ -4310,14 +4307,23 @@ def sync_patients_from_ghp(structure_mapping):
                 taux_assurance2 = p_data.get('taux_assurance2') or p_data.get('TauxAssurance2') or 0
                 numero_assure2 = p_data.get('numero_assure2') or p_data.get('NumeroAssure2') or ''
                 
+                # ⭐⭐⭐ PERSONNE À PRÉVENIR ⭐⭐⭐
+                personne_a_prevenir_nom = p_data.get('personne_a_prevenir_nom') or p_data.get('PersonneAPrevenirNom') or ''
+                personne_a_prevenir_telephone = p_data.get('personne_a_prevenir_telephone') or p_data.get('PersonneAPrevenirTelephone') or ''
+                personne_a_prevenir_relation = p_data.get('personne_a_prevenir_relation') or p_data.get('PersonneAPrevenirRelation') or ''
+                
                 # 🔍 LOG POUR DEBUG
                 print(f"📝 Patient {source_id} - {p_data.get('nom')} {p_data.get('prenom')}:")
-                print(f"   type_assurance (normalisé): {type_assurance}")
+                print(f"   type_assurance: {type_assurance}")
                 print(f"   taux_prise_charge: {taux_prise_charge}")
                 print(f"   numero_assure: {numero_assure}")
                 print(f"   assurance2_nom: {assurance2_nom}")
                 print(f"   taux_assurance2: {taux_assurance2}")
                 print(f"   numero_assure2: {numero_assure2}")
+                print(f"   👤 Personne à prévenir:")
+                print(f"      nom: '{personne_a_prevenir_nom}'")
+                print(f"      téléphone: '{personne_a_prevenir_telephone}'")
+                print(f"      relation: '{personne_a_prevenir_relation}'")
                 
                 # Date de naissance
                 date_naissance = p_data.get('date_naissance')
@@ -4346,7 +4352,7 @@ def sync_patients_from_ghp(structure_mapping):
                     patient.adresse = p_data.get('adresse') or ''
                     patient.date_naissance = date_naissance
                     
-                    # ⭐ ASSURANCE PRINCIPALE (NORMALISÉE)
+                    # ⭐ ASSURANCE PRINCIPALE
                     patient.type_assurance = type_assurance
                     patient.taux_prise_charge = str(taux_prise_charge) if taux_prise_charge else None
                     patient.numero_assure = str(numero_assure) if numero_assure else ''
@@ -4355,6 +4361,11 @@ def sync_patients_from_ghp(structure_mapping):
                     patient.assurance2_nom = assurance2_nom if assurance2_nom else None
                     patient.taux_assurance2 = float(taux_assurance2) if taux_assurance2 else None
                     patient.numero_assure2 = str(numero_assure2) if numero_assure2 else ''
+                    
+                    # ⭐⭐⭐ PERSONNE À PRÉVENIR ⭐⭐⭐
+                    patient.personne_a_prevenir_nom = personne_a_prevenir_nom
+                    patient.personne_a_prevenir_telephone = personne_a_prevenir_telephone
+                    patient.personne_a_prevenir_relation = personne_a_prevenir_relation
                     
                     # Assigner si pas de médecin référent
                     if not patient.id_medecin_referent and medecin_id:
@@ -4383,7 +4394,7 @@ def sync_patients_from_ghp(structure_mapping):
                         adresse=p_data.get('adresse') or '',
                         date_naissance=date_naissance,
                         
-                        # ⭐ ASSURANCE PRINCIPALE (NORMALISÉE)
+                        # ⭐ ASSURANCE PRINCIPALE
                         type_assurance=type_assurance,
                         taux_prise_charge=str(taux_prise_charge) if taux_prise_charge else None,
                         numero_assure=str(numero_assure) if numero_assure else '',
@@ -4392,6 +4403,11 @@ def sync_patients_from_ghp(structure_mapping):
                         assurance2_nom=assurance2_nom if assurance2_nom else None,
                         taux_assurance2=float(taux_assurance2) if taux_assurance2 else None,
                         numero_assure2=str(numero_assure2) if numero_assure2 else '',
+                        
+                        # ⭐⭐⭐ PERSONNE À PRÉVENIR ⭐⭐⭐
+                        personne_a_prevenir_nom=personne_a_prevenir_nom,
+                        personne_a_prevenir_telephone=personne_a_prevenir_telephone,
+                        personne_a_prevenir_relation=personne_a_prevenir_relation,
                         
                         # Autres champs
                         lieu_naissance=p_data.get('lieu_naissance') or '',
