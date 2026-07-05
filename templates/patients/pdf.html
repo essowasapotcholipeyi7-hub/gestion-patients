@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Dossier patient - {{ patient.prenom }} {{ patient.nom }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Times New Roman', serif;
+            font-size: 11pt;
+            line-height: 1.4;
+            color: #1a1a1a;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px double #1a1a1a;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 18pt;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .header .sub {
+            font-size: 10pt;
+            color: #555;
+        }
+        .header .date {
+            font-size: 10pt;
+            color: #777;
+            margin-top: 5px;
+        }
+        
+        .section {
+            margin-bottom: 15px;
+            page-break-inside: avoid;
+        }
+        .section h2 {
+            font-size: 13pt;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 3px;
+            margin-bottom: 8px;
+            background: #f0f0f0;
+            padding: 4px 8px;
+        }
+        .section h3 {
+            font-size: 11pt;
+            margin: 8px 0 4px 0;
+            color: #333;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 20px;
+            padding: 5px 10px;
+        }
+        .info-grid .label {
+            font-weight: bold;
+            color: #555;
+        }
+        .info-grid .value {
+            color: #1a1a1a;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+            font-size: 10pt;
+        }
+        .table th {
+            background: #e9ecef;
+            padding: 4px 6px;
+            border: 1px solid #ddd;
+            text-align: left;
+            font-weight: bold;
+        }
+        .table td {
+            padding: 4px 6px;
+            border: 1px solid #ddd;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 9pt;
+            font-weight: bold;
+        }
+        .badge-primary { background: #0d6efd; color: white; }
+        .badge-success { background: #198754; color: white; }
+        .badge-warning { background: #ffc107; color: #000; }
+        .badge-danger { background: #dc3545; color: white; }
+        .badge-info { background: #0dcaf0; color: #000; }
+        .badge-secondary { background: #6c757d; color: white; }
+        
+        .footer {
+            text-align: center;
+            font-size: 9pt;
+            color: #888;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+            margin-top: 20px;
+        }
+        
+        .no-data {
+            color: #999;
+            font-style: italic;
+            padding: 5px 10px;
+        }
+        
+        .constant-line {
+            display: inline-block;
+            margin-right: 15px;
+        }
+        .constant-line strong {
+            font-weight: bold;
+        }
+        
+        .page-break {
+            page-break-before: always;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==================== EN-TÊTE ==================== -->
+    <div class="header">
+        <h1>Dossier Patient</h1>
+        <div class="sub">{{ current_user.structure.nom if current_user.structure else 'MediLogic GHP' }}</div>
+        <div class="sub">{{ current_user.structure.adresse if current_user.structure else '' }}</div>
+        <div class="sub">Tél: {{ current_user.structure.telephone if current_user.structure else '' }}</div>
+        <div class="date">Généré le {{ now.strftime('%d/%m/%Y à %H:%M') }}</div>
+    </div>
+
+    <!-- ==================== SECTION 1 : IDENTITÉ ==================== -->
+    <div class="section">
+        <h2>1. IDENTITÉ DU PATIENT</h2>
+        <div class="info-grid">
+            <div><span class="label">N° dossier :</span> <span class="value">P{{ "%05d" % patient.id }}</span></div>
+            <div><span class="label">Nom complet :</span> <span class="value">{{ patient.prenom }} {{ patient.nom }}</span></div>
+            <div><span class="label">Date naissance :</span> <span class="value">{{ patient.date_naissance.strftime('%d/%m/%Y') if patient.date_naissance else '-' }} {% if age %}({{ age }} ans){% endif %}</span></div>
+            <div><span class="label">Sexe :</span> <span class="value">{{ patient.sexe or '-' }}</span></div>
+            <div><span class="label">Téléphone :</span> <span class="value">{{ patient.telephone or '-' }}</span></div>
+            <div><span class="label">Email :</span> <span class="value">{{ patient.email or '-' }}</span></div>
+            <div><span class="label">Adresse :</span> <span class="value">{{ patient.adresse or '-' }}</span></div>
+            <div><span class="label">Profession :</span> <span class="value">{{ patient.profession or '-' }}</span></div>
+            <div><span class="label">Assurance :</span> <span class="value">{{ patient.type_assurance or '-' }}</span></div>
+            <div><span class="label">N° assuré :</span> <span class="value">{{ patient.num_assure or '-' }}</span></div>
+        </div>
+    </div>
+
+    <!-- ==================== SECTION 2 : CONSTANTES ==================== -->
+    <div class="section">
+        <h2>2. CONSTANTES VITALES</h2>
+        <div style="padding: 5px 10px;">
+            <span class="constant-line"><strong>Température :</strong> {{ patient.temperature_c or '-' }} °C</span>
+            <span class="constant-line"><strong>Tension :</strong> {{ patient.tension_arterielle or '-' }} mmHg</span>
+            <span class="constant-line"><strong>Pouls :</strong> {{ patient.pulse_bpm or '-' }} bpm</span>
+            <span class="constant-line"><strong>Saturation :</strong> {{ patient.oxygene_saturation or '-' }} %</span><br>
+            <span class="constant-line"><strong>Poids :</strong> {{ patient.poids_kg or '-' }} kg</span>
+            <span class="constant-line"><strong>Taille :</strong> {{ patient.taille_cm or '-' }} cm</span>
+            <span class="constant-line"><strong>IMC :</strong> {{ patient.imc or '-' }}</span>
+        </div>
+    </div>
+
+    <!-- ==================== SECTION 3 : SUIVI ==================== -->
+    <div class="section">
+        <h2>3. SUIVI MÉDICAL</h2>
+        <div class="info-grid">
+            <div><span class="label">Statut :</span> <span class="value">{{ patient.statut_medical or '-' }}</span></div>
+            <div><span class="label">Première visite :</span> <span class="value">{{ patient.date_premiere_visite.strftime('%d/%m/%Y') if patient.date_premiere_visite else '-' }}</span></div>
+            <div><span class="label">Dernière consultation :</span> <span class="value">{{ patient.date_derniere_consultation.strftime('%d/%m/%Y') if patient.date_derniere_consultation else '-' }}</span></div>
+            <div><span class="label">Médecin traitant :</span> <span class="value">{% if patient.medecin_referent %}Dr {{ patient.medecin_referent.prenom }} {{ patient.medecin_referent.nom }}{% else %}Non assigné{% endif %}</span></div>
+        </div>
+    </div>
+
+    <!-- ==================== SECTION 4 : ANTÉCÉDENTS ==================== -->
+    <div class="section">
+        <h2>4. ANTÉCÉDENTS</h2>
+        {% if antecedents %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Sévérité</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in antecedents %}
+                    <tr>
+                        <td><span class="badge badge-primary">{{ a.type_antecedent }}</span></td>
+                        <td>{{ a.description }}</td>
+                        <td>{{ a.severite or '-' }}</td>
+                        <td>{{ a.date_recueil.strftime('%d/%m/%Y') if a.date_recueil else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="no-data">Aucun antécédent enregistré</p>
+        {% endif %}
+    </div>
+
+    <!-- ==================== SECTION 5 : CONSULTATIONS ==================== -->
+    <div class="section">
+        <h2>5. HISTORIQUE DES CONSULTATIONS</h2>
+        {% if consultations %}
+            {% for c in consultations %}
+            <div style="margin-bottom: 10px; border: 1px solid #eee; padding: 8px; border-radius: 4px;">
+                <div style="display: flex; justify-content: space-between; background: #f8f9fa; padding: 4px 8px; margin-bottom: 5px;">
+                    <strong>{{ c.date_consultation.strftime('%d/%m/%Y %H:%M') }}</strong>
+                    {% if c.cim10 %}<span class="badge badge-info">CIM-10: {{ c.cim10 }}</span>{% endif %}
+                </div>
+                <div><strong>Motif :</strong> {{ c.motif or '-' }}</div>
+                <div><strong>Diagnostic :</strong> {{ c.diagnostic or '-' }}</div>
+                {% if c.tension_arterielle or c.temperature_c %}
+                <div style="margin-top: 3px;">
+                    <strong>Signes vitaux :</strong>
+                    {% if c.tension_arterielle %}Tension {{ c.tension_arterielle }} mmHg{% endif %}
+                    {% if c.temperature_c %}Temp {{ c.temperature_c }} °C{% endif %}
+                    {% if c.pulse_bpm %}Pouls {{ c.pulse_bpm }} bpm{% endif %}
+                </div>
+                {% endif %}
+                {% if c.traitement_prescrit %}
+                <div><strong>Traitement :</strong> {{ c.traitement_prescrit }}</div>
+                {% endif %}
+                {% if c.resultats_biologie or c.resultats_imagerie %}
+                <div style="background: #f0f8ff; padding: 4px 8px; margin-top: 3px;">
+                    <strong>Résultats :</strong>
+                    {% if c.resultats_biologie %}Biologie: {{ c.resultats_biologie }}{% endif %}
+                    {% if c.resultats_imagerie %}Imagerie: {{ c.resultats_imagerie }}{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="no-data">Aucune consultation enregistrée</p>
+        {% endif %}
+    </div>
+
+    <!-- ==================== SECTION 6 : PRESCRIPTIONS ==================== -->
+    <div class="section">
+        <h2>6. PRESCRIPTIONS</h2>
+        {% if prescriptions %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Médicament</th>
+                        <th>Dosage</th>
+                        <th>Durée</th>
+                        <th>Instructions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in prescriptions %}
+                    <tr>
+                        <td>{{ p.date_prescription.strftime('%d/%m/%Y') if p.date_prescription else '-' }}</td>
+                        <td>{{ p.medicament or '-' }}</td>
+                        <td>{{ p.dosage or '-' }}</td>
+                        <td>{{ p.duree_jours or '-' }} jours</td>
+                        <td>{{ p.instructions or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="no-data">Aucune prescription enregistrée</p>
+        {% endif %}
+    </div>
+
+    <!-- ==================== SECTION 7 : ANALYSES ==================== -->
+    <div class="section">
+        <h2>7. ANALYSES</h2>
+        {% if analyses %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Analyse</th>
+                        <th>Type</th>
+                        <th>Statut</th>
+                        <th>Résultats</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in analyses %}
+                    <tr>
+                        <td>{{ a.date_demande.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ a.nom_analyse }}</td>
+                        <td>{{ a.type_analyse }}</td>
+                        <td>
+                            {% if a.statut == 'EN_ATTENTE' %}<span class="badge badge-warning">En attente</span>
+                            {% elif a.statut == 'EN_COURS' %}<span class="badge badge-info">En cours</span>
+                            {% elif a.statut == 'TERMINE' %}<span class="badge badge-success">Terminé</span>{% endif %}
+                        </td>
+                        <td>{{ a.resultats or 'En attente' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="no-data">Aucune analyse demandée</p>
+        {% endif %}
+    </div>
+
+    <!-- ==================== SECTION 8 : RÉFÉRENCES ==================== -->
+    <div class="section">
+        <h2>8. RÉFÉRENCES</h2>
+        {% if references %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Centre</th>
+                        <th>Motif</th>
+                        <th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in references %}
+                    <tr>
+                        <td>{{ r.date_reference.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ r.centre_reference }}</td>
+                        <td>{{ r.motif[:50] }}{% if r.motif|length > 50 %}...{% endif %}</td>
+                        <td>
+                            {% if r.statut == 'ENVOYE' %}<span class="badge badge-warning">Envoyé</span>
+                            {% elif r.statut == 'ACCEPTE' %}<span class="badge badge-success">Accepté</span>
+                            {% elif r.statut == 'REFUSE' %}<span class="badge badge-danger">Refusé</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="no-data">Aucune référence effectuée</p>
+        {% endif %}
+    </div>
+
+    <!-- ==================== PIED DE PAGE ==================== -->
+    <div class="footer">
+        Document généré par MediLogic GHP - {{ now.strftime('%d/%m/%Y %H:%M') }}
+    </div>
+
+</body>
+</html>

@@ -17,7 +17,15 @@
     <div class="card">
         <div class="card-body">
             <form method="POST">
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- IDENTITÉ -->
+                <!-- ═══════════════════════════════════════════ -->
                 <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-id-card me-2"></i>Identité</h5>
+                        <hr>
+                    </div>
+                    
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Nom *</label>
                         <input type="text" name="nom" class="form-control" value="{{ patient.nom }}" required>
@@ -34,6 +42,21 @@
                     </div>
                     
                     <div class="col-md-4 mb-3">
+                        <label class="form-label">Lieu de naissance</label>
+                        <input type="text" name="lieu_naissance" class="form-control" value="{{ patient.lieu_naissance or '' }}" placeholder="Ex: Akakopé">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Sexe</label>
+                        <select name="sexe" class="form-select">
+                            <option value="">Sélectionner</option>
+                            <option value="M" {% if patient.sexe == 'M' %}selected{% endif %}>Masculin</option>
+                            <option value="F" {% if patient.sexe == 'F' %}selected{% endif %}>Féminin</option>
+                            <option value="Autre" {% if patient.sexe == 'Autre' %}selected{% endif %}>Autre</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
                         <label class="form-label">Téléphone</label>
                         <input type="tel" name="telephone" class="form-control" value="{{ patient.telephone or '' }}">
                     </div>
@@ -43,9 +66,34 @@
                         <input type="email" name="email" class="form-control" value="{{ patient.email or '' }}">
                     </div>
                     
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Profession</label>
+                        <input type="text" name="profession" class="form-control" value="{{ patient.profession or '' }}" placeholder="Ex: Enseignant, Commerçant...">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Code postal</label>
+                        <input type="text" name="code_postal" class="form-control" value="{{ patient.code_postal or '' }}" placeholder="Ex: 10000">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Ville</label>
+                        <input type="text" name="ville" class="form-control" value="{{ patient.ville or '' }}" placeholder="Ex: Lomé">
+                    </div>
+                    
                     <div class="col-md-12 mb-3">
                         <label class="form-label">Adresse</label>
                         <textarea name="adresse" class="form-control" rows="2">{{ patient.adresse or '' }}</textarea>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- ASSURANCE PRINCIPALE -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-shield-alt me-2"></i>Assurance principale</h5>
+                        <hr>
                     </div>
                     
                     <div class="col-md-4 mb-3">
@@ -61,12 +109,177 @@
                     
                     <div class="col-md-4 mb-3" id="autreAssuranceDiv" style="{% if patient.type_assurance != 'AUTRE_ASSURANCE' %}display: none;{% endif %}">
                         <label class="form-label">Nom de l'assurance</label>
-                        <input type="text" name="autre_assurance_nom" class="form-control" value="{{ patient.autre_assurance_nom or '' }}">
+                        <input type="text" name="autre_assurance_nom" class="form-control" value="{{ patient.autre_assurance_nom or '' }}" placeholder="Ex: Allianz, AXA...">
                     </div>
                     
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Numéro d'assuré</label>
                         <input type="text" name="num_assure" class="form-control" value="{{ patient.num_assure or '' }}">
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- ASSURANCE COMPLÉMENTAIRE (2ÈME) -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-plus-circle me-2 text-success"></i>Assurance complémentaire <span class="text-muted small">(optionnelle)</span></h5>
+                        <hr>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Nom de l'assurance 2</label>
+                        <input type="text" name="assurance2_nom" class="form-control" value="{{ patient.assurance2_nom or '' }}" placeholder="Ex: Allianz, AXA...">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Taux de prise en charge 2 (%)</label>
+                        <input type="number" step="0.1" min="0" max="100" name="taux_assurance2" class="form-control" value="{{ patient.taux_assurance2 or '' }}" placeholder="30">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Numéro d'assuré 2</label>
+                        <input type="text" name="numero_assure2" class="form-control" value="{{ patient.numero_assure2 or '' }}" placeholder="Numéro sur la carte">
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- PERSONNE À PRÉVENIR -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-phone-alt me-2 text-warning"></i>Personne à prévenir <span class="text-muted small">(optionnelle)</span></h5>
+                        <hr>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Nom complet</label>
+                        <input type="text" name="personne_a_prevenir_nom" class="form-control" value="{{ patient.personne_a_prevenir_nom or '' }}" placeholder="Jean Dupont">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Téléphone</label>
+                        <input type="tel" name="personne_a_prevenir_telephone" class="form-control" value="{{ patient.personne_a_prevenir_telephone or '' }}" placeholder="77 123 45 67">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Relation</label>
+                        <select name="personne_a_prevenir_relation" class="form-select">
+                            <option value="">Sélectionner</option>
+                            <option value="Conjoint" {% if patient.personne_a_prevenir_relation == 'Conjoint' %}selected{% endif %}>Conjoint(e)</option>
+                            <option value="Enfant" {% if patient.personne_a_prevenir_relation == 'Enfant' %}selected{% endif %}>Enfant</option>
+                            <option value="Parent" {% if patient.personne_a_prevenir_relation == 'Parent' %}selected{% endif %}>Parent</option>
+                            <option value="Frère/Sœur" {% if patient.personne_a_prevenir_relation == 'Frère/Sœur' %}selected{% endif %}>Frère/Sœur</option>
+                            <option value="Ami" {% if patient.personne_a_prevenir_relation == 'Ami' %}selected{% endif %}>Ami</option>
+                            <option value="Collègue" {% if patient.personne_a_prevenir_relation == 'Collègue' %}selected{% endif %}>Collègue</option>
+                            <option value="Voisin" {% if patient.personne_a_prevenir_relation == 'Voisin' %}selected{% endif %}>Voisin</option>
+                            <option value="Autre" {% if patient.personne_a_prevenir_relation == 'Autre' %}selected{% endif %}>Autre</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- TAUX DE PRISE EN CHARGE GLOBAL -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-percent me-2 text-info"></i>Taux de prise en charge</h5>
+                        <hr>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Taux de prise en charge (%)</label>
+                        <input type="number" step="0.1" min="0" max="100" name="taux_prise_charge" class="form-control" value="{{ patient.taux_prise_charge or '' }}" placeholder="80">
+                        <small class="text-muted">Pourcentage pris en charge par l'assurance principale</small>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- INFORMATIONS MÉDICALES -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-notes-medical me-2 text-danger"></i>Informations médicales</h5>
+                        <hr>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Groupe sanguin <span class="text-danger">*</span></label>
+                        <select name="groupe_sanguin" class="form-select" required>
+                            <option value="">Sélectionner</option>
+                            <option value="A+" {% if patient.groupe_sanguin == 'A+' %}selected{% endif %}>A+</option>
+                            <option value="A-" {% if patient.groupe_sanguin == 'A-' %}selected{% endif %}>A-</option>
+                            <option value="B+" {% if patient.groupe_sanguin == 'B+' %}selected{% endif %}>B+</option>
+                            <option value="B-" {% if patient.groupe_sanguin == 'B-' %}selected{% endif %}>B-</option>
+                            <option value="AB+" {% if patient.groupe_sanguin == 'AB+' %}selected{% endif %}>AB+</option>
+                            <option value="AB-" {% if patient.groupe_sanguin == 'AB-' %}selected{% endif %}>AB-</option>
+                            <option value="O+" {% if patient.groupe_sanguin == 'O+' %}selected{% endif %}>O+</option>
+                            <option value="O-" {% if patient.groupe_sanguin == 'O-' %}selected{% endif %}>O-</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Mutuelle</label>
+                        <input type="text" name="mutuelle" class="form-control" value="{{ patient.mutuelle or '' }}" placeholder="Ex: MUTUELLE SANTÉ">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Médecin traitant</label>
+                        <input type="text" name="medecin_traitant" class="form-control" value="{{ patient.medecin_traitant or '' }}" placeholder="Nom du médecin traitant">
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- HABITUDES DE VIE -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-heart me-2 text-success"></i>Habitudes de vie</h5>
+                        <hr>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Tabac</label>
+                        <select name="tabac" class="form-select">
+                            <option value="">Non renseigné</option>
+                            <option value="Non" {% if patient.tabac == 'Non' %}selected{% endif %}>Non</option>
+                            <option value="Oui" {% if patient.tabac == 'Oui' %}selected{% endif %}>Oui</option>
+                            <option value="Ancien" {% if patient.tabac == 'Ancien' %}selected{% endif %}>Ancien fumeur</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Alcool</label>
+                        <select name="alcool" class="form-select">
+                            <option value="">Non renseigné</option>
+                            <option value="Non" {% if patient.alcool == 'Non' %}selected{% endif %}>Non</option>
+                            <option value="Oui" {% if patient.alcool == 'Oui' %}selected{% endif %}>Oui</option>
+                            <option value="Occasionnel" {% if patient.alcool == 'Occasionnel' %}selected{% endif %}>Occasionnel</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <div class="form-check mt-4">
+                            <input type="checkbox" name="allaitement" class="form-check-input" id="allaitement" {% if patient.allaitement %}checked{% endif %}>
+                            <label class="form-check-label" for="allaitement">Allaitement</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <div class="form-check mt-4">
+                            <input type="checkbox" name="grossesse" class="form-check-input" id="grossesse" {% if patient.grossesse %}checked{% endif %}>
+                            <label class="form-check-label" for="grossesse">Grossesse</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- MÉDECIN RÉFÉRENT -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-user-md me-2"></i>Médecin référent</h5>
+                        <hr>
                     </div>
                     
                     <div class="col-md-6 mb-3">
@@ -81,23 +294,14 @@
                         </select>
                     </div>
                     
-                    <div class="col-md-12 mb-3">
-                        <label class="form-label">Allergies</label>
-                        <textarea name="allergies" class="form-control" rows="2">{{ patient.allergies or '' }}</textarea>
-                    </div>
-                    
-                    <div class="col-md-12 mb-3">
-                        <label class="form-label">Antécédents</label>
-                        <textarea name="antecedents" class="form-control" rows="2">{{ patient.antecedents_medicaux or '' }}</textarea>
-                    </div>
-                    
-                    <div class="col-md-12 mb-3">
+                    <div class="col-md-6 mb-3">
                         <label class="form-label">Notes</label>
-                        <textarea name="notes" class="form-control" rows="2">{{ patient.notes or '' }}</textarea>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Informations complémentaires...">{{ patient.notes or '' }}</textarea>
                     </div>
                 </div>
-                
-                <div class="d-flex justify-content-end">
+
+                <!-- Boutons -->
+                <div class="d-flex justify-content-end mt-3">
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save me-2"></i>Enregistrer
                     </button>
@@ -108,6 +312,9 @@
 </div>
 
 <script>
+    // ============================================================
+    // AFFICHAGE DU CHAMP "AUTRE ASSURANCE"
+    // ============================================================
     document.getElementById('typeAssurance').addEventListener('change', function() {
         var autreDiv = document.getElementById('autreAssuranceDiv');
         if (this.value === 'AUTRE_ASSURANCE') {
@@ -116,5 +323,26 @@
             autreDiv.style.display = 'none';
         }
     });
+
+    // ============================================================
+    // FORMATAGE DES NUMÉROS DE TÉLÉPHONE
+    // ============================================================
+    document.querySelector('input[name="telephone"]')?.addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9+]/g, '');
+    });
+
+    document.querySelector('input[name="personne_a_prevenir_telephone"]')?.addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9+]/g, '');
+    });
 </script>
+
+<style>
+    .bg-pink {
+        background-color: #d63384;
+        color: white;
+    }
+    .text-danger {
+        color: #dc3545;
+    }
+</style>
 {% endblock %}

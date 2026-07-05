@@ -2,6 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
+import uuid
 import hashlib
 
 db = SQLAlchemy()
@@ -157,7 +158,34 @@ class Patient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_structure = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False)
     id_medecin_referent = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))
-    
+
+    # ⭐ NOUVEAUX CHAMPS DE SYNCHRONISATION
+    uuid = db.Column(db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
+    source_structure_id = db.Column(db.Integer, nullable=True)  # ID dans GHP
+    patient_source_id = db.Column(db.Integer, nullable=True)    # ID du patient dans GHP
+    source_name = db.Column(db.String(50), nullable=True)       # 'ghp'
+    synced_at = db.Column(db.DateTime, nullable=True)
+    synced_from = db.Column(db.String(50), nullable=True)
+    # ⭐ CHAMPS MANQUANTS (à ajouter)
+    numero_assure = db.Column(db.String(50), nullable=True)
+    assurance2_nom = db.Column(db.String(100), nullable=True)
+    taux_prise_charge = db.Column(db.String(50))  # ou db.Float()
+    taux_assurance2 = db.Column(db.Float, nullable=True)
+    numero_assure2 = db.Column(db.String(50), nullable=True)
+    personne_a_prevenir_nom = db.Column(db.String(100), nullable=True)
+    personne_a_prevenir_telephone = db.Column(db.String(50), nullable=True)
+    personne_a_prevenir_relation = db.Column(db.String(50), nullable=True)
+    # ⭐ HABITUDES DE VIE
+    tabac = db.Column(db.String(20))        # Non, Oui, Ancien
+    alcool = db.Column(db.String(20))       # Non, Oui, Occasionnel
+    allaitement = db.Column(db.Boolean, default=False)
+    grossesse = db.Column(db.Boolean, default=False)
+
+    # ⭐ INFORMATIONS MÉDICALES
+    groupe_sanguin = db.Column(db.String(10))  # A+, A-, B+, B-, AB+, AB-, O+, O-
+    mutuelle = db.Column(db.String(100))
+    medecin_traitant = db.Column(db.String(100))
+
     # Identité
     nom = db.Column(db.String(100), nullable=False)
     prenom = db.Column(db.String(100), nullable=False)
@@ -220,6 +248,21 @@ class Patient(db.Model):
     prescriptions = db.relationship('Prescription', backref='patient', lazy=True)
     medecin_referent = db.relationship('Utilisateur', foreign_keys=[id_medecin_referent], backref='patients_suivis')
 
+class StructureMapping(db.Model):
+    __tablename__ = 'structure_mappings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    local_structure_id = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False)
+    source_structure_id = db.Column(db.Integer, nullable=False)  # ID dans GHP
+    source_name = db.Column(db.String(50), default='ghp')
+    api_url = db.Column(db.String(255), nullable=True)
+    api_key = db.Column(db.String(255), nullable=True)
+    last_sync = db.Column(db.DateTime, nullable=True)
+    actif = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relations
+    structure = db.relationship('Structure', backref='mappings_ghp')
 
 # ==================== AUTRES CLASSES ====================
 class Message(db.Model):
@@ -569,3 +612,87 @@ class Lit(db.Model):
         self.statut = 'occupe'
         self.hospitalisation_id = hospitalisation_id
         self.updated_at = datetime.utcnow()
+
+# ==================== ANTÉCÉDENTS PATIENT ====================
+
+class AntecedentPatient(db.Model):
+    __tablename__ = 'antecedents_patient'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    
+    # Type d'antécédent
+    type_antecedent = db.Column(db.String(50), nullable=False)  # MEDICAL, CHIRURGICAL, PSYCHOLOGIQUE, OBSTETRIQUE, ALLERGIE, AUTRE
+    type_precision = db.Column(db.String(100))  # Pour le type "AUTRE"
+    
+    # Description
+    description = db.Column(db.Text, nullable=False)
+    
+    # Dates
+    date_debut = db.Column(db.Date)
+    date_fin = db.Column(db.Date)
+    
+    # Sévérité
+    severite = db.Column(db.String(20))  # LEGERE, MODEREE, SEVERE
+    
+    # Traitement associé
+    traitement = db.Column(db.String(255))
+    
+    # Notes
+    notes = db.Column(db.Text)
+    
+    # Statut
+    actif = db.Column(db.Boolean, default=True)
+    
+    # Qui a recueilli l'information
+    recueilli_par = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))
+    date_recueil = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Métadonnées
+    modified_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))
+    modified_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    
+    # Relations
+    patient = db.relationship('Patient', backref='antecedents')
+    recueillant = db.relationship('Utilisateur', foreign_keys=[recueilli_par], backref='antecedents_recueillis')
+    modificateur = db.relationship('Utilisateur', foreign_keys=[modified_by], backref='antecedents_modifies')
+
+# ==================== EXAMEN PHYSIQUE ====================
+
+class ExamenPhysique(db.Model):
+    __tablename__ = 'examens_physiques'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    consultation_id = db.Column(db.Integer, db.ForeignKey('consultations.id'), nullable=False)
+    
+    # Stockage des sections modifiées (JSON)
+    sections_modifiees = db.Column(db.Text, nullable=True)
+    
+    # Texte complet de l'examen
+    examen_complet = db.Column(db.Text, nullable=True)
+    
+    # Métadonnées
+    version = db.Column(db.String(10), default='fr')
+    created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    modified_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    
+    # Relations
+    consultation = db.relationship('Consultation', backref='examen_physique')
+    createur = db.relationship('Utilisateur', backref='examens_physiques')
+
+
+class SectionExamenPhysique(db.Model):
+    __tablename__ = 'sections_examen_physique'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(100), nullable=False)
+    icone = db.Column(db.String(50), nullable=True)
+    
+    # Texte par langue
+    texte_fr = db.Column(db.Text, nullable=False)
+    texte_en = db.Column(db.Text, nullable=False)
+    
+    ordre = db.Column(db.Integer, default=0)
+    actif = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

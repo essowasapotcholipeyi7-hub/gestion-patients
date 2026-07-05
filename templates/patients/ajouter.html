@@ -9,7 +9,7 @@
             <i class="fas fa-user-plus me-2"></i>
             Nouveau patient
         </h1>
-        <a href="{{ url_for('patients_list') }}" class="btn btn-secondary">
+        <a href="{{ url_for('patients_list') }}" class="btn btn-secondary" data-loading="true">
             <i class="fas fa-arrow-left me-2"></i>Retour
         </a>
     </div>
@@ -17,8 +17,10 @@
     <div class="card">
         <div class="card-body">
             <form method="POST">
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- IDENTITÉ -->
+                <!-- ═══════════════════════════════════════════ -->
                 <div class="row">
-                    <!-- Identité -->
                     <div class="col-md-12 mb-3">
                         <h5><i class="fas fa-id-card me-2"></i>Identité</h5>
                         <hr>
@@ -34,12 +36,25 @@
                         <input type="text" name="prenom" class="form-control" required>
                     </div>
                     
+                    <!-- ⭐ DATE DE NAISSANCE OU ÂGE -->
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Date de naissance</label>
-                        <input type="date" name="date_naissance" class="form-control">
+                        <input type="date" name="date_naissance" class="form-control" id="dateNaissance" onchange="calculerAge()">
+                        <small class="text-muted">Ou saisissez l'âge ci-dessous</small>
                     </div>
                     
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Âge (ans)</label>
+                        <input type="number" name="age" class="form-control" id="age" min="0" max="120" placeholder="30" oninput="calculerDateNaissance()">
+                        <small class="text-muted">Approximatif</small>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Lieu de naissance</label>
+                        <input type="text" name="lieu_naissance" class="form-control" placeholder="Ex: Akakpoé">
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
                         <label class="form-label">Sexe</label>
                         <select name="sexe" class="form-select">
                             <option value="">Sélectionner</option>
@@ -54,24 +69,38 @@
                         <input type="tel" name="telephone" class="form-control">
                     </div>
                     
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label class="form-label">Email</label>
                         <input type="email" name="email" class="form-control">
                     </div>
                     
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label class="form-label">Profession</label>
                         <input type="text" name="profession" class="form-control" placeholder="Ex: Enseignant, Commerçant...">
                     </div>
                     
-                    <div class="col-md-12 mb-3">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Code postal</label>
+                        <input type="text" name="code_postal" class="form-control" placeholder="Ex: 10000">
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Ville</label>
+                        <input type="text" name="ville" class="form-control" placeholder="Ex: Badou">
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
                         <label class="form-label">Adresse</label>
                         <textarea name="adresse" class="form-control" rows="2"></textarea>
                     </div>
-                    
-                    <!-- Assurance -->
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- ASSURANCE PRINCIPALE -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
                     <div class="col-md-12 mb-3">
-                        <h5><i class="fas fa-shield-alt me-2"></i>Assurance</h5>
+                        <h5><i class="fas fa-shield-alt me-2"></i>Assurance principale</h5>
                         <hr>
                     </div>
                     
@@ -88,15 +117,176 @@
                     
                     <div class="col-md-4 mb-3" id="autreAssuranceDiv" style="display: none;">
                         <label class="form-label">Nom de l'assurance</label>
-                        <input type="text" name="autre_assurance_nom" class="form-control" placeholder="Ex: Allianz, AXA...">
+                        <input type="text" name="autre_assurance_nom" class="form-control" placeholder="Ex: GTA, FIDELIA...">
                     </div>
                     
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Numéro d'assuré</label>
                         <input type="text" name="num_assure" class="form-control">
                     </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- ASSURANCE COMPLÉMENTAIRE (2ÈME) -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-plus-circle me-2 text-success"></i>Assurance complémentaire <span class="text-muted small">(optionnelle)</span></h5>
+                        <hr>
+                    </div>
                     
-                    <!-- ⭐ CONSTANTES VITALES (NOUVEAU) -->
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Nom de l'assurance 2</label>
+                        <input type="text" name="assurance2_nom" class="form-control" placeholder="Ex: Allianz, AXA...">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Taux de prise en charge 2 (%)</label>
+                        <input type="number" step="0.1" min="0" max="100" name="taux_assurance2" class="form-control" placeholder="30">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Numéro d'assuré 2</label>
+                        <input type="text" name="numero_assure2" class="form-control" placeholder="Numéro sur la carte">
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- PERSONNE À PRÉVENIR -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-phone-alt me-2 text-warning"></i>Personne à prévenir <span class="text-muted small">(optionnelle)</span></h5>
+                        <hr>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Nom complet</label>
+                        <input type="text" name="personne_a_prevenir_nom" class="form-control" placeholder="Jean Dupont">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Téléphone</label>
+                        <input type="tel" name="personne_a_prevenir_telephone" class="form-control" placeholder="77 123 45 67">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Relation</label>
+                        <select name="personne_a_prevenir_relation" class="form-select">
+                            <option value="">Sélectionner</option>
+                            <option value="Conjoint">Conjoint(e)</option>
+                            <option value="Enfant">Enfant</option>
+                            <option value="Parent">Parent</option>
+                            <option value="Frère/Sœur">Frère/Sœur</option>
+                            <option value="Ami">Ami</option>
+                            <option value="Collègue">Collègue</option>
+                            <option value="Voisin">Voisin</option>
+                            <option value="Autre">Autre</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- ⭐ GROUPE SANGUIN -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-tint me-2 text-danger"></i>Informations médicales</h5>
+                        <hr>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Groupe sanguin <span class="text-danger">*</span></label>
+                        <select name="groupe_sanguin" class="form-select" required>
+                            <option value="">Sélectionner</option>
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Mutuelle</label>
+                        <input type="text" name="mutuelle" class="form-control" placeholder="Ex: MUTUELLE SANTÉ">
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Médecin traitant</label>
+                        <input type="text" name="medecin_traitant" class="form-control" placeholder="Nom du médecin">
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- TAUX DE PRISE EN CHARGE -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-percent me-2 text-info"></i>Taux de prise en charge</h5>
+                        <hr>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Taux de prise en charge (%)</label>
+                        <input type="number" step="0.1" min="0" max="100" name="taux_prise_charge" class="form-control" placeholder="80">
+                        <small class="text-muted">Pourcentage pris en charge par l'assurance principale</small>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- MÉDECIN RÉFÉRENT -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <h5><i class="fas fa-user-md me-2"></i>Médecin référent</h5>
+                        <hr>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Médecin traitant</label>
+                        <select name="id_medecin_referent" class="form-select">
+                            <option value="">Sélectionner un médecin</option>
+                            {% for medecin in medecins %}
+                            <option value="{{ medecin.id }}">Dr {{ medecin.prenom }} {{ medecin.nom }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Informations complémentaires..."></textarea>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- ⭐ ALERTE : RENVOI VERS ANTÉCÉDENTS -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>📝 Après l'enregistrement :</strong>
+                            L'infirmier sera redirigé vers le formulaire des antécédents pour saisir :
+                            <ul class="mb-0 mt-2">
+                                <li>Tabac / Alcool</li>
+                                <li>Allaitement / Grossesse</li>
+                                <li>Antécédents médicaux</li>
+                                <li>Antécédents chirurgicaux</li>
+                                <li>Allergies</li>
+                                <li>Traitements en cours</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- CONSTANTES VITALES -->
+                <!-- ═══════════════════════════════════════════ -->
+                <div class="row">
                     <div class="col-md-12 mb-3">
                         <h5><i class="fas fa-heartbeat me-2 text-danger"></i>Constantes vitales</h5>
                         <hr>
@@ -124,48 +314,24 @@
                     
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Poids (kg)</label>
-                        <input type="number" step="0.1" name="poids" class="form-control" id="poids" placeholder="75">
+                        <input type="number" step="0.1" name="poids" class="form-control" id="poids" placeholder="75" oninput="calculerIMC()">
                     </div>
                     
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Taille (cm)</label>
-                        <input type="number" step="0.5" name="taille" class="form-control" id="taille" placeholder="175">
+                        <input type="number" step="0.5" name="taille" class="form-control" id="taille" placeholder="175" oninput="calculerIMC()">
                     </div>
                     
                     <div class="col-md-3 mb-3">
                         <label class="form-label">IMC</label>
                         <input type="number" step="0.1" name="imc" class="form-control" id="imc" readonly style="background-color: #e9ecef;">
                     </div>
-                    
-                    <!-- ⚠️ ANTÉCÉDENTS SUPPRIMÉS (déplacés vers Consultation) -->
-                    
-                    <!-- Médecin référent -->
-                    <div class="col-md-12 mb-3">
-                        <h5><i class="fas fa-user-md me-2"></i>Médecin référent</h5>
-                        <hr>
-                    </div>
-                    
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Médecin traitant</label>
-                        <select name="id_medecin_referent" class="form-select">
-                            <option value="">Sélectionner un médecin</option>
-                            {% for medecin in medecins %}
-                            <option value="{{ medecin.id }}">Dr {{ medecin.prenom }} {{ medecin.nom }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="col-md-12 mb-3">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            <strong>Note :</strong> Les antécédents médicaux, allergies et traitements en cours seront renseignés lors des consultations.
-                        </div>
-                    </div>
                 </div>
-                
-                <div class="d-flex justify-content-end">
+
+                <!-- Boutons -->
+                <div class="d-flex justify-content-end mt-3">
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-2"></i>Enregistrer
+                        <i class="fas fa-save me-2"></i>Enregistrer et continuer
                     </button>
                 </div>
             </form>
@@ -174,35 +340,87 @@
 </div>
 
 <script>
-    // Affichage du champ "Autre assurance"
-    document.getElementById('typeAssurance').addEventListener('change', function() {
-        var autreDiv = document.getElementById('autreAssuranceDiv');
-        if (this.value === 'AUTRE_ASSURANCE') {
-            autreDiv.style.display = 'block';
-        } else {
-            autreDiv.style.display = 'none';
+// ============================================================
+// ⭐ CALCUL ÂGE → DATE DE NAISSANCE
+// ============================================================
+function calculerDateNaissance() {
+    const age = parseInt(document.getElementById('age').value);
+    const dateNaissance = document.getElementById('dateNaissance');
+    
+    if (age && age > 0 && age < 120) {
+        const aujourdhui = new Date();
+        const date = new Date(aujourdhui.getFullYear() - age, aujourdhui.getMonth(), aujourdhui.getDate());
+        const annee = date.getFullYear();
+        const mois = String(date.getMonth() + 1).padStart(2, '0');
+        const jour = String(date.getDate()).padStart(2, '0');
+        dateNaissance.value = `${annee}-${mois}-${jour}`;
+    }
+}
+
+// ============================================================
+// ⭐ CALCUL DATE DE NAISSANCE → ÂGE
+// ============================================================
+function calculerAge() {
+    const dateNaissance = document.getElementById('dateNaissance').value;
+    const ageInput = document.getElementById('age');
+    
+    if (dateNaissance) {
+        const naissance = new Date(dateNaissance);
+        const aujourdhui = new Date();
+        let age = aujourdhui.getFullYear() - naissance.getFullYear();
+        const moisDiff = aujourdhui.getMonth() - naissance.getMonth();
+        if (moisDiff < 0 || (moisDiff === 0 && aujourdhui.getDate() < naissance.getDate())) {
+            age--;
         }
-    });
-    
-    // Calcul automatique de l'IMC
-    const poids = document.getElementById('poids');
-    const taille = document.getElementById('taille');
-    const imcField = document.getElementById('imc');
-    
-    function calculerIMC() {
-        let p = parseFloat(poids.value);
-        let t = parseFloat(taille.value);
-        
-        if (p && t && t > 0) {
-            let tailleM = t / 100;
-            let imc = p / (tailleM * tailleM);
-            imcField.value = imc.toFixed(1);
-        } else {
-            imcField.value = '';
+        if (age > 0) {
+            ageInput.value = age;
         }
     }
+}
+
+// ============================================================
+// CALCUL AUTOMATIQUE DE L'IMC
+// ============================================================
+function calculerIMC() {
+    const poids = parseFloat(document.getElementById('poids').value);
+    const taille = parseFloat(document.getElementById('taille').value);
+    const imcInput = document.getElementById('imc');
     
-    poids.addEventListener('input', calculerIMC);
-    taille.addEventListener('input', calculerIMC);
+    if (poids && taille && taille > 0) {
+        const imc = poids / ((taille/100) ** 2);
+        imcInput.value = imc.toFixed(1);
+    } else {
+        imcInput.value = '';
+    }
+}
+
+// ============================================================
+// AFFICHAGE DU CHAMP "AUTRE ASSURANCE"
+// ============================================================
+document.getElementById('typeAssurance').addEventListener('change', function() {
+    var autreDiv = document.getElementById('autreAssuranceDiv');
+    if (this.value === 'AUTRE_ASSURANCE') {
+        autreDiv.style.display = 'block';
+    } else {
+        autreDiv.style.display = 'none';
+    }
+});
+
+// ============================================================
+// FORMATAGE DES NUMÉROS DE TÉLÉPHONE
+// ============================================================
+document.querySelector('input[name="telephone"]').addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9+]/g, '');
+});
+
+document.querySelector('input[name="personne_a_prevenir_telephone"]').addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9+]/g, '');
+});
 </script>
+
+<style>
+.text-danger {
+    color: #dc3545;
+}
+</style>
 {% endblock %}

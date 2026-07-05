@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Examen Physique - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3">
+                <i class="fas fa-stethoscope me-2 text-primary"></i>
+                Examen Physique - {{ patient.prenom }} {{ patient.nom }}
+            </h1>
+            <p class="text-muted">
+                Consultation du {{ consultation.date_consultation.strftime('%d/%m/%Y %H:%M') if consultation.date_consultation else '-' }}
+                {% if examen %}
+                    <span class="badge bg-success ms-2">✅ Examen enregistré</span>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <!-- ⭐ BOUTON CHANGER DE LANGUE -->
+            <button class="btn btn-outline-primary me-2" onclick="changerLangue()">
+                <i class="fas fa-globe me-1"></i>
+                <span id="langBtnText">🇫🇷 Français</span>
+            </button>
+            <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <!-- ⭐ BOUTON AJOUTER UN APPAREIL -->
+    <div class="mb-3">
+        <button class="btn btn-success" onclick="ajouterAppareil()">
+            <i class="fas fa-plus me-2"></i>Ajouter un appareil non cité
+        </button>
+        <button class="btn btn-outline-secondary" onclick="toutReinitialiser()">
+            <i class="fas fa-undo me-2"></i>Réinitialiser tout
+        </button>
+    </div>
+
+    <form method="POST" action="{{ url_for('enregistrer_examen_physique', id=consultation.id) }}" id="examenForm">
+        <div id="sectionsContainer">
+            <!-- Les sections seront chargées dynamiquement -->
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Chargement...</span>
+                </div>
+                <p class="mt-2 text-muted">Chargement des sections...</p>
+            </div>
+        </div>
+        
+        <!-- Texte complet de l'examen -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>Résumé de l'examen</h5>
+                <span class="badge bg-secondary">Généré automatiquement</span>
+            </div>
+            <div class="card-body">
+                <textarea name="examen_complet" id="examenComplet" class="form-control" rows="10" 
+                          style="background-color: #f8f9fa; font-family: 'Courier New', monospace; font-size: 13px;"></textarea>
+                <small class="text-muted mt-2 d-block">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Le résumé est généré automatiquement. Vous pouvez aussi le modifier directement avant d'enregistrer.
+                </small>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Annuler
+            </a>
+            <button type="submit" class="btn btn-primary" id="btnEnregistrer">
+                <i class="fas fa-save me-2"></i>Enregistrer l'examen
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+// ==================== ÉTAT ====================
+let sectionsModifiees = {};
+let currentLang = 'fr';
+let sectionsData = [];
+let sectionsOriginales = {};
+
+// ==================== CHARGEMENT DES SECTIONS ====================
+async function chargerSections() {
+    const container = document.getElementById('sectionsContainer');
+    container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Chargement...</p></div>';
+    
+    try {
+        const response = await fetch(`/api/examen-physique/sections?lang=${currentLang}`);
+        const data = await response.json();
+        sectionsData = data;
+        
+        // Charger les modifications existantes si présentes
+        {% if examen and examen.sections_modifiees %}
+            sectionsModifiees = JSON.parse('{{ examen.sections_modifiees|safe }}');
+        {% endif %}
+        
+        afficherSections();
+    } catch (error) {
+        console.error('Erreur:', error);
+        container.innerHTML = `<div class="alert alert-danger">Erreur de chargement des sections. Veuillez rafraîchir la page.</div>`;
+    }
+}
+
+// ==================== AFFICHER LES SECTIONS ====================
+function afficherSections() {
+    const container = document.getElementById('sectionsContainer');
+    container.innerHTML = '';
+    
+    sectionsData.forEach((section, index) => {
+        const div = document.createElement('div');
+        div.className = 'card mb-3 section-card';
+        div.id = `section-${index}`;
+        
+        const isModified = sectionsModifiees[index] !== undefined;
+        const texte = isModified ? sectionsModifiees[index] : section.texte;
+        
+        // Sauvegarder le texte original
+        if (!sectionsOriginales[index]) {
+            sectionsOriginales[index] = section.texte;
+        }
+        
+        div.innerHTML = `
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas ${section.icone} me-2"></i>
+                    <strong>${section.nom}</strong>
+                    ${isModified ? '<span class="badge bg-warning ms-2">Modifié</span>' : '<span class="badge bg-secondary ms-2">Normal</span>'}
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-primary me-1" onclick="modifierSection(${index})">
+                        <i class="fas fa-edit me-1"></i>Modifier
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="resetSection(${index})" ${!isModified ? 'disabled' : ''}>
+                        <i class="fas fa-undo me-1"></i>Réinitialiser
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" id="section-body-${index}">
+                <p class="mb-0" style="white-space: pre-wrap; font-size: 14px;">${texte}</p>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+    
+    // Mettre à jour le résumé
+    genererResume();
+}
+
+// ==================== MODIFIER UNE SECTION ====================
+function modifierSection(index) {
+    const section = sectionsData[index];
+    const texteActuel = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : section.texte;
+    
+    const nouveauTexte = prompt(
+        `Modifier la section "${section.nom}" :\n\nLaisser vide pour conserver le texte original.\n\nTexte actuel :\n${texteActuel}`,
+        texteActuel
+    );
+    
+    if (nouveauTexte === null) return;
+    
+    if (nouveauTexte.trim() === '') {
+        delete sectionsModifiees[index];
+    } else {
+        sectionsModifiees[index] = nouveauTexte.trim();
+    }
+    
+    afficherSections();
+}
+
+// ==================== RÉINITIALISER UNE SECTION ====================
+function resetSection(index) {
+    if (confirm(`Revenir au texte original pour la section "${sectionsData[index].nom}" ?`)) {
+        delete sectionsModifiees[index];
+        afficherSections();
+    }
+}
+
+// ==================== RÉINITIALISER TOUT ====================
+function toutReinitialiser() {
+    if (confirm('Réinitialiser toutes les sections ?')) {
+        sectionsModifiees = {};
+        afficherSections();
+    }
+}
+
+// ==================== AJOUTER UN APPAREIL ====================
+function ajouterAppareil() {
+    const nom = prompt('Nom de l\'appareil / section :');
+    if (!nom) return;
+    
+    const texte = prompt(`Texte pour "${nom}" :`);
+    if (!texte) return;
+    
+    const index = sectionsData.length;
+    sectionsData.push({
+        nom: nom,
+        icone: 'fa-plus-circle',
+        texte: texte
+    });
+    
+    sectionsModifiees[index] = texte;
+    afficherSections();
+}
+
+// ==================== CHANGER DE LANGUE ====================
+function changerLangue() {
+    currentLang = currentLang === 'fr' ? 'en' : 'fr';
+    document.getElementById('langBtnText').textContent = currentLang === 'fr' ? '🇫🇷 Français' : '🇬🇧 English';
+    chargerSections();
+}
+
+// ==================== GÉNÉRER LE RÉSUMÉ ====================
+function genererResume() {
+    const examenComplet = document.getElementById('examenComplet');
+    if (!examenComplet) return;
+    
+    let resume = '';
+    sectionsData.forEach((section, index) => {
+        const texte = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : section.texte;
+        resume += `--- ${section.nom.toUpperCase()} ---\n${texte}\n\n`;
+    });
+    
+    examenComplet.value = resume.trim();
+}
+
+// ==================== SAUVEGARDE AVANT SOUMISSION ====================
+document.getElementById('examenForm').addEventListener('submit', function(e) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'sections_modifiees';
+    input.value = JSON.stringify(sectionsModifiees);
+    this.appendChild(input);
+    
+    // Désactiver le bouton pour éviter double soumission
+    document.getElementById('btnEnregistrer').disabled = true;
+    document.getElementById('btnEnregistrer').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enregistrement...';
+});
+
+// ==================== INITIALISATION ====================
+document.addEventListener('DOMContentLoaded', function() {
+    chargerSections();
+});
+
+// ==================== RACCOURCI CLAVIER ====================
+document.addEventListener('keydown', function(e) {
+    // Ctrl+Shift+L pour changer de langue
+    if (e.ctrlKey && e.shiftKey && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        changerLangue();
+    }
+});
+</script>
+
+<style>
+.section-card {
+    transition: all 0.3s ease;
+}
+.section-card:hover {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.section-card .card-body {
+    background: #fafafa;
+}
+.section-card .badge-warning {
+    background: #ffc107;
+    color: #000;
+}
+</style>
+{% endblock %}

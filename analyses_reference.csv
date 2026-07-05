@@ -1,0 +1,410 @@
+Id,nom
+1,Membre supérieur
+2,Q100 Examen radiologique du doigt
+3,Q101 Examen radiologique de la main
+4,Q103 Examen radiologique du poignet
+5,Q107 Examen radiologique de l'avant-bras (F/P)
+6,Q108 Examen radiologique du bras ou humerus F/P
+7,Q112 Examen radiologique du coude
+8,Q113 Examen radiologique du bras
+9,Q117 Examen radiologique de deux segments du squelette du membre supérieur
+10,Q120 Examen radiologique de trois segments ou davantage du squelette du membre supérieur
+11,Q159 Examen radiologique des deux mains et/ou des deux poignets de face sur la même plaque
+12,Les cotations ci-dessus ne sont pas cumulables entre elles.
+13,"Q160 Epaule, ceinture scapulaire, omoplate, clavicule (par élément)"
+14,Membre inférieur
+15,Q166 Calcanéum
+16,"Q129 Examen radiologique du pied, minimum deux incidences"
+17,"Q130 Examen radiologique de la cheville, minimum deux incidences"
+18,"Q131 Examen radiologique de la jambe, minimum deux incidences"
+19,Q132 Examen radiologique du genou inférieur ou égal à deux incidences.
+20,"Q133 Examen radiologique de la cuisse, minimum deux incidences"
+21,Q134 Examen radiologique de deux segments du squelette du membre inférieur
+22,Q135 Examen radiologique de trois segments ou davantage du squelette du membre inférieur
+23,Les cotations ci-dessus ne sont pas cumulables entre elles.
+24,Q137 Gonométrie
+25,Q138 Examen radiologique orteil F/P
+26,Q139 Bassin Face
+27,Q140 Bassin Face + profil (Hanche)
+28,Q141 Bassin 3/4 Alaire (2côtes)
+29,Q142 Bassin 3/4 Obturateur (2côtes)
+30,"Q143 Examen radiologique de la hanche, deux incidences( F/P)"
+31,"Q144 Examen radiologique de la hanche, trois incidences ou plus"
+32,"En cas d'exploration simultanée du bassin et de la hanche, ou des deux hanches, la cotation relative au bassin est limité à une seule incidence."
+33,Q146 GRAND AXE SUR 30/90 (PANGONOGRAMME EN CHARGE)
+34,Tête
+35,"Crâne, massif facial, sinus"
+36,"Q147 Examen radiologique du crâne, massif facial, sinus, une incidence"
+37,"Q162 Examen radiologique du crâne, massif facial, sinus, 2 ou 3 incidences"
+38,"Examen radiologique des os du crâne et du massif facial, incidences spéciales:"
+39,Q148 Blondeau
+40,Q149 Os du nez propre
+41,Q150 Hirtz
+42,Q151 Trou Optique
+43,Q152 WENGMESTEN Rice
+44,Q154 Examen radiologique des articulations temporo-maxillaires
+45,Examens intrabuccaux
+46,Q155 Examen radiographique du panoramique dentaire
+47,Q156 Examen radiographique retroalvéolaire (par dent ou groupe de 2 ou 3 dents contigues)
+48,Thorax
+49,Q157 Examen Thorax standard Face
+50,Q158 Examen Thorax standard Face / profil
+51,"Q163 Sternum F/P et/ou articulations sternoclaviculaires uni ou bilatérales, minimum 2 incidences"
+52,"Q164 Gril costal unilatéral, minimum 3 incidences"
+53,"Q165 Gril costal bilatéral, minimum 3 incidences"
+54,Rachis
+55,"Bilan complet du rachis segmentaire, y compris les zones transitionnelles"
+56,Q104 Rachis cervical bouche ouverte
+57,Q105 Rachis cervical F/P
+58,Q106 Rachis cervico - dorsal F/P
+59,Q109 Rachis cervico - dorso - lombaire F/P
+60,Q111 Rachis dorsal F/P
+61,Q114 Rcahis dorso - lombaire
+62,Q116 Rachis lombaire F/P
+63,Q123 Examen radiologique Atlas et Axis F/P
+64,Q125 Rachis charnière C7-T1 F/P
+65,Q119 Rachis charnière T12 - L1 F/P
+66,Q118 Rachis Charnière L5 S1 F/P
+67,Q121 Exploration radiographique isolée du sacrum et/ou du coccyx
+68,Ces cotations ne sont pas cumulables entre elles.En cas de radiographies de deux segments rachidiens non contigus la tarification est la somme de la cotation la plus élevée et de la moitié de la cotation la plus faible
+69,
+70,CHAPITRE III - ACTES DE RADIODIAGNOSTIC PORTANT SUR LES VISCERES
+71,"Cavum, larynx, pharynx"
+72,"Q200 Examen radiologique isolé, sans moyen de contraste, de la filière aérienne (cavum)"
+73,"Poumons, cœur"
+74,Q201 Examen radiologique des poumons et du coeur sans opacification
+75,Tube digestif
+76,"Q202 Examen radiologique de l'abdomen sans préparation, quel que soit le nombre d'incidences"
+77,Q203 Examen radiologique isolé de l'œsophage (transit oesophagien)
+78,Q219 Examen radiologique de l'estomac et du duodénum
+79,"Q204 Transit oeso - gastro-duodénal, y compris abdomen sans préparation"
+80,"Q220 Transit du grêle, y compris abdomen sans préparation"
+81,Q205 Lavement baryté
+82,Système urinaire
+83,"Q207 Urographie intraveineuse avec Cystographie (antérograde), y compris abdomen sans préparation"
+84,"Q209 Urétrocytographie rétrograde avec clichés pré - perpost mictionnels, y compris abdomen sans préparation"
+85,"Q211 Urétrocystographie rétrograde, y compris abdomen sans préparation"
+86,"Q206 Cystographie, y compris abdomen sans préparation"
+87,Gynécologie
+88,Q210 Mammographie unilatérale
+89,Q208 Mammographie bilatérale
+90,Q212 Hystéro-salpingograhie incluant l'abdomen sans préparation
+91,Q213 Radiopelvimétrie 3 clichés
+92,Q214 Etude du contenu utérin à une incidence
+93,Q221 Etude du contenu utérin à 2 incidences
+94,Q215 Fistulographie gynécologique
+95,Q222 Génitographie
+96,Système nerveux
+97,Q216 Myélographie cervicale
+98,Q217 Myélographie dorso-lombaire
+99,Q223 Saccoradiculographie
+100,Q224 Saccoradiculomyélographie
+101,
+102,CHAPITRE IV. EXAMENS DIVERS
+103,Arthrographies
+104,Q300 Arthrographie du poignet
+105,Q301 Arthrographie du coude
+106,Q302 Arthographie de l'épaule
+107,Q303 Arthrographie de la hanche
+108,Q304 Arthrographie du genou
+109,Q305 Arthrographie de la cheville
+110,Q308 Arthrographie sterno-claviculaire
+111,Q309 Arthrographie temporo-mandibulaire
+112,Q310 Autres articulations
+113,Autres examens
+114,"Q306 Fistulographie, opacification par sonde"
+115,"Q307 Examen radiologique pour calcul de l'âge osseux, quelles que soient les méthodes"
+116,
+117,CHAPITRE V - EXAMENS UTILISANT DES APPAREILS SPECIAUX
+118,SCANOGRAPHIE
+119,"Est considéré comme un acte de scanographie l'examen effectué a l'aide d'un appareil de tomodensitométrie, quel que soit le nombre de coupes nécessaires, avec ou sans injection de produit de contraste, d'une des régions anatomiques suivantes :"
+120,Q426 - TDM CEREBRALE
+121,Q427 - TDM DU COU
+122,Q428 - TMD THORAX ;
+123,Q400 - TDM ABDOMINALE ;
+124,Q401 - TDM PELVIS/BASSIN ;
+125,Q402 - TDM DES MEMBRES (INF ou SUP);
+126,"Q403 - TDM Rachis (cervical, dorsal, ou lombaire)"
+127,
+128,Q404 - TDM combinée tête et thorax ;
+129,"Q405 -TDM thorax et abdomen complet (incluant l'étude du foie, des reins et du pancréas"
+130,"Q406 - TDM abdomen complet (incluant l'étude du foie, des reins et du pancréas) et pelvis (incluant l'étude de l'appareil génital) ;"
+131,Q407 - TDM membres et tête ;
+132,Q408 - TDM membres et thorax ;
+133,Q409 - TDM membres et abdomen ;
+134,Q431 Myéloscanner
+135,Q432 Angioscanner
+136,Q433 Coloscanner
+137,Q434 Autre scanner spécifique
+138,
+139,ECHOGRAPHIE
+140,Q410 Echographie abdominale
+141,Q417 Echographie pelvienne
+142,Q429 Echographie abdomino-pelvienne
+143,Q411 Echographie transfontanelle
+144,Q412 Echographie cardiaque
+145,Q413 Echographie hépatique
+146,Q414 Echographie mammaire
+147,Q415 Echographie obstétricale
+148,Q416 Echographie oculaire
+149,Q418 Echographie Bronchique / Thoracique
+150,Q419 Echographie prostate
+151,Q420 Echographie rénale
+152,Q421 Echographie testiculaire
+153,"Q422 Echographie Arbre Urinaire (reins, uretères, vessie et le cas échéant prostate)"
+154,Q423 Echographie thyroidienne
+155,Q425 Echographie tumorale ou partie molle
+156,Q430 Echographie de contrôle ou surveillance d'une pathologie
+157,Q435 Echo Doppler cardiaque
+158,Q436 Echo Doppler des vaisseaux quelque soit la région
+159,Q437 Echomammographie
+160,Q500 Imagerie résonnance magnétique (IRM) cérébrale
+161,Q501 Imagerie résonnance magnétique (IRM) rachis cervical
+162,Q502 Imagerie résonnance magnétique (IRM) rachis dorsal
+163,Q503 Imagerie résonnance magnétique (IRM) rachis lombaire
+164,Q504 Imagerie résonsance magnétique (IRM) bassin
+165,"Q505 Imagerie résonnance magnétique (IRM) d'une articulation (genou, épaule,cheville, autres)"
+166,Q506 Imagerie résonnance magnétique (IRM) du thorax
+167,Q507 Imagerie résonnance magnétique (IRM) de l'abodomen
+168,Q508 Imagerie résonnance magnétique (IRM) de deux organes ou segments
+169,Q509 Imagerie résonnance magnétique (IRM) de trois organes ou segments
+170,Q510 Produit de contraste IRM
+171,R100 Selles KOP Direct
+172,R104 Selles KOP Méthode de concentration
+173,R105 Selles KOP par Scotch test (Graham)
+174,Sang
+175,R101 Frottis mince et goutte épaisse (GE)
+176,Urines
+177,R102 Recherche de parasites urinaires
+178,R106 Recherche de Schistosome (urines)
+179,Peau
+180,R103 Biopsie cutanée exsangue (BCE)
+181,IMMUNOLOGIE-IMMUNOHEMATOLOGIE
+182,IMMUNO-HEMATOLOGIE
+183,R300 Groupage ABO / Rhésus
+184,R301 Test de Coombs direct
+185,R303 Test de Coombs indirect
+186,R302 Autres recherches d’agglutinines irrégulières (RAI)
+187,R304 Anticorps antiphospholipides
+188,R305 Anti-facteur IX
+189,R306 Anti-facteur VIII
+190,R307 Caryotype sanguin
+191,R308 Dépistage des anticoagulants circulants (ACC)
+192,R309 Facteur IX
+193,R310 Facteur V
+194,R311 Facteur V II
+195,R312 Facteur V III
+196,R313 Facteur V Leiden
+197,R314 Facteur X
+198,R315 Facteur XII
+199,R316 Genotypage VHC
+200,R317 Immunoglobulines E
+201,R318 Protéine S
+202,R319 Protéine C
+203,SEROLOGIE INFECTIEUSE ET PARASITAIRE
+204,Sérologie parasitaire
+205,R400 Sérologie de la toxoplasmose (Dosage des anticorps)
+206,R402 Sérologie amibienne
+207,R403 Sérologie bilharzienne
+208,R405 Autres sérologies parasitaires
+209,Sérologie bacterienne
+210,R406 Sérologie des tréponématoses (TPHA - VDRL)
+211,R407 Sérologie des chlamydiae
+212,R428 Recherche d'antigène chlaydiae
+213,R408 Sérologie des salmonelloses
+214,R409 Sérologie anti-streptococcique (ASLO)
+215,R433 Sérologie anti-streptococcique test rapid (ASLO)
+216,R410 Autres sérologies bactériennes
+217,R437 Chlamydiae Dosage d'IgA
+218,R438 Chlamydiae Dosage d'IgG
+219,R439 Chlamydiae Dosage d'IgM
+220,Sérologie virale
+221,R411 Sérologie de la rubéole
+222,R412 Sérologie VIH SRV
+223,R413 Sérologie VIH SRV (Elisa et autres méthodes immunologiques)
+224,R414 Sérologie de l’hépatite A (IgM)
+225,R436 Anti-Hépatite A (IGG/IGM)
+226,R415 Sérologie de l’Hépatite B: Ag HBs (test rapides validés)
+227,R416 Sérologie de l’hépatite B : Ag HBs (ELISA et autres)
+228,R417 Sérologie de l’hépatite B : Ag Hbe
+229,"R418 Sérologie de l’hépatite B : autres marqueurs (Anti HBc, Anti HBe)"
+230,R429 Sérologie de l’hépatite C (ELISA et autres)
+231,R434 REALISATION DE LA CHARGE VIRALE DE L'HEPATITE B
+232,R435 REALISATION DE LA CHARGE VIRALE DE L'HEPATITE C
+233,R420 Sérologie Leishmaniose
+234,AUTRES ACTES
+235,R421 Dosage du Facteur rhumatoïde
+236,"R430 Dosage du Facteur rhumatoïde (methode EIA, ELFA)"
+237,R422 Dosages des IgE totales
+238,R423 Dosage des IgE spécifiques
+239,R424 Homocystéine
+240,R425 Ferritine
+241,R426 Alpha foetoprotéine
+242,R427 Comptage CD4
+243,R431 Dosage ACE
+244,R432 Dosage de la vitamine B12 et folates
+245,CYTOPATHOLOGIE-ANATOMOPATHOLOGIE-BIOLOGIE DE LA REPRODUCTION
+246,ANATOMIE ET CYTOLOGIE PATHOLOGIQUE
+247,R500 Cytologie pathologique
+248,BIOLOGIE DE LA REPRODUCTION ET CYTOGENETIQUE
+249,R511 Test de Huhner (test post-coïtal)
+250,R512 Spermogramme / Spermocytogramme
+251,R513 Frottis vaginal hormonal
+252,R514 Frottis cervico-vaginal de dépistage (FCV)
+253,R515 Frottis mammaire
+254,HEMATOLOGIE
+255,R602 Numération blanche (NB)
+256,R603 Numeration rouge (NR)
+257,R604 Numération des plaquettes
+258,R605 Formule leucocytaire
+259,R606 Taux d’Hémoglobine
+260,R607 Hémogramme(NFS Complète)
+261,R608 Réticulocytes
+262,R610 Electrophorèse de l’hémoglobine à pH alcalin
+263,R611 Vitesse de sédimentation (VS)
+264,R600 Myélogramme
+265,R601 Adénogramme
+266,HEMOSTASE
+267,R700 Temps de saignement (TS)
+268,R701 Temps de coagulation (TC)
+269,R702 Temps de Quick (TQ) ou Taux de prothrombine (TP)
+270,R703 Temps de céphaline avec activateur (TCA)
+271,R704 TS + TCA
+272,R705 Dosage du fibrinogène
+273,R706 Temps de thrombine (TT)
+274,R707 Héparinémie
+275,R710 Antithrombine III
+276,BIOCHIMIE TOXICOLOGIE
+277,BIOCHIMIE (Sang)
+278,Enzymes
+279,R876 Transaminases hépatiques ASAT/SGOT et ALAT/SGPT
+280,"R877 Bilan hépatique (Transaminases, GGT, PAL)"
+281,R800 Amylase
+282,R801 Aspartate aminotransférase (ASAT) SGOT
+283,R802 Alanine aminotransférase (ALAT) SGPT
+284,R803 Glucose-6-Phosphate déshydrogénase (G6PD)
+285,R804 Gamma Glutamyl transférase (GGT)
+286,R805 Créatine phosphokinase (CK)
+287,R806 Créatine Kinase CK-MB
+288,R807 Lactate Déshydrogénase LDH
+289,R863 Lactate Déshydrogénase HBDH
+290,R808 Pyruvate kinase (PK)
+291,R809 Phosphatases alcalines(PAL)
+292,R886 Clairence de la Créatinine
+293,R888 Cortisolémie 100
+294,R889 Capacité totale de fixation de la sidérophiline + Coefficient de saturation
+295,R890 Fructosamine
+296,R891 Glycémie post-prandiale
+297,R892 Glycémie provoquée (HGPO)
+298,R893 Lipase (Lipasémie)
+299,R896 NT pro BNP
+300,R897 Test à la myélopéroxydase
+301,"R898 Test de O'Sullivan (Glycémie à T0, T60 et T120)"
+302,R899 Transferrine (Siderophylline)
+303,R8100 Troponine Ultrasensible
+304,R8104 Bêta 2-microglobuline
+305,R8105 Folates plasmatiques (Vit.B9)
+306,R8107 Haptoglobine
+307,R8108 Orosomucoïde
+308,R8109 Préalbumine
+309,R8110 Protéine de Bence Jones
+310,R8112 Troponine I
+311,R8113 Vitamine B12 plasmatique
+312,Hormones
+313,R810 Tri-iodothyronine (T3)
+314,R811 Thyroxine (T4)
+315,R812 TSH (Thyréostimuline)
+316,R813 Prolactine
+317,R814 FSH
+318,R815 LH
+319,R816 Testostérone
+320,R817 Œstrogènes
+321,R818 Progestérone
+322,R819 Estradiol (libre)
+323,R864 Hormone STH
+324,R865 Cortisol
+325,Substrats et métabolites
+326,R820 Acide urique
+327,R821 Bilirubine totale et directe
+328,R822 Glucose (glycémie capillaire)
+329,R823 Glucose (glycémie veineuse)
+330,R824 Hémoglobine glyquée
+331,R825 Cholestérol total
+332,R826 Triglycérides
+333,R827 Fractions du cholestérol HDL
+334,R866 Fractions du cholestérol LDL
+335,"R878 Bilan lipidique (Cholestérol total, LDL, GGT, TG)"
+336,R828 CRP quantitative
+337,R829 Electrophorèse des protéines
+338,R830 Urée
+339,R831 Créatinine
+340,R832 Urée glycémie créatininémie
+341,R833 Protidémie
+342,R834 Albuminémie
+343,R869 Immunoélectrophorèse
+344,R870 Immunodiffusion
+345,R712 D-Dimères
+346,ELECTROLYTES ET OLIGO-ELEMENTS
+347,R835 Calcémie
+348,R836 Magnésémie
+349,R837 Calcémie - Magnésémie
+350,R838 Ionogramme sanguin (Na+ + K+ + Cl-)
+351,"R839 Dosage isolé d'un ion (K+, Na+, Cl-, HCO3-, Ca2+, Mg+)"
+352,"R840 Potassium, sodium, chlore,"
+353,R841 Phosphore
+354,R842 Fer
+355,R843 Capacité totale de fixation de la Sidérophiline
+356,R844 Gaz du sang
+357,"R845 pO2, pCO2, CO2 total, pH, bicarbonates"
+358,MARQUEURS TUMORAUX
+359,R846 AFP
+360,R847 PSA
+361,R848 CK - MB
+362,R879 ACE (Antigène Carcino-Embryonnaire)
+363,R880 ACTH
+364,R881 CA 125
+365,R882 CA 15.3
+366,R883 CA 19.9
+367,BIOCHIMIE (Urines)
+368,Electrolytes
+369,"R850 Potassium, sodium, chlore, Ca, Mg, pH (H+)"
+370,R851 Dosage d'un ion isolé
+371,"R853 Recherche qualitative ( par élément): Glucose, protéines, acétone, pigments"
+372,R854 Protéinurie des 24 heures
+373,R855 Analyse des calculs urinaires
+374,R856 Electrophorèse des protéines urinaires
+375,R857 Test de grossesse (βHCG) ( bandelettes)
+376,R868 Dosage quantitatif βHCG
+377,R884 Calciurie
+378,R887 Cortisol libre urinaire (Cortisolurie)
+379,R894 Microalbuminurie
+380,R895 Microalbuminurie d'une miction
+381,R8101 Amylasurie
+382,R8102 Créatininurie
+383,R8103 Phosphaturie
+384,R8106 Glucosurie des 24 heures
+385,BIOCHIMIE (liquides de ponction)
+386,R858 Glucorachie
+387,R859 Protéinorachie
+388,R860 Chlorurorachie
+389,R861 Chimie LCR
+390,R862 Test de Rivalta
+391,BACTERIOLOGIE VIROLOGIE
+392,BACTERIOLOGIE
+393,Examen des expectorations (crachats)
+394,R900 Crachat : BAAR
+395,Cultures bactériologiques
+396,R901 Hémoculture
+397,R902 Spermoculture
+398,R903 Coproculture
+399,R904 ECBU + ATBG
+400,R905 PUS + ATBG
+401,R906 PV +ATBG
+402,R907 PU+ ATBG
+403,R908 CU + ATBG
+404,Etude de la sensibilité aux antibiotiques
+405,Examens spécialisés
+406,R916 Recherche rapide d’antigenes bacteriens solubles dans le LCR
+407,R917 Recherche rapide d’antigenes bacteriens solubles dans les autres produits pathologiques
+408,R918 Culot urinaire
+409,R919 Hématie-Leucocyte-Minute (HLM) ou Compte d’Addis

@@ -12,7 +12,7 @@ def has_permission(permission):
             # Vérifier le rôle de base
             role_permissions = {
                 'admin_structure': ['ANALYSES', 'REFERENCE', 'HOSPITALISATION', 'STATISTIQUES', 'PATIENTS'],
-                'medecin': ['PATIENTS', 'REFERENCE', 'HOSPITALISATION', 'STATISTIQUES'],
+                'medecin': ['PATIENTS', 'REFERENCE', 'HOSPITALISATION', 'STATISTIQUES', 'ANALYSES'],
                 'infirmier': ['PATIENTS', 'HOSPITALISATION'],
                 'laborantin': ['ANALYSES'],
                 'secretaire': ['PATIENTS']

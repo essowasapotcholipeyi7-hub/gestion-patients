@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration de synchronisation GHP{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-sync me-2 text-primary"></i>
+            Synchronisation avec GHP
+        </h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Retour
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Configuration -->
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Configuration du mapping</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Structure locale *</label>
+                            <select name="local_structure_id" class="form-select" required>
+                                <option value="">Sélectionner une structure</option>
+                                {% for structure in structures %}
+                                <option value="{{ structure.id }}">
+                                    {{ structure.nom }} (ID: {{ structure.id }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">La structure dans cette application</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">ID de la structure dans GHP *</label>
+                            <input type="number" name="source_structure_id" class="form-control" required 
+                                   placeholder="Ex: 1, 2, 3...">
+                            <small class="text-muted">L'ID de la structure dans l'application GHP</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">URL de l'API GHP *</label>
+                            <input type="url" name="api_url" class="form-control" required 
+                                   placeholder="https://ghp.medilogic.com/api" value="https://ghp.medilogic.com/api">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Clé API *</label>
+                            <input type="password" name="api_key" class="form-control" required 
+                                   placeholder="Entrez votre clé API">
+                            <small class="text-muted">Obtenez cette clé depuis l'application GHP</small>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-save me-2"></i>Enregistrer la configuration
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mapping existant -->
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-link me-2"></i>Mappings existants</h5>
+                </div>
+                <div class="card-body">
+                    {% if mappings %}
+                        <div class="list-group">
+                            {% for m in mappings %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ m.structure.nom }}</strong>
+                                    <span class="badge bg-secondary ms-2">Local ID: {{ m.local_structure_id }}</span>
+                                    <span class="badge bg-primary ms-2">GHP ID: {{ m.source_structure_id }}</span>
+                                    <br>
+                                    <small class="text-muted">
+                                        {% if m.last_sync %}
+                                            Dernière sync: {{ m.last_sync.strftime('%d/%m/%Y %H:%M') }}
+                                        {% else %}
+                                            Jamais synchronisé
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-primary" onclick="syncNow({{ m.id }})">
+                                        <i class="fas fa-sync me-1"></i>Sync
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteMapping({{ m.id }})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-link fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">Aucune configuration de mapping</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function syncNow(mappingId) {
+    if (!confirm('Lancer la synchronisation des patients ?')) return;
+    
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sync...';
+    
+    fetch(`/api/sync/patients/${mappingId}`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message || 'Synchronisation terminée');
+            location.reload();
+        })
+        .catch(error => {
+            alert('Erreur: ' + error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sync me-1"></i>Sync';
+        });
+}
+
+function deleteMapping(id) {
+    if (!confirm('Supprimer cette configuration ?')) return;
+    
+    fetch(`/api/sync/mapping/${id}`, { method: 'DELETE' })
+        .then(() => location.reload())
+        .catch(error => alert('Erreur: ' + error));
+}
+</script>
+{% endblock %}

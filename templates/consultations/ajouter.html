@@ -16,7 +16,7 @@
 
     <div class="card">
         <div class="card-body">
-            <form method="POST">
+            <form method="POST" id="consultationForm">
                 <!-- Patient avec recherche dynamique -->
                 <div class="mb-3">
                     <label class="form-label">Patient *</label>
@@ -90,67 +90,50 @@
                     </small>
                 </div>
 
-                <!-- Antécédents -->
-                <h5 class="mt-3 mb-3"><i class="fas fa-history me-2"></i>Antécédents du patient</h5>
-                <hr>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Allergies</label>
-                        <textarea name="allergies" class="form-control" rows="2" placeholder="Ex: Pénicilline, Arachides..."></textarea>
+                <!-- Antécédents du patient -->
+                <div id="antecedentsContainer" style="display: none;" class="mt-3">
+                    <h6><i class="fas fa-history me-2 text-warning"></i>Antécédents du patient</h6>
+                    <div id="antecedentsList" class="list-group mt-2" style="max-height: 200px; overflow-y: auto;">
+                        <!-- Rempli par JavaScript -->
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Traitements en cours</label>
-                        <textarea name="traitements_en_cours" class="form-control" rows="2" placeholder="Ex: Aspirine 100mg/j..."></textarea>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Antécédents médicaux</label>
-                        <textarea name="antecedents_medicaux" class="form-control" rows="2" placeholder="Ex: Diabète, Hypertension..."></textarea>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Antécédents chirurgicaux</label>
-                        <textarea name="antecedents_chirurgicaux" class="form-control" rows="2" placeholder="Ex: Appendicectomie, Césarienne..."></textarea>
-                    </div>
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Les antécédents sont recueillis par l'infirmier et consultables/modifiables ici.
+                        <a href="#" onclick="ouvrirGestionAntecedents()" class="text-primary">Gérer les antécédents</a>
+                    </small>
                 </div>
 
-                <!-- Examens & Analyses -->
-                <h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2 text-info"></i>Examens et analyses</h5>
-                <hr>
-                <div class="row">
-                    <div class="col-md-12 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h6 class="fw-bold text-primary"><i class="fas fa-stethoscope me-2"></i>🔬 Examens cliniques (médecin)</h6>
-                                <textarea name="examens_cliniques" class="form-control" rows="2" 
-                                          placeholder="Ex: Palpation, Auscultation, Examen neurologique..."></textarea>
-                                <small class="text-muted">Examens réalisés par le médecin lors de la consultation</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h6 class="fw-bold text-success"><i class="fas fa-flask me-2"></i>🧪 Analyses de biologie</h6>
-                                <textarea name="examens_biologie" class="form-control" rows="4" 
-                                          placeholder="Ex: NFS&#10;Glycémie&#10;Bilan hépatique&#10;Bilan rénal&#10;CRP&#10;VS..."></textarea>
-                                <small class="text-muted">Une analyse par ligne</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h6 class="fw-bold text-warning"><i class="fas fa-image me-2"></i>📷 Examens d'imagerie</h6>
-                                <textarea name="examens_imagerie" class="form-control" rows="4" 
-                                          placeholder="Ex: Radiographie thoracique&#10;Échographie abdominale&#10;Scanner cérébral&#10;IRM lombaire&#10;Mammographie..."></textarea>
-                                <small class="text-muted">Un examen par ligne</small>
-                            </div>
-                        </div>
+<!-- ==================== EXAMEN PHYSIQUE ==================== -->
+<div class="row">
+    <div class="col-md-12 mb-3">
+        <div class="card bg-light">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold text-primary mb-0">
+                        <i class="fas fa-stethoscope me-2"></i>🔬 Examen physique
+                    </h6>
+                    <div>
+                        <span id="examenStatut" class="badge bg-secondary me-2">Non renseigné</span>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="ouvrirExamenPhysique()">
+                            <i class="fas fa-edit me-1"></i>Renseigner / Modifier
+                        </button>
                     </div>
                 </div>
-
-                <hr>
+                
+                <!-- Aperçu -->
+                <div id="examenApercu" class="mt-2 p-2 border rounded" style="background: #f8f9fa; min-height: 40px;">
+                    <p class="text-muted mb-0" style="font-size: 13px;">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Cliquez sur "Renseigner / Modifier" pour saisir l'examen physique complet.
+                    </p>
+                </div>
+                
+                <!-- Champ caché pour stocker l'examen -->
+                <textarea name="examens_cliniques" id="examenPhysiqueCache" style="display:none;"></textarea>
+            </div>
+        </div>
+    </div>
+</div>
 
                 <!-- Diagnostic avec CIM-10 -->
                 <div class="mb-3">
@@ -174,6 +157,81 @@
                         <small class="text-muted">Recherchez un code CIM-10 et cliquez sur "Insérer" pour l'ajouter au diagnostic</small>
                     </div>
                 </div>
+
+                <!-- DEMANDE D'ANALYSES AVEC RECHERCHE -->
+                <h5 class="mt-3 mb-3"><i class="fas fa-flask me-2 text-info"></i>Demande d'analyses</h5>
+                <hr>
+                <div class="row">
+                    <!-- Biologie -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-success"><i class="fas fa-flask me-2"></i>🧪 Analyses de biologie</h6>
+                                
+                                <div class="input-group mb-2">
+                                    <input type="text" id="biologieSearch" class="form-control" 
+                                           placeholder="Rechercher une analyse..." autocomplete="off">
+                                    <button class="btn btn-success" type="button" onclick="ajouterAnalyseBiologie()">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                                <div id="biologieResults" class="list-group mt-1" style="max-height: 150px; overflow-y: auto; display: none;"></div>
+                                
+                                <!-- CHAMP POUR AJOUTER UNE NOUVELLE ANALYSE -->
+                                <div class="input-group mt-2">
+                                    <input type="text" id="biologieNew" class="form-control" 
+                                           placeholder="Nouvelle analyse (si non trouvée)..." autocomplete="off">
+                                    <button class="btn btn-primary" type="button" onclick="ajouterNouvelleAnalyseManuelle('biologie')">
+                                        <i class="fas fa-plus"></i> Ajouter
+                                    </button>
+                                </div>
+                                
+                                <div id="biologieSelected" class="mt-2">
+                                    <label class="form-label small">Analyses sélectionnées :</label>
+                                    <div id="biologieList" class="d-flex flex-wrap gap-1"></div>
+                                </div>
+                                <textarea name="examens_biologie" id="biologieHidden" style="display:none;"></textarea>
+                                <small class="text-muted">Cliquez sur une analyse pour l'ajouter ou saisissez-en une nouvelle</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Imagerie -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-warning"><i class="fas fa-image me-2"></i>📷 Examens d'imagerie</h6>
+                                
+                                <div class="input-group mb-2">
+                                    <input type="text" id="imagerieSearch" class="form-control" 
+                                           placeholder="Rechercher un examen..." autocomplete="off">
+                                    <button class="btn btn-warning" type="button" onclick="ajouterAnalyseImagerie()">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                                <div id="imagerieResults" class="list-group mt-1" style="max-height: 150px; overflow-y: auto; display: none;"></div>
+                                
+                                <!-- CHAMP POUR AJOUTER UN NOUVEL EXAMEN -->
+                                <div class="input-group mt-2">
+                                    <input type="text" id="imagerieNew" class="form-control" 
+                                           placeholder="Nouvel examen (si non trouvé)..." autocomplete="off">
+                                    <button class="btn btn-primary" type="button" onclick="ajouterNouvelleAnalyseManuelle('imagerie')">
+                                        <i class="fas fa-plus"></i> Ajouter
+                                    </button>
+                                </div>
+                                
+                                <div id="imagerieSelected" class="mt-2">
+                                    <label class="form-label small">Examens sélectionnés :</label>
+                                    <div id="imagerieList" class="d-flex flex-wrap gap-1"></div>
+                                </div>
+                                <textarea name="examens_imagerie" id="imagerieHidden" style="display:none;"></textarea>
+                                <small class="text-muted">Cliquez sur un examen pour l'ajouter ou saisissez-en un nouveau</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
 
                 <div class="mb-3">
                     <label class="form-label">Traitement prescrit</label>
@@ -230,7 +288,56 @@
         </div>
     </div>
 </div>
-
+<!-- ==================== MODAL EXAMEN PHYSIQUE ==================== -->
+<div class="modal fade" id="examenPhysiqueModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-stethoscope me-2 text-primary"></i>
+                    Examen Physique Complet
+                </h5>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="basculerLangueExamenModal()">
+                        <i class="fas fa-globe me-1"></i>
+                        <span id="langueExamenModalBtn">🇫🇷 FR</span>
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <!-- Boutons d'action -->
+                <div class="mb-3">
+                    <button type="button" class="btn btn-success btn-sm" onclick="ajouterAppareilExamenModal()">
+                        <i class="fas fa-plus me-1"></i>Ajouter un appareil
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="reinitialiserToutExamenModal()">
+                        <i class="fas fa-undo me-1"></i>Réinitialiser tout
+                    </button>
+                    <span class="text-muted ms-2 small">
+                        <i class="fas fa-info-circle"></i> Cliquez sur "Modifier" pour corriger une section
+                    </span>
+                </div>
+                
+                <!-- Conteneur des sections -->
+                <div id="examenModalContainer">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                        <p class="text-muted mt-2">Chargement des sections...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="enregistrerExamenModal()">
+                    <i class="fas fa-save me-2"></i>Enregistrer l'examen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
 // ==================== ARRÊT DE TRAVAIL ====================
 document.addEventListener('DOMContentLoaded', function() {
@@ -313,7 +420,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Sélectionner un patient
-    function selectPatient(id, nom, prenom) {
+    window.selectPatient = function(id, nom, prenom) {
         patientId.value = id;
         patientSearch.value = '';
         patientSearch.placeholder = `${prenom} ${nom} sélectionné`;
@@ -324,7 +431,8 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedPatientName.textContent = `${prenom} ${nom}`;
         
         chargerConstantesPatient(id);
-    }
+        chargerAntecedents(id);
+    };
 
     // Charger les constantes du patient
     function chargerConstantesPatient(patientId) {
@@ -341,16 +449,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (constPoids) constPoids.value = data.poids || '';
                     if (constTaille) constTaille.value = data.taille || '';
                     if (constImc) constImc.value = data.imc || '';
-                    
-                    // Sauvegarder les valeurs originales pour détecter les modifications
-                    const fields = [constTension, constTemperature, constPouls, constSaturation, constPoids, constTaille];
-                    fields.forEach(field => {
-                        if (field) {
-                            field.dataset.original = field.value;
-                            field.classList.remove('border-warning');
-                            field.style.backgroundColor = '';
-                        }
-                    });
                 }
             })
             .catch(error => console.error('Erreur chargement constantes:', error));
@@ -396,24 +494,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (constPoids) constPoids.addEventListener('input', calculerIMC);
     if (constTaille) constTaille.addEventListener('input', calculerIMC);
 
-    // Marquer les champs modifiés
-    function highlightChangedFields() {
-        const fields = [constTension, constTemperature, constPouls, constSaturation, constPoids, constTaille];
-        fields.forEach(field => {
-            if (field) {
-                field.addEventListener('change', function() {
-                    if (this.dataset.original !== undefined && this.value !== this.dataset.original) {
-                        this.classList.add('border-warning');
-                        this.style.backgroundColor = '#fff3cd';
-                    } else {
-                        this.classList.remove('border-warning');
-                        this.style.backgroundColor = '';
-                    }
-                });
-            }
-        });
-    }
-
     // Fermer les résultats en cliquant ailleurs
     document.addEventListener('click', function(e) {
         if (patientResults && !e.target.closest('#patientSearch') && !e.target.closest('#patientResults')) {
@@ -442,7 +522,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!cim10Search) return;
     
     let cim10Timeout = null;
-    let lastSelectedCIM10 = '';
 
     cim10Search.addEventListener('input', function() {
         clearTimeout(cim10Timeout);
@@ -471,7 +550,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         div.textContent = item.nom;
                         div.onclick = function() {
                             cim10Search.value = item.nom;
-                            lastSelectedCIM10 = item.nom;
                             cim10Results.style.display = 'none';
                             insertCIM10();
                         };
@@ -488,7 +566,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.insertCIM10 = function() {
         const value = cim10Search.value.trim();
         if (!value) {
-            alert('Veuillez sélectionner un code CIM-10');
+            showToast('Veuillez sélectionner un code CIM-10', 'warning');
             return;
         }
         
@@ -498,7 +576,7 @@ document.addEventListener('DOMContentLoaded', function() {
             diagnosticField.value = value;
         } else {
             if (currentText.includes(value)) {
-                alert('Ce code est déjà dans le diagnostic !');
+                showToast('Ce code est déjà dans le diagnostic !', 'warning');
                 return;
             }
             diagnosticField.value = currentText + '\n' + value;
@@ -507,6 +585,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cim10Search.value = '';
         cim10Results.style.display = 'none';
         cim10Results.innerHTML = '';
+        showToast('Code CIM-10 inséré', 'success');
         
         if (diagnosticField) {
             diagnosticField.focus();
@@ -533,5 +612,996 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// ==================== CHARGEMENT DES ANTÉCÉDENTS ====================
+function chargerAntecedents(patientId) {
+    fetch(`/api/patient/${patientId}/antecedents`)
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('antecedentsContainer');
+            const list = document.getElementById('antecedentsList');
+            
+            if (container && list) {
+                if (data.length > 0) {
+                    container.style.display = 'block';
+                    list.innerHTML = '';
+                    
+                    data.forEach((a, index) => {
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+                        item.innerHTML = `
+                            <div>
+                                <span class="badge bg-${a.type === 'ALLERGIE' ? 'danger' : a.type === 'CHIRURGICAL' ? 'info' : a.type === 'TRAITEMENT' ? 'success' : 'primary'} me-1">
+                                    ${a.type}
+                                </span>
+                                <strong>${a.description}</strong>
+                                ${a.date_debut ? `<small class="text-muted">(depuis ${a.date_debut})</small>` : ''}
+                                ${a.severite ? `<span class="badge bg-${a.severite === 'SEVERE' ? 'danger' : a.severite === 'MODEREE' ? 'warning' : 'success'} ms-1">${a.severite}</span>` : ''}
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-secondary me-1" onclick="modifierAntecedent(${a.id})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="supprimerAntecedent(${a.id})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                        list.appendChild(item);
+                    });
+                } else {
+                    container.style.display = 'block';
+                    list.innerHTML = '<div class="text-muted py-2">Aucun antécédent enregistré</div>';
+                }
+            }
+        })
+        .catch(error => console.error('Erreur chargement antécédents:', error));
+}
+
+function ouvrirGestionAntecedents() {
+    const patientId = document.getElementById('patientId').value;
+    if (patientId) {
+        window.location.href = `/patient/${patientId}/antecedents`;
+    } else {
+        showToast('Veuillez d\'abord sélectionner un patient', 'warning');
+    }
+}
+
+function modifierAntecedent(id) {
+    const patientId = document.getElementById('patientId').value;
+    window.location.href = `/patient/${patientId}/antecedents#editModal${id}`;
+}
+
+function supprimerAntecedent(id) {
+    if (confirm('Supprimer cet antécédent ?')) {
+        const patientId = document.getElementById('patientId').value;
+        fetch(`/antecedent/${id}/supprimer`, { method: 'POST' })
+            .then(() => chargerAntecedents(patientId))
+            .catch(error => console.error('Erreur:', error));
+    }
+}
+
+// ==================== SYSTÈME D'ANALYSES AVEC SÉPARATION ET LIBELLÉS ÉLARGIS ====================
+let biologieItems = [];
+let imagerieItems = [];
+let biologieTimeout = null;
+let imagerieTimeout = null;
+
+function creerItem(nom) {
+    return {
+        id: Date.now() + Math.random(),
+        nom: nom,
+        nomModifie: nom
+    };
+}
+
+// ==================== CONFIGURATION BIOLOGIE ====================
+function initBiologie() {
+    const searchInput = document.getElementById('biologieSearch');
+    const resultsDiv = document.getElementById('biologieResults');
+    const listDiv = document.getElementById('biologieList');
+    const hiddenField = document.getElementById('biologieHidden');
+    
+    if (!searchInput) return;
+    
+    function updateDisplay() {
+        listDiv.innerHTML = '';
+        biologieItems.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'badge bg-success p-2 m-1 d-inline-flex align-items-center';
+            div.style.gap = '8px';
+            div.style.padding = '8px 14px';
+            div.style.borderRadius = '8px';
+            div.style.fontSize = '14px';
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control form-control-sm';
+            input.style.width = 'auto';
+            input.style.minWidth = '180px';
+            input.style.maxWidth = '400px';
+            input.style.display = 'inline-block';
+            input.style.backgroundColor = 'rgba(255,255,255,0.15)';
+            input.style.border = 'none';
+            input.style.color = 'white';
+            input.style.borderRadius = '4px';
+            input.style.padding = '6px 12px';
+            input.style.fontSize = '14px';
+            input.style.fontWeight = '500';
+            input.value = item.nomModifie || item.nom;
+            input.placeholder = item.nom;
+            
+            input.addEventListener('focus', function() {
+                this.style.minWidth = '280px';
+                this.style.backgroundColor = 'rgba(255,255,255,0.25)';
+            });
+            
+            input.addEventListener('blur', function() {
+                this.style.minWidth = '180px';
+                this.style.backgroundColor = 'rgba(255,255,255,0.15)';
+            });
+            
+            input.addEventListener('change', function() {
+                const newValue = this.value.trim();
+                if (newValue) {
+                    item.nomModifie = newValue;
+                    updateHiddenField();
+                    showToast(`Libellé modifié: "${newValue}"`, 'success');
+                } else {
+                    this.value = item.nomModifie || item.nom;
+                }
+            });
+            
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    this.blur();
+                }
+            });
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-close btn-close-white';
+            deleteBtn.style.fontSize = '0.7rem';
+            deleteBtn.style.padding = '4px';
+            deleteBtn.style.marginLeft = '8px';
+            deleteBtn.style.minWidth = '24px';
+            deleteBtn.style.minHeight = '24px';
+            const itemId = item.id;
+            deleteBtn.onclick = function(e) {
+                e.stopPropagation();
+                retirerAnalyseBiologie(itemId);
+            };
+            
+            div.appendChild(input);
+            div.appendChild(deleteBtn);
+            listDiv.appendChild(div);
+        });
+        updateHiddenField();
+    }
+    
+    function updateHiddenField() {
+        const valeurs = biologieItems.map(item => item.nomModifie || item.nom);
+        hiddenField.value = valeurs.join('\n');
+    }
+    
+    window.ajouterAnalyseBiologie = function() {
+        const nom = searchInput.value.trim();
+        if (!nom) {
+            showToast('Veuillez saisir un nom', 'warning');
+            return;
+        }
+        
+        const existe = biologieItems.some(item => item.nom === nom || item.nomModifie === nom);
+        if (existe) {
+            showToast(`"${nom}" déjà ajouté`, 'warning');
+            return;
+        }
+        
+        const newItem = creerItem(nom);
+        biologieItems.push(newItem);
+        updateDisplay();
+        searchInput.value = '';
+        resultsDiv.style.display = 'none';
+        showToast(`"${nom}" ajouté à la biologie`, 'success');
+    };
+    
+    window.retirerAnalyseBiologie = function(id) {
+        const item = biologieItems.find(i => i.id === id);
+        biologieItems = biologieItems.filter(item => item.id !== id);
+        updateDisplay();
+        if (item) {
+            showToast(`"${item.nomModifie || item.nom}" retiré de la biologie`, 'info');
+        }
+    };
+    
+    // Recherche en temps réel
+    searchInput.addEventListener('input', function() {
+        clearTimeout(biologieTimeout);
+        const term = this.value.trim();
+        
+        if (term.length < 2) {
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+            return;
+        }
+        
+        biologieTimeout = setTimeout(() => {
+            fetch(`/api/analyses/search?term=${encodeURIComponent(term)}`)
+                .then(response => response.json())
+                .then(data => {
+                    resultsDiv.innerHTML = '';
+                    if (data.length === 0) {
+                        resultsDiv.innerHTML = `
+                            <div class="list-group-item text-muted">
+                                Aucune analyse trouvée. 
+                                <button class="btn btn-sm btn-primary" onclick="ajouterNouvelleAnalyseBiologie('${term}')">
+                                    <i class="fas fa-plus"></i> Ajouter "${term}"
+                                </button>
+                            </div>
+                        `;
+                        resultsDiv.style.display = 'block';
+                        return;
+                    }
+                    
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'list-group-item list-group-item-action';
+                        div.textContent = item.nom;
+                        div.onclick = function() {
+                            const existe = biologieItems.some(i => i.nom === item.nom || i.nomModifie === item.nom);
+                            if (existe) {
+                                showToast(`"${item.nom}" déjà ajouté`, 'warning');
+                                return;
+                            }
+                            const newItem = creerItem(item.nom);
+                            biologieItems.push(newItem);
+                            updateDisplay();
+                            searchInput.value = '';
+                            resultsDiv.style.display = 'none';
+                            resultsDiv.innerHTML = '';
+                            showToast(`"${item.nom}" ajouté à la biologie`, 'success');
+                        };
+                        resultsDiv.appendChild(div);
+                    });
+                    resultsDiv.style.display = 'block';
+                })
+                .catch(error => console.error('Erreur:', error));
+        }, 300);
+    });
+    
+    window.ajouterNouvelleAnalyseBiologie = function(nom) {
+        const existe = biologieItems.some(item => item.nom === nom || item.nomModifie === nom);
+        if (existe) {
+            showToast(`"${nom}" déjà ajouté`, 'warning');
+            return;
+        }
+        
+        fetch('/api/analyses/ajouter', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nom: nom })
+        })
+        .then(response => response.json())
+        .then(data => {
+            const newItem = creerItem(nom);
+            biologieItems.push(newItem);
+            updateDisplay();
+            showToast(`"${nom}" ajouté au référentiel`, 'success');
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+        })
+        .catch(error => {
+            const newItem = creerItem(nom);
+            biologieItems.push(newItem);
+            updateDisplay();
+            showToast(`"${nom}" ajouté localement`, 'success');
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+        });
+    };
+}
+
+// ==================== CONFIGURATION IMAGERIE ====================
+function initImagerie() {
+    const searchInput = document.getElementById('imagerieSearch');
+    const resultsDiv = document.getElementById('imagerieResults');
+    const listDiv = document.getElementById('imagerieList');
+    const hiddenField = document.getElementById('imagerieHidden');
+    
+    if (!searchInput) return;
+    
+    function updateDisplay() {
+        listDiv.innerHTML = '';
+        imagerieItems.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'badge bg-warning p-2 m-1 d-inline-flex align-items-center';
+            div.style.gap = '8px';
+            div.style.padding = '8px 14px';
+            div.style.borderRadius = '8px';
+            div.style.fontSize = '14px';
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control form-control-sm';
+            input.style.width = 'auto';
+            input.style.minWidth = '180px';
+            input.style.maxWidth = '400px';
+            input.style.display = 'inline-block';
+            input.style.backgroundColor = 'rgba(255,255,255,0.15)';
+            input.style.border = 'none';
+            input.style.color = 'white';
+            input.style.borderRadius = '4px';
+            input.style.padding = '6px 12px';
+            input.style.fontSize = '14px';
+            input.style.fontWeight = '500';
+            input.value = item.nomModifie || item.nom;
+            input.placeholder = item.nom;
+            
+            input.addEventListener('focus', function() {
+                this.style.minWidth = '280px';
+                this.style.backgroundColor = 'rgba(255,255,255,0.25)';
+            });
+            
+            input.addEventListener('blur', function() {
+                this.style.minWidth = '180px';
+                this.style.backgroundColor = 'rgba(255,255,255,0.15)';
+            });
+            
+            input.addEventListener('change', function() {
+                const newValue = this.value.trim();
+                if (newValue) {
+                    item.nomModifie = newValue;
+                    updateHiddenField();
+                    showToast(`Libellé modifié: "${newValue}"`, 'success');
+                } else {
+                    this.value = item.nomModifie || item.nom;
+                }
+            });
+            
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    this.blur();
+                }
+            });
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-close btn-close-white';
+            deleteBtn.style.fontSize = '0.7rem';
+            deleteBtn.style.padding = '4px';
+            deleteBtn.style.marginLeft = '8px';
+            deleteBtn.style.minWidth = '24px';
+            deleteBtn.style.minHeight = '24px';
+            const itemId = item.id;
+            deleteBtn.onclick = function(e) {
+                e.stopPropagation();
+                retirerAnalyseImagerie(itemId);
+            };
+            
+            div.appendChild(input);
+            div.appendChild(deleteBtn);
+            listDiv.appendChild(div);
+        });
+        updateHiddenField();
+    }
+    
+    function updateHiddenField() {
+        const valeurs = imagerieItems.map(item => item.nomModifie || item.nom);
+        hiddenField.value = valeurs.join('\n');
+    }
+    
+    window.ajouterAnalyseImagerie = function() {
+        const nom = searchInput.value.trim();
+        if (!nom) {
+            showToast('Veuillez saisir un nom', 'warning');
+            return;
+        }
+        
+        const existe = imagerieItems.some(item => item.nom === nom || item.nomModifie === nom);
+        if (existe) {
+            showToast(`"${nom}" déjà ajouté`, 'warning');
+            return;
+        }
+        
+        const newItem = creerItem(nom);
+        imagerieItems.push(newItem);
+        updateDisplay();
+        searchInput.value = '';
+        resultsDiv.style.display = 'none';
+        showToast(`"${nom}" ajouté à l'imagerie`, 'success');
+    };
+    
+    window.retirerAnalyseImagerie = function(id) {
+        const item = imagerieItems.find(i => i.id === id);
+        imagerieItems = imagerieItems.filter(item => item.id !== id);
+        updateDisplay();
+        if (item) {
+            showToast(`"${item.nomModifie || item.nom}" retiré de l'imagerie`, 'info');
+        }
+    };
+    
+    // Recherche en temps réel
+    searchInput.addEventListener('input', function() {
+        clearTimeout(imagerieTimeout);
+        const term = this.value.trim();
+        
+        if (term.length < 2) {
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+            return;
+        }
+        
+        imagerieTimeout = setTimeout(() => {
+            fetch(`/api/analyses/search?term=${encodeURIComponent(term)}`)
+                .then(response => response.json())
+                .then(data => {
+                    resultsDiv.innerHTML = '';
+                    if (data.length === 0) {
+                        resultsDiv.innerHTML = `
+                            <div class="list-group-item text-muted">
+                                Aucun examen trouvé. 
+                                <button class="btn btn-sm btn-primary" onclick="ajouterNouvelleAnalyseImagerie('${term}')">
+                                    <i class="fas fa-plus"></i> Ajouter "${term}"
+                                </button>
+                            </div>
+                        `;
+                        resultsDiv.style.display = 'block';
+                        return;
+                    }
+                    
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'list-group-item list-group-item-action';
+                        div.textContent = item.nom;
+                        div.onclick = function() {
+                            const existe = imagerieItems.some(i => i.nom === item.nom || i.nomModifie === item.nom);
+                            if (existe) {
+                                showToast(`"${item.nom}" déjà ajouté`, 'warning');
+                                return;
+                            }
+                            const newItem = creerItem(item.nom);
+                            imagerieItems.push(newItem);
+                            updateDisplay();
+                            searchInput.value = '';
+                            resultsDiv.style.display = 'none';
+                            resultsDiv.innerHTML = '';
+                            showToast(`"${item.nom}" ajouté à l'imagerie`, 'success');
+                        };
+                        resultsDiv.appendChild(div);
+                    });
+                    resultsDiv.style.display = 'block';
+                })
+                .catch(error => console.error('Erreur:', error));
+        }, 300);
+    });
+    
+    window.ajouterNouvelleAnalyseImagerie = function(nom) {
+        const existe = imagerieItems.some(item => item.nom === nom || item.nomModifie === nom);
+        if (existe) {
+            showToast(`"${nom}" déjà ajouté`, 'warning');
+            return;
+        }
+        
+        fetch('/api/analyses/ajouter', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nom: nom })
+        })
+        .then(response => response.json())
+        .then(data => {
+            const newItem = creerItem(nom);
+            imagerieItems.push(newItem);
+            updateDisplay();
+            showToast(`"${nom}" ajouté au référentiel`, 'success');
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+        })
+        .catch(error => {
+            const newItem = creerItem(nom);
+            imagerieItems.push(newItem);
+            updateDisplay();
+            showToast(`"${nom}" ajouté localement`, 'success');
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+        });
+    };
+}
+
+// ==================== INITIALISATION GÉNÉRALE ====================
+document.addEventListener('DOMContentLoaded', function() {
+    initBiologie();
+    initImagerie();
+});
+
+// ==================== AJOUT MANUEL (appelé depuis les boutons) ====================
+function ajouterNouvelleAnalyseManuelle(type) {
+    const inputId = type === 'biologie' ? 'biologieNew' : 'imagerieNew';
+    const input = document.getElementById(inputId);
+    const nom = input.value.trim();
+    
+    if (!nom) {
+        showToast('Veuillez saisir un nom', 'warning');
+        return;
+    }
+    
+    if (type === 'biologie') {
+        const existe = biologieItems.some(item => item.nom === nom || item.nomModifie === nom);
+        if (existe) {
+            showToast(`"${nom}" déjà ajouté`, 'warning');
+            input.value = '';
+            return;
+        }
+        const newItem = creerItem(nom);
+        biologieItems.push(newItem);
+        // Mettre à jour l'affichage
+        const listDiv = document.getElementById('biologieList');
+        const hiddenField = document.getElementById('biologieHidden');
+        updateBiologieDisplay(listDiv, hiddenField);
+    } else {
+        const existe = imagerieItems.some(item => item.nom === nom || item.nomModifie === nom);
+        if (existe) {
+            showToast(`"${nom}" déjà ajouté`, 'warning');
+            input.value = '';
+            return;
+        }
+        const newItem = creerItem(nom);
+        imagerieItems.push(newItem);
+        // Mettre à jour l'affichage
+        const listDiv = document.getElementById('imagerieList');
+        const hiddenField = document.getElementById('imagerieHidden');
+        updateImagerieDisplay(listDiv, hiddenField);
+    }
+    
+    input.value = '';
+    showToast(`"${nom}" ajouté à ${type}`, 'success');
+}
+
+// ==================== FONCTIONS DE MISE À JOUR ====================
+function updateBiologieDisplay(listDiv, hiddenField) {
+    listDiv.innerHTML = '';
+    biologieItems.forEach(item => {
+        const div = createBadgeElement(item, 'success', 'biologie');
+        listDiv.appendChild(div);
+    });
+    const valeurs = biologieItems.map(item => item.nomModifie || item.nom);
+    hiddenField.value = valeurs.join('\n');
+}
+
+function updateImagerieDisplay(listDiv, hiddenField) {
+    listDiv.innerHTML = '';
+    imagerieItems.forEach(item => {
+        const div = createBadgeElement(item, 'warning', 'imagerie');
+        listDiv.appendChild(div);
+    });
+    const valeurs = imagerieItems.map(item => item.nomModifie || item.nom);
+    hiddenField.value = valeurs.join('\n');
+}
+
+function createBadgeElement(item, color, type) {
+    const div = document.createElement('div');
+    div.className = `badge bg-${color} p-2 m-1 d-inline-flex align-items-center`;
+    div.style.gap = '8px';
+    div.style.padding = '8px 14px';
+    div.style.borderRadius = '8px';
+    div.style.fontSize = '14px';
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control form-control-sm';
+    input.style.width = 'auto';
+    input.style.minWidth = '180px';
+    input.style.maxWidth = '400px';
+    input.style.display = 'inline-block';
+    input.style.backgroundColor = 'rgba(255,255,255,0.15)';
+    input.style.border = 'none';
+    input.style.color = 'white';
+    input.style.borderRadius = '4px';
+    input.style.padding = '6px 12px';
+    input.style.fontSize = '14px';
+    input.style.fontWeight = '500';
+    input.value = item.nomModifie || item.nom;
+    input.placeholder = item.nom;
+    
+    input.addEventListener('focus', function() {
+        this.style.minWidth = '280px';
+        this.style.backgroundColor = 'rgba(255,255,255,0.25)';
+    });
+    
+    input.addEventListener('blur', function() {
+        this.style.minWidth = '180px';
+        this.style.backgroundColor = 'rgba(255,255,255,0.15)';
+    });
+    
+    input.addEventListener('change', function() {
+        const newValue = this.value.trim();
+        if (newValue) {
+            item.nomModifie = newValue;
+            // Mettre à jour le champ caché correspondant
+            if (type === 'biologie') {
+                const hiddenField = document.getElementById('biologieHidden');
+                const valeurs = biologieItems.map(i => i.nomModifie || i.nom);
+                hiddenField.value = valeurs.join('\n');
+            } else {
+                const hiddenField = document.getElementById('imagerieHidden');
+                const valeurs = imagerieItems.map(i => i.nomModifie || i.nom);
+                hiddenField.value = valeurs.join('\n');
+            }
+            showToast(`Libellé modifié: "${newValue}"`, 'success');
+        } else {
+            this.value = item.nomModifie || item.nom;
+        }
+    });
+    
+    input.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            this.blur();
+        }
+    });
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn-close btn-close-white';
+    deleteBtn.style.fontSize = '0.7rem';
+    deleteBtn.style.padding = '4px';
+    deleteBtn.style.marginLeft = '8px';
+    deleteBtn.style.minWidth = '24px';
+    deleteBtn.style.minHeight = '24px';
+    const itemId = item.id;
+    deleteBtn.onclick = function(e) {
+        e.stopPropagation();
+        if (type === 'biologie') {
+            const itemToRemove = biologieItems.find(i => i.id === itemId);
+            biologieItems = biologieItems.filter(i => i.id !== itemId);
+            if (itemToRemove) {
+                showToast(`"${itemToRemove.nomModifie || itemToRemove.nom}" retiré de la biologie`, 'info');
+            }
+            const listDiv = document.getElementById('biologieList');
+            const hiddenField = document.getElementById('biologieHidden');
+            updateBiologieDisplay(listDiv, hiddenField);
+        } else {
+            const itemToRemove = imagerieItems.find(i => i.id === itemId);
+            imagerieItems = imagerieItems.filter(i => i.id !== itemId);
+            if (itemToRemove) {
+                showToast(`"${itemToRemove.nomModifie || itemToRemove.nom}" retiré de l'imagerie`, 'info');
+            }
+            const listDiv = document.getElementById('imagerieList');
+            const hiddenField = document.getElementById('imagerieHidden');
+            updateImagerieDisplay(listDiv, hiddenField);
+        }
+    };
+    
+    div.appendChild(input);
+    div.appendChild(deleteBtn);
+    return div;
+}
+
+// ==================== TOAST NOTIFICATION ====================
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+    bsToast.show();
+    
+    toast.addEventListener('hidden.bs.toast', function() {
+        this.remove();
+    });
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'position-fixed bottom-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+
+// ==================== EXAMEN PHYSIQUE ====================
+let examenLangue = 'fr';
+let examenSections = [];
+let examenModifications = {};
+let examenModal = null;
+
+// ==================== CHARGEMENT ====================
+async function chargerExamenPhysique() {
+    const container = document.getElementById('examenModalContainer');
+    if (!container) return;
+    
+    try {
+        const response = await fetch(`/api/examen-physique/sections?lang=${examenLangue}`);
+        const data = await response.json();
+        examenSections = data;
+        afficherExamenModal();
+        mettreAJourApercu();
+    } catch (error) {
+        console.error('Erreur:', error);
+        container.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                Erreur de chargement. 
+                <button class="btn btn-sm btn-primary" onclick="chargerExamenPhysique()">Réessayer</button>
+            </div>
+        `;
+    }
+}
+
+// ==================== AFFICHER LE MODAL ====================
+function afficherExamenModal() {
+    const container = document.getElementById('examenModalContainer');
+    if (!container) return;
+    
+    let html = '';
+    examenSections.forEach((section, index) => {
+        const estModifiee = examenModifications[index] !== undefined;
+        const texte = estModifiee ? examenModifications[index] : section.texte;
+        
+        html += `
+            <div class="border rounded p-3 mb-2 section-item" style="background: ${estModifiee ? '#fff3cd' : '#f8f9fa'}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="mb-1">
+                            <span class="badge bg-secondary me-1">${section.nom}</span>
+                            ${estModifiee ? '<span class="badge bg-warning">Modifié</span>' : '<span class="badge bg-success">Normal</span>'}
+                        </div>
+                        <p class="mb-0" style="white-space: pre-wrap; font-size: 14px;">${texte}</p>
+                    </div>
+                    <div class="ms-2" style="flex-shrink: 0;">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="modifierSectionExamenModal(${index})">
+                            <i class="fas fa-edit"></i> Modifier
+                        </button>
+                        ${estModifiee ? `
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="resetSectionExamenModal(${index})">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    mettreAJourApercu();
+}
+
+// ==================== MODIFIER UNE SECTION ====================
+function modifierSectionExamenModal(index) {
+    const section = examenSections[index];
+    const texteActuel = examenModifications[index] !== undefined ? examenModifications[index] : section.texte;
+    
+    const nouveauTexte = prompt(
+        `Modifier la section "${section.nom}" :\n\nTexte actuel :\n${texteActuel}`,
+        texteActuel
+    );
+    
+    if (nouveauTexte === null) return;
+    
+    if (nouveauTexte.trim() === '') {
+        delete examenModifications[index];
+    } else {
+        examenModifications[index] = nouveauTexte.trim();
+    }
+    
+    afficherExamenModal();
+}
+
+// ==================== RÉINITIALISER UNE SECTION ====================
+function resetSectionExamenModal(index) {
+    if (confirm(`Revenir au texte original pour "${examenSections[index].nom}" ?`)) {
+        delete examenModifications[index];
+        afficherExamenModal();
+    }
+}
+
+// ==================== RÉINITIALISER TOUT ====================
+function reinitialiserToutExamenModal() {
+    if (confirm('Réinitialiser toutes les sections ?')) {
+        examenModifications = {};
+        afficherExamenModal();
+    }
+}
+
+// ==================== AJOUTER UN APPAREIL ====================
+function ajouterAppareilExamenModal() {
+    const nom = prompt('Nom de l\'appareil / section :');
+    if (!nom) return;
+    
+    const texte = prompt(`Texte pour "${nom}" :`);
+    if (!texte) return;
+    
+    const index = examenSections.length;
+    examenSections.push({
+        nom: nom,
+        icone: 'fa-plus-circle',
+        texte: texte
+    });
+    examenModifications[index] = texte;
+    afficherExamenModal();
+}
+
+// ==================== CHANGER DE LANGUE ====================
+function basculerLangueExamenModal() {
+    examenLangue = examenLangue === 'fr' ? 'en' : 'fr';
+    document.getElementById('langueExamenModalBtn').textContent = examenLangue === 'fr' ? '🇫🇷 FR' : '🇬🇧 EN';
+    chargerExamenPhysique();
+}
+
+// ==================== METTRE À JOUR L'APERÇU ====================
+function mettreAJourApercu() {
+    const apercu = document.getElementById('examenApercu');
+    const cache = document.getElementById('examenPhysiqueCache');
+    const statut = document.getElementById('examenStatut');
+    
+    if (!apercu || !cache) return;
+    
+    let resume = '';
+    let nbModifications = 0;
+    examenSections.forEach((section, index) => {
+        const texte = examenModifications[index] !== undefined ? examenModifications[index] : section.texte;
+        resume += `--- ${section.nom.toUpperCase()} ---\n${texte}\n\n`;
+        if (examenModifications[index] !== undefined) nbModifications++;
+    });
+    
+    cache.value = resume.trim();
+    
+    // Mettre à jour l'aperçu
+    const texteCourt = resume.split('\n').filter(line => line.trim() && !line.startsWith('---')).join(' ').substring(0, 150);
+    if (texteCourt) {
+        apercu.innerHTML = `
+            <p class="mb-0" style="font-size: 13px; color: #333;">
+                ${texteCourt}...
+                <br><small class="text-muted">${nbModifications} section(s) modifiée(s)</small>
+            </p>
+        `;
+        statut.textContent = nbModifications > 0 ? 'Modifié' : 'Normal';
+        statut.className = `badge ${nbModifications > 0 ? 'bg-warning' : 'bg-success'} me-2`;
+    } else {
+        apercu.innerHTML = `
+            <p class="text-muted mb-0" style="font-size: 13px;">
+                <i class="fas fa-info-circle me-1"></i>
+                Cliquez sur "Renseigner / Modifier" pour saisir l'examen physique complet.
+            </p>
+        `;
+        statut.textContent = 'Non renseigné';
+        statut.className = 'badge bg-secondary me-2';
+    }
+}
+
+// ==================== OUVRIR LE MODAL ====================
+function ouvrirExamenPhysique() {
+    if (!examenModal) {
+        examenModal = new bootstrap.Modal(document.getElementById('examenPhysiqueModal'));
+    }
+    chargerExamenPhysique();
+    examenModal.show();
+}
+
+// ==================== ENREGISTRER L'EXAMEN ====================
+function enregistrerExamenModal() {
+    mettreAJourApercu();
+    examenModal.hide();
+    // Mettre à jour le statut
+    const statut = document.getElementById('examenStatut');
+    const nbModifications = Object.keys(examenModifications).length;
+    if (nbModifications > 0 || document.getElementById('examenPhysiqueCache').value.trim()) {
+        statut.textContent = nbModifications > 0 ? 'Modifié' : 'Normal';
+        statut.className = `badge ${nbModifications > 0 ? 'bg-warning' : 'bg-success'} me-2`;
+    }
+    showToast('✅ Examen physique enregistré', 'success');
+}
+
+// ==================== TOAST ====================
+function showToast(message, type = 'success') {
+    const toastContainer = document.querySelector('.toast-container') || (() => {
+        const container = document.createElement('div');
+        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        document.body.appendChild(container);
+        return container;
+    })();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast show bg-${type} text-white`;
+    toast.innerHTML = `
+        <div class="toast-body">
+            ${message}
+            <button type="button" class="btn-close btn-close-white float-end" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    toastContainer.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
 </script>
+
+<style>
+/* Styles pour les badges d'analyses élargis */
+.badge input.form-control {
+    background-color: rgba(255,255,255,0.15);
+    border: none;
+    color: white;
+    padding: 6px 12px;
+    height: auto;
+    min-height: 32px;
+    min-width: 180px;
+    max-width: 400px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.badge input.form-control:hover {
+    background-color: rgba(255,255,255,0.25);
+}
+
+.badge input.form-control:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.5);
+    background-color: rgba(255,255,255,0.3);
+    border-radius: 4px;
+    min-width: 280px;
+}
+
+.badge input.form-control::placeholder {
+    color: rgba(255,255,255,0.7);
+    font-size: 13px;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    margin: 4px !important;
+    font-size: 14px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.badge .btn-close {
+    font-size: 0.7rem;
+    padding: 4px;
+    opacity: 0.8;
+    min-width: 24px;
+    min-height: 24px;
+    transition: opacity 0.2s;
+}
+
+.badge .btn-close:hover {
+    opacity: 1;
+}
+
+/* Animation pour les toasts */
+.toast {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: slideIn 0.3s ease forwards;
+}
+
+@keyframes slideIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Style pour les champs désactivés */
+input[readonly] {
+    cursor: not-allowed;
+}
+</style>
+
+<!-- Inclure Bootstrap JS pour les toasts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

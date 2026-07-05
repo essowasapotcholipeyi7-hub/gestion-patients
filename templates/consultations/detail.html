@@ -24,7 +24,13 @@
         <a href="{{ url_for('ajouter_reference', id=consultation.id) }}" class="btn btn-warning me-2" data-loading="true">
             <i class="fas fa-ambulance me-2"></i>Référencer
         </a>
-        
+<!-- BOUTON EXAMEN PHYSIQUE -->
+<a href="{{ url_for('examen_physique', id=consultation.id) }}" class="btn btn-info me-2" data-loading="true">
+    <i class="fas fa-stethoscope me-2"></i>Examen Physique
+    {% if consultation.examen_physique %}
+        <span class="badge bg-success ms-1">✅</span>
+    {% endif %}
+</a>
         <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-secondary">
             <i class="fas fa-arrow-left me-2"></i>Retour au patient
         </a>

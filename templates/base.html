@@ -227,6 +227,12 @@
             <i class="fas fa-user-shield me-2"></i> Mon profil
         </a>
         {% endif %}
+<!-- ========== SYNCHRONISATION GHP ========== -->
+{% if current_user.role == 'admin_structure' %}
+<a class="nav-link" href="{{ url_for('sync_ghp_config') }}">
+    <i class="fas fa-sync me-2"></i> Sync GHP
+</a>
+{% endif %}
 
         <!-- ========== GESTION UTILISATEURS & PERMISSIONS ========== -->
         {% if current_user.role == 'admin_structure' %}

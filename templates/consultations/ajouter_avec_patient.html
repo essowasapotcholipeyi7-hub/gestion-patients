@@ -16,50 +16,50 @@
 
     <div class="card">
         <div class="card-body">
-            <form method="POST">
+            <form method="POST" id="consultationForm">
                 <!-- Motif -->
                 <div class="mb-3">
                     <label class="form-label">Motif *</label>
                     <textarea name="motif" class="form-control" rows="2" required></textarea>
                 </div>
                 
-                <!-- Signes vitaux -->
+                <!-- Signes vitaux avec pré-remplissage -->
                 <h5 class="mt-3 mb-3"><i class="fas fa-heartbeat me-2"></i>Signes vitaux</h5>
                 <hr>
                 <div class="row">
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Tension artérielle</label>
-                        <input type="text" name="tension" class="form-control" placeholder="Ex: 120/80">
+                        <input type="text" name="tension" id="const_tension" class="form-control" placeholder="Ex: 120/80">
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Température (°C)</label>
-                        <input type="number" step="0.1" name="temperature" class="form-control">
+                        <input type="number" step="0.1" name="temperature" id="const_temperature" class="form-control" placeholder="37.5">
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Pouls (bpm)</label>
-                        <input type="number" name="pouls" class="form-control" placeholder="Ex: 72">
+                        <input type="number" name="pouls" id="const_pouls" class="form-control" placeholder="72">
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Saturation O₂ (%)</label>
-                        <input type="number" name="saturation" class="form-control" placeholder="Ex: 98">
+                        <input type="number" name="saturation" id="const_saturation" class="form-control" placeholder="98">
                     </div>
                 </div>
-                
-                <!-- Anthropométrie -->
+
+                <!-- Anthropométrie avec pré-remplissage -->
                 <h5 class="mt-3 mb-3"><i class="fas fa-ruler me-2"></i>Anthropométrie</h5>
                 <hr>
                 <div class="row">
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Poids (kg)</label>
-                        <input type="number" step="0.1" name="poids" class="form-control" id="poids">
+                        <input type="number" step="0.1" name="poids" id="const_poids" class="form-control" placeholder="75">
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Taille (cm)</label>
-                        <input type="number" step="0.1" name="taille" class="form-control" id="taille">
+                        <input type="number" step="0.5" name="taille" id="const_taille" class="form-control" placeholder="175">
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">IMC</label>
-                        <input type="text" name="imc" class="form-control" id="imc" readonly style="background-color: #e9ecef;">
+                        <input type="text" name="imc" id="const_imc" class="form-control" readonly style="background-color: #e9ecef;">
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Interprétation IMC</label>
@@ -67,95 +67,150 @@
                     </div>
                 </div>
 
-                <!-- ⭐ ANTÉCÉDENTS (juste après les constantes) -->
-                <h5 class="mt-3 mb-3"><i class="fas fa-history me-2"></i>Antécédents du patient</h5>
-                <hr>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Allergies</label>
-                        <textarea name="allergies" class="form-control" rows="2" placeholder="Ex: Pénicilline, Arachides..."></textarea>
+                <!-- ANTÉCÉDENTS DU PATIENT -->
+                <div id="antecedentsContainer" style="display: none;" class="mt-3">
+                    <h5 class="mt-3 mb-3"><i class="fas fa-history me-2 text-warning"></i>Antécédents du patient</h5>
+                    <hr>
+                    <div id="antecedentsList" class="list-group mt-2" style="max-height: 200px; overflow-y: auto;">
+                        <!-- Rempli par JavaScript -->
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Traitements en cours</label>
-                        <textarea name="traitements_en_cours" class="form-control" rows="2" placeholder="Ex: Aspirine 100mg/j..."></textarea>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Antécédents médicaux</label>
-                        <textarea name="antecedents_medicaux" class="form-control" rows="2" placeholder="Ex: Diabète, Hypertension..."></textarea>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Antécédents chirurgicaux</label>
-                        <textarea name="antecedents_chirurgicaux" class="form-control" rows="2" placeholder="Ex: Appendicectomie, Césarienne..."></textarea>
-                    </div>
-                </div>
-                
-<!-- ==================== EXAMENS & ANALYSES ==================== -->
-<h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2 text-info"></i>Examens et analyses</h5>
-<hr>
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Les antécédents sont recueillis par l'infirmier.
+                        <a href="{{ url_for('patient_antecedents', patient_id=patient.id) }}" class="text-primary">Gérer les antécédents</a>
+                    </small>
+                </div>                
 
+<!-- ==================== EXAMEN PHYSIQUE ==================== -->
 <div class="row">
-    <!-- Examens cliniques -->
     <div class="col-md-12 mb-3">
         <div class="card bg-light">
             <div class="card-body">
-                <h6 class="fw-bold text-primary"><i class="fas fa-stethoscope me-2"></i>🔬 Examens cliniques (médecin)</h6>
-                <textarea name="examens_cliniques" class="form-control" rows="2" 
-                          placeholder="Ex: Palpation, Auscultation, Examen neurologique..."></textarea>
-                <small class="text-muted">Examens réalisés par le médecin lors de la consultation</small>
-            </div>
-        </div>
-    </div>
-
-    <!-- Biologie et Imagerie -->
-    <div class="col-md-6 mb-3">
-        <div class="card bg-light">
-            <div class="card-body">
-                <h6 class="fw-bold text-success"><i class="fas fa-flask me-2"></i>🧪 Analyses de biologie</h6>
-                <textarea name="examens_biologie" class="form-control" rows="4" 
-                          placeholder="Ex: NFS&#10;Glycémie&#10;Bilan hépatique&#10;Bilan rénal&#10;CRP&#10;VS..."></textarea>
-                <small class="text-muted">Une analyse par ligne</small>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6 mb-3">
-        <div class="card bg-light">
-            <div class="card-body">
-                <h6 class="fw-bold text-warning"><i class="fas fa-image me-2"></i>📷 Examens d'imagerie</h6>
-                <textarea name="examens_imagerie" class="form-control" rows="4" 
-                          placeholder="Ex: Radiographie thoracique&#10;Échographie abdominale&#10;Scanner cérébral&#10;IRM lombaire&#10;Mammographie..."></textarea>
-                <small class="text-muted">Un examen par ligne</small>
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold text-primary mb-0">
+                        <i class="fas fa-stethoscope me-2"></i>🔬 Examen physique
+                    </h6>
+                    <div>
+                        <span id="examenStatut" class="badge bg-secondary me-2">Non renseigné</span>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="ouvrirExamenPhysique()">
+                            <i class="fas fa-edit me-1"></i>Renseigner / Modifier
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Aperçu -->
+                <div id="examenApercu" class="mt-2 p-2 border rounded" style="background: #f8f9fa; min-height: 40px;">
+                    <p class="text-muted mb-0" style="font-size: 13px;">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Cliquez sur "Renseigner / Modifier" pour saisir l'examen physique complet.
+                    </p>
+                </div>
+                
+                <!-- Champ caché pour stocker l'examen -->
+                <textarea name="examens_cliniques" id="examenPhysiqueCache" style="display:none;"></textarea>
             </div>
         </div>
     </div>
 </div>
 
-<hr>
+                <!-- Diagnostic avec CIM-10 intégré -->
+                <div class="mb-3">
+                    <label class="form-label">Diagnostic <span class="text-muted">(CIM-10)</span></label>
+                    <div class="input-group">
+                        <textarea name="diagnostic" id="diagnostic" class="form-control" rows="3" 
+                                  placeholder="Ex: Choléra classique (A00.0)">{% if consultation %}{{ consultation.diagnostic or '' }}{% endif %}</textarea>
+                    </div>
+                    <div class="mt-2">
+                        <div class="input-group">
+                            <input type="text" id="cim10_search" class="form-control" 
+                                   placeholder="Rechercher un code CIM-10..." autocomplete="off">
+                            <button class="btn btn-primary" type="button" onclick="insertCIM10()">
+                                <i class="fas fa-plus"></i> Insérer
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearCIM10Search()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="cim10_results" class="list-group mt-1" style="max-height: 150px; overflow-y: auto; display: none;"></div>
+                        <small class="text-muted">Recherchez un code CIM-10 et cliquez sur "Insérer" pour l'ajouter au diagnostic</small>
+                    </div>
+                </div>
 
-<!-- Diagnostic avec CIM-10 intégré -->
-<div class="mb-3">
-    <label class="form-label">Diagnostic <span class="text-muted">(CIM-10)</span></label>
-    <div class="input-group">
-        <textarea name="diagnostic" id="diagnostic" class="form-control" rows="3" 
-                  placeholder="Ex: Choléra classique (A00.0)">{% if consultation %}{{ consultation.diagnostic or '' }}{% endif %}</textarea>
-    </div>
-    <div class="mt-2">
-        <div class="input-group">
-            <input type="text" id="cim10_search" class="form-control" 
-                   placeholder="Rechercher un code CIM-10..." autocomplete="off">
-            <button class="btn btn-primary" type="button" onclick="insertCIM10()">
-                <i class="fas fa-plus"></i> Insérer
-            </button>
-            <button class="btn btn-outline-secondary" type="button" onclick="clearCIM10Search()">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div id="cim10_results" class="list-group mt-1" style="max-height: 150px; overflow-y: auto; display: none;"></div>
-        <small class="text-muted">Recherchez un code CIM-10 et cliquez sur "Insérer" pour l'ajouter au diagnostic</small>
-    </div>
-</div>
+                <!-- DEMANDE D'ANALYSES AVEC RECHERCHE -->
+                <h5 class="mt-3 mb-3"><i class="fas fa-flask me-2 text-info"></i>Demande d'analyses</h5>
+                <hr>
+                <div class="row">
+                    <!-- Biologie -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-success"><i class="fas fa-flask me-2"></i>🧪 Analyses de biologie</h6>
+                                
+                                <div class="input-group mb-2">
+                                    <input type="text" id="biologieSearch" class="form-control" 
+                                           placeholder="Rechercher une analyse..." autocomplete="off">
+                                    <button class="btn btn-success" type="button" onclick="ajouterAnalyseBiologie()">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                                <div id="biologieResults" class="list-group mt-1" style="max-height: 150px; overflow-y: auto; display: none;"></div>
+                                
+                                <!-- CHAMP POUR AJOUTER UNE NOUVELLE ANALYSE -->
+                                <div class="input-group mt-2">
+                                    <input type="text" id="biologieNew" class="form-control" 
+                                           placeholder="Nouvelle analyse (si non trouvée)..." autocomplete="off">
+                                    <button class="btn btn-primary" type="button" onclick="ajouterNouvelleAnalyseManuelle('biologie')">
+                                        <i class="fas fa-plus"></i> Ajouter
+                                    </button>
+                                </div>
+                                
+                                <div id="biologieSelected" class="mt-2">
+                                    <label class="form-label small">Analyses sélectionnées :</label>
+                                    <div id="biologieList" class="d-flex flex-wrap gap-1"></div>
+                                </div>
+                                <textarea name="examens_biologie" id="biologieHidden" style="display:none;"></textarea>
+                                <small class="text-muted">Cliquez sur une analyse pour l'ajouter ou saisissez-en une nouvelle</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Imagerie -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-warning"><i class="fas fa-image me-2"></i>📷 Examens d'imagerie</h6>
+                                
+                                <div class="input-group mb-2">
+                                    <input type="text" id="imagerieSearch" class="form-control" 
+                                           placeholder="Rechercher un examen..." autocomplete="off">
+                                    <button class="btn btn-warning" type="button" onclick="ajouterAnalyseImagerie()">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                                <div id="imagerieResults" class="list-group mt-1" style="max-height: 150px; overflow-y: auto; display: none;"></div>
+                                
+                                <!-- CHAMP POUR AJOUTER UN NOUVEL EXAMEN -->
+                                <div class="input-group mt-2">
+                                    <input type="text" id="imagerieNew" class="form-control" 
+                                           placeholder="Nouvel examen (si non trouvé)..." autocomplete="off">
+                                    <button class="btn btn-primary" type="button" onclick="ajouterNouvelleAnalyseManuelle('imagerie')">
+                                        <i class="fas fa-plus"></i> Ajouter
+                                    </button>
+                                </div>
+                                
+                                <div id="imagerieSelected" class="mt-2">
+                                    <label class="form-label small">Examens sélectionnés :</label>
+                                    <div id="imagerieList" class="d-flex flex-wrap gap-1"></div>
+                                </div>
+                                <textarea name="examens_imagerie" id="imagerieHidden" style="display:none;"></textarea>
+                                <small class="text-muted">Cliquez sur un examen pour l'ajouter ou saisissez-en un nouveau</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
                 <div class="mb-3">
                     <label class="form-label">Traitement prescrit</label>
                     <textarea name="traitement" class="form-control" rows="3"></textarea>
@@ -181,6 +236,7 @@
                         <input type="number" name="arret_jours" class="form-control">
                     </div>
                 </div>
+                
                 <!-- Statut médical -->
                 <h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2"></i>Statut médical</h5>
                 <hr>
@@ -210,57 +266,662 @@
         </div>
     </div>
 </div>
-
+<!-- ==================== MODAL EXAMEN PHYSIQUE ==================== -->
+<div class="modal fade" id="examenPhysiqueModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-stethoscope me-2 text-primary"></i>
+                    Examen Physique Complet
+                </h5>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="basculerLangueExamenModal()">
+                        <i class="fas fa-globe me-1"></i>
+                        <span id="langueExamenModalBtn">🇫🇷 FR</span>
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <!-- Boutons d'action -->
+                <div class="mb-3">
+                    <button type="button" class="btn btn-success btn-sm" onclick="ajouterAppareilExamenModal()">
+                        <i class="fas fa-plus me-1"></i>Ajouter un appareil
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="reinitialiserToutExamenModal()">
+                        <i class="fas fa-undo me-1"></i>Réinitialiser tout
+                    </button>
+                    <span class="text-muted ms-2 small">
+                        <i class="fas fa-info-circle"></i> Cliquez sur "Modifier" pour corriger une section
+                    </span>
+                </div>
+                
+                <!-- Conteneur des sections -->
+                <div id="examenModalContainer">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                        <p class="text-muted mt-2">Chargement des sections...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="enregistrerExamenModal()">
+                    <i class="fas fa-save me-2"></i>Enregistrer l'examen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
-    // Calcul automatique de l'IMC
-    const poids = document.getElementById('poids');
-    const taille = document.getElementById('taille');
-    const imcField = document.getElementById('imc');
+// ==================== TOAST NOTIFICATION ====================
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+    bsToast.show();
+    
+    toast.addEventListener('hidden.bs.toast', function() {
+        this.remove();
+    });
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'position-fixed bottom-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+
+// ==================== CHARGEMENT DES DONNÉES PATIENT ====================
+document.addEventListener('DOMContentLoaded', function() {
+    const patientId = {{ patient.id }};
+    
+    // Charger les constantes
+    function chargerConstantes(patientId) {
+        fetch(`/api/patient/${patientId}/constantes`)
+            .then(response => response.json())
+            .then(data => {
+                const tension = document.getElementById('const_tension');
+                const temperature = document.getElementById('const_temperature');
+                const pouls = document.getElementById('const_pouls');
+                const saturation = document.getElementById('const_saturation');
+                const poids = document.getElementById('const_poids');
+                const taille = document.getElementById('const_taille');
+                const imc = document.getElementById('const_imc');
+                const interpretation = document.getElementById('interpretation');
+                
+                if (tension) tension.value = data.tension || '';
+                if (temperature) temperature.value = data.temperature || '';
+                if (pouls) pouls.value = data.pouls || '';
+                if (saturation) saturation.value = data.saturation || '';
+                if (poids) poids.value = data.poids || '';
+                if (taille) taille.value = data.taille || '';
+                if (imc) imc.value = data.imc || '';
+                
+                // Interprétation IMC
+                if (interpretation && data.imc) {
+                    const imcVal = parseFloat(data.imc);
+                    if (imcVal < 18.5) interpretation.value = 'Maigreur';
+                    else if (imcVal < 25) interpretation.value = 'Normal';
+                    else if (imcVal < 30) interpretation.value = 'Surpoids';
+                    else if (imcVal < 35) interpretation.value = 'Obésité modérée';
+                    else if (imcVal < 40) interpretation.value = 'Obésité sévère';
+                    else interpretation.value = 'Obésité morbide';
+                }
+            })
+            .catch(error => console.error('Erreur chargement constantes:', error));
+    }
+
+    // Charger les antécédents
+    function chargerAntecedents(patientId) {
+        fetch(`/api/patient/${patientId}/antecedents`)
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('antecedentsContainer');
+                const list = document.getElementById('antecedentsList');
+                
+                if (container && list) {
+                    if (data.length > 0) {
+                        container.style.display = 'block';
+                        list.innerHTML = '';
+                        
+                        data.forEach((a) => {
+                            const item = document.createElement('div');
+                            item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+                            
+                            let badgeColor = 'primary';
+                            if (a.type === 'ALLERGIE') badgeColor = 'danger';
+                            else if (a.type === 'CHIRURGICAL') badgeColor = 'info';
+                            else if (a.type === 'TRAITEMENT') badgeColor = 'success';
+                            else if (a.type === 'PSYCHOLOGIQUE') badgeColor = 'secondary';
+                            
+                            item.innerHTML = `
+                                <div>
+                                    <span class="badge bg-${badgeColor} me-1">${a.type}</span>
+                                    <strong>${a.description}</strong>
+                                    ${a.date_debut ? `<small class="text-muted">(depuis ${a.date_debut})</small>` : ''}
+                                    ${a.severite ? `<span class="badge bg-${a.severite === 'SEVERE' ? 'danger' : a.severite === 'MODEREE' ? 'warning' : 'success'} ms-1">${a.severite}</span>` : ''}
+                                    <br>
+                                    <small class="text-muted">Recueilli par ${a.recueilli_par}</small>
+                                </div>
+                            `;
+                            list.appendChild(item);
+                        });
+                    } else {
+                        container.style.display = 'block';
+                        list.innerHTML = '<div class="text-muted py-2">Aucun antécédent enregistré</div>';
+                    }
+                }
+            })
+            .catch(error => console.error('Erreur chargement antécédents:', error));
+    }
+
+    // Lancer les chargements
+    if (patientId) {
+        chargerConstantes(patientId);
+        chargerAntecedents(patientId);
+    }
+
+    // ==================== CALCUL IMC ====================
+    const poids = document.getElementById('const_poids');
+    const taille = document.getElementById('const_taille');
+    const imcField = document.getElementById('const_imc');
     const interpretationField = document.getElementById('interpretation');
     
     function calculerIMC() {
-        let p = parseFloat(poids.value);
-        let t = parseFloat(taille.value);
+        const p = parseFloat(poids ? poids.value : 0);
+        const t = parseFloat(taille ? taille.value : 0);
         
         if (p && t && t > 0) {
-            let tailleM = t / 100;
-            let imc = p / (tailleM * tailleM);
-            imcField.value = imc.toFixed(1);
+            const tailleM = t / 100;
+            const imc = p / (tailleM * tailleM);
+            if (imcField) imcField.value = imc.toFixed(1);
             
-            let interpretation = '';
-            if (imc < 18.5) interpretation = 'Maigreur';
-            else if (imc < 25) interpretation = 'Normal';
-            else if (imc < 30) interpretation = 'Surpoids';
-            else if (imc < 35) interpretation = 'Obésité modérée';
-            else if (imc < 40) interpretation = 'Obésité sévère';
-            else interpretation = 'Obésité morbide';
-            
-            interpretationField.value = interpretation;
+            if (interpretationField) {
+                if (imc < 18.5) interpretationField.value = 'Maigreur';
+                else if (imc < 25) interpretationField.value = 'Normal';
+                else if (imc < 30) interpretationField.value = 'Surpoids';
+                else if (imc < 35) interpretationField.value = 'Obésité modérée';
+                else if (imc < 40) interpretationField.value = 'Obésité sévère';
+                else interpretationField.value = 'Obésité morbide';
+            }
         } else {
-            imcField.value = '';
-            interpretationField.value = '';
+            if (imcField) imcField.value = '';
+            if (interpretationField) interpretationField.value = '';
         }
     }
     
-    poids.addEventListener('input', calculerIMC);
-    taille.addEventListener('input', calculerIMC);
-    
-    // Arrêt de travail
+    if (poids) poids.addEventListener('input', calculerIMC);
+    if (taille) taille.addEventListener('input', calculerIMC);
+
+    // ==================== ARRÊT DE TRAVAIL ====================
     const arretTravail = document.getElementById('arretTravail');
     const arretJoursDiv = document.getElementById('arretJoursDiv');
     
-    arretTravail.addEventListener('change', function() {
-        arretJoursDiv.style.display = this.checked ? 'block' : 'none';
-    });
-// ==================== CIM-10 INTÉGRÉ AU DIAGNOSTIC ====================
-let cim10Timeout = null;
-const cim10Search = document.getElementById('cim10_search');
-const cim10Results = document.getElementById('cim10_results');
-const diagnosticField = document.getElementById('diagnostic');
-let lastSelectedCIM10 = '';
+    if (arretTravail && arretJoursDiv) {
+        arretTravail.addEventListener('change', function() {
+            arretJoursDiv.style.display = this.checked ? 'block' : 'none';
+        });
+    }
 
-// Recherche en temps réel
-if (cim10Search) {
+    // ==================== INITIALISATION DES ANALYSES ====================
+    initAnalyseSystem();
+});
+
+// ==================== SYSTÈME D'ANALYSES ====================
+// Stockage séparé pour biologie et imagerie
+let biologieItems = [];
+let imagerieItems = [];
+let biologieTimeout = null;
+let imagerieTimeout = null;
+
+function initAnalyseSystem() {
+    // Configuration de la biologie
+    setupAnalyseSearch(
+        'biologieSearch', 
+        'biologieResults', 
+        'biologieList', 
+        'biologieHidden', 
+        'biologie',
+        'success',
+        'biologieItems'
+    );
+    
+    // Configuration de l'imagerie
+    setupAnalyseSearch(
+        'imagerieSearch', 
+        'imagerieResults', 
+        'imagerieList', 
+        'imagerieHidden', 
+        'imagerie',
+        'warning',
+        'imagerieItems'
+    );
+}
+
+function creerItem(nom) {
+    return {
+        id: Date.now() + Math.random(),
+        nom: nom,
+        nomModifie: nom
+    };
+}
+
+function setupAnalyseSearch(searchInputId, resultsId, listId, hiddenId, type, color, itemsArrayName) {
+    const searchInput = document.getElementById(searchInputId);
+    const resultsDiv = document.getElementById(resultsId);
+    const listDiv = document.getElementById(listId);
+    const hiddenField = document.getElementById(hiddenId);
+    
+    if (!searchInput) return;
+    
+    // Fonction pour obtenir les items du bon tableau
+    function getItems() {
+        return type === 'biologie' ? biologieItems : imagerieItems;
+    }
+    
+    // Fonction pour définir les items du bon tableau
+    function setItems(items) {
+        if (type === 'biologie') {
+            biologieItems = items;
+        } else {
+            imagerieItems = items;
+        }
+    }
+    
+    // Mettre à jour l'affichage
+    function updateDisplay() {
+        const items = getItems();
+        listDiv.innerHTML = '';
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = `badge bg-${color} p-2 m-1 d-inline-flex align-items-center`;
+            div.style.gap = '8px';
+            div.style.padding = '8px 14px';     // ⭐ PADDING AGRANDI
+            div.style.borderRadius = '8px';      // ⭐ BORDS ARRONDIS
+            div.style.fontSize = '14px';
+            
+            // Champ de texte pour modifier le libellé
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control form-control-sm';
+            input.style.width = 'auto';
+            input.style.minWidth = '180px';      // ⭐ LARGEUR MINIMALE
+            input.style.maxWidth = '400px';      // ⭐ LARGEUR MAXIMALE
+            input.style.display = 'inline-block';
+            input.style.backgroundColor = 'rgba(255,255,255,0.15)';
+            input.style.border = 'none';
+            input.style.color = 'white';
+            input.style.borderRadius = '4px';
+            input.style.padding = '6px 12px';    // ⭐ PADDING
+            input.style.fontSize = '14px';       // ⭐ POLICE
+            input.style.fontWeight = '500';
+            input.value = item.nomModifie || item.nom;
+            input.placeholder = item.nom;
+            
+            // Agrandir au focus
+            input.addEventListener('focus', function() {
+                this.style.minWidth = '280px';
+                this.style.backgroundColor = 'rgba(255,255,255,0.25)';
+            });
+            
+            input.addEventListener('blur', function() {
+                this.style.minWidth = '180px';
+                this.style.backgroundColor = 'rgba(255,255,255,0.15)';
+            });
+            
+            // Sauvegarder la modification
+            input.addEventListener('change', function() {
+                const newValue = this.value.trim();
+                if (newValue) {
+                    item.nomModifie = newValue;
+                    updateHiddenField();
+                    showToast(`Libellé modifié: "${newValue}"`, 'success');
+                } else {
+                    this.value = item.nomModifie || item.nom;
+                }
+            });
+            
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    this.blur();
+                }
+            });
+            
+            // Bouton supprimer
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-close btn-close-white';
+            deleteBtn.style.fontSize = '0.7rem';
+            deleteBtn.style.padding = '4px';
+            deleteBtn.style.marginLeft = '8px';
+            deleteBtn.style.minWidth = '24px';
+            deleteBtn.style.minHeight = '24px';
+            deleteBtn.onclick = function(e) {
+                e.stopPropagation();
+                retirerAnalyse(item.id, type);
+            };
+            
+            div.appendChild(input);
+            div.appendChild(deleteBtn);
+            listDiv.appendChild(div);
+        });
+        updateHiddenField();
+    }
+    
+    function updateHiddenField() {
+        const items = getItems();
+        const valeurs = items.map(item => item.nomModifie || item.nom);
+        hiddenField.value = valeurs.join('\n');
+    }
+    
+    // Fonction pour ajouter une analyse (accessible globalement)
+    window['ajouterAnalyse' + type.charAt(0).toUpperCase() + type.slice(1)] = function() {
+        const nom = searchInput.value.trim();
+        if (!nom) {
+            showToast('Veuillez saisir un nom', 'warning');
+            return;
+        }
+        
+        const items = getItems();
+        const existe = items.some(item => item.nom === nom || item.nomModifie === nom);
+        if (existe) {
+            showToast(`"${nom}" déjà ajouté`, 'warning');
+            return;
+        }
+        
+        const newItem = creerItem(nom);
+        items.push(newItem);
+        setItems(items);
+        updateDisplay();
+        searchInput.value = '';
+        resultsDiv.style.display = 'none';
+        showToast(`"${nom}" ajouté à ${type}`, 'success');
+    };
+    
+    // Fonction pour retirer une analyse
+    function retirerAnalyse(id, type) {
+        let items = getItems();
+        const item = items.find(i => i.id === id);
+        items = items.filter(item => item.id !== id);
+        setItems(items);
+        updateDisplay();
+        if (item) {
+            showToast(`"${item.nomModifie || item.nom}" retiré de ${type}`, 'info');
+        }
+    }
+    window.retirerAnalyse = retirerAnalyse;
+    
+    // Recherche en temps réel
+    searchInput.addEventListener('input', function() {
+        clearTimeout(type === 'biologie' ? biologieTimeout : imagerieTimeout);
+        const term = this.value.trim();
+        
+        if (term.length < 2) {
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+            return;
+        }
+        
+        const timeout = setTimeout(() => {
+            fetch(`/api/analyses/search?term=${encodeURIComponent(term)}`)
+                .then(response => response.json())
+                .then(data => {
+                    resultsDiv.innerHTML = '';
+                    if (data.length === 0) {
+                        resultsDiv.innerHTML = `
+                            <div class="list-group-item text-muted">
+                                Aucune analyse trouvée. 
+                                <button class="btn btn-sm btn-primary" onclick="ajouterNouvelleAnalyse('${term}', '${type}')">
+                                    <i class="fas fa-plus"></i> Ajouter "${term}"
+                                </button>
+                            </div>
+                        `;
+                        resultsDiv.style.display = 'block';
+                        return;
+                    }
+                    
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'list-group-item list-group-item-action';
+                        div.textContent = item.nom;
+                        div.onclick = function() {
+                            const items = getItems();
+                            const existe = items.some(i => i.nom === item.nom || i.nomModifie === item.nom);
+                            if (existe) {
+                                showToast(`"${item.nom}" déjà ajouté`, 'warning');
+                                return;
+                            }
+                            const newItem = creerItem(item.nom);
+                            items.push(newItem);
+                            setItems(items);
+                            updateDisplay();
+                            searchInput.value = '';
+                            resultsDiv.style.display = 'none';
+                            resultsDiv.innerHTML = '';
+                            showToast(`"${item.nom}" ajouté à ${type}`, 'success');
+                        };
+                        resultsDiv.appendChild(div);
+                    });
+                    resultsDiv.style.display = 'block';
+                })
+                .catch(error => console.error('Erreur:', error));
+        }, 300);
+        
+        if (type === 'biologie') biologieTimeout = timeout;
+        else imagerieTimeout = timeout;
+    });
+}
+
+// Ajouter une nouvelle analyse manuellement
+function ajouterNouvelleAnalyseManuelle(type) {
+    const inputId = type === 'biologie' ? 'biologieNew' : 'imagerieNew';
+    const input = document.getElementById(inputId);
+    const nom = input.value.trim();
+    
+    if (!nom) {
+        showToast('Veuillez saisir un nom', 'warning');
+        return;
+    }
+    
+    const items = type === 'biologie' ? biologieItems : imagerieItems;
+    const existe = items.some(item => item.nom === nom || item.nomModifie === nom);
+    
+    if (existe) {
+        showToast(`"${nom}" déjà ajouté`, 'warning');
+        input.value = '';
+        return;
+    }
+    
+    // Ajouter directement
+    const newItem = creerItem(nom);
+    items.push(newItem);
+    
+    // Mettre à jour l'affichage
+    if (type === 'biologie') {
+        biologieItems = items;
+        updateDisplayBiologie();
+    } else {
+        imagerieItems = items;
+        updateDisplayImagerie();
+    }
+    
+    input.value = '';
+    showToast(`"${nom}" ajouté à ${type}`, 'success');
+}
+
+// Fonctions pour mettre à jour les affichages
+function updateDisplayBiologie() {
+    const listDiv = document.getElementById('biologieList');
+    const hiddenField = document.getElementById('biologieHidden');
+    updateDisplayGeneric(listDiv, hiddenField, biologieItems, 'success');
+}
+
+function updateDisplayImagerie() {
+    const listDiv = document.getElementById('imagerieList');
+    const hiddenField = document.getElementById('imagerieHidden');
+    updateDisplayGeneric(listDiv, hiddenField, imagerieItems, 'warning');
+}
+
+function updateDisplayGeneric(listDiv, hiddenField, items, color) {
+    listDiv.innerHTML = '';
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `badge bg-${color} p-2 m-1 d-inline-flex align-items-center`;
+        div.style.gap = '8px';
+        div.style.padding = '8px 12px';  // ⭐ PLUS DE PADDING
+        div.style.borderRadius = '8px';   // ⭐ BORDS PLUS ARRONDIS
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control form-control-sm';
+        input.style.width = 'auto';
+        input.style.minWidth = '180px';   // ⭐ LARGEUR MINIMALE
+        input.style.maxWidth = '400px';   // ⭐ LARGEUR MAXIMALE
+        input.style.display = 'inline-block';
+        input.style.backgroundColor = 'rgba(255,255,255,0.15)';
+        input.style.border = 'none';
+        input.style.color = 'white';
+        input.style.borderRadius = '4px';
+        input.style.padding = '6px 10px';  // ⭐ PLUS DE PADDING
+        input.style.fontSize = '14px';     // ⭐ POLICE PLUS GRANDE
+        input.style.fontWeight = '500';    // ⭐ GRAS
+        input.value = item.nomModifie || item.nom;
+        input.placeholder = item.nom;
+        input.spellcheck = true;
+        
+        // Agrandir au focus
+        input.addEventListener('focus', function() {
+            this.style.minWidth = '280px';
+            this.style.backgroundColor = 'rgba(255,255,255,0.25)';
+        });
+        
+        input.addEventListener('blur', function() {
+            this.style.minWidth = '180px';
+            this.style.backgroundColor = 'rgba(255,255,255,0.15)';
+        });
+        
+        input.addEventListener('change', function() {
+            const newValue = this.value.trim();
+            if (newValue) {
+                item.nomModifie = newValue;
+                updateHiddenFieldGeneric(hiddenField, items);
+                showToast(`Libellé modifié: "${newValue}"`, 'success');
+            } else {
+                this.value = item.nomModifie || item.nom;
+            }
+        });
+        
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                this.blur();
+            }
+        });
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn-close btn-close-white';
+        deleteBtn.style.fontSize = '0.7rem';
+        deleteBtn.style.padding = '4px';
+        deleteBtn.style.marginLeft = '8px';
+        deleteBtn.style.minWidth = '24px';
+        deleteBtn.style.minHeight = '24px';
+        const itemId = item.id;
+        deleteBtn.onclick = function(e) {
+            e.stopPropagation();
+            const type = color === 'success' ? 'biologie' : 'imagerie';
+            retirerAnalyse(itemId, type);
+        };
+        
+        div.appendChild(input);
+        div.appendChild(deleteBtn);
+        listDiv.appendChild(div);
+    });
+    updateHiddenFieldGeneric(hiddenField, items);
+}
+function updateHiddenFieldGeneric(hiddenField, items) {
+    const valeurs = items.map(item => item.nomModifie || item.nom);
+    hiddenField.value = valeurs.join('\n');
+}
+
+// Ajouter une nouvelle analyse (si elle n'existe pas dans la base)
+function ajouterNouvelleAnalyse(nom, type) {
+    const items = type === 'biologie' ? biologieItems : imagerieItems;
+    const existe = items.some(item => item.nom === nom || item.nomModifie === nom);
+    if (existe) {
+        showToast(`"${nom}" déjà ajouté`, 'warning');
+        return;
+    }
+    
+    fetch('/api/analyses/ajouter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nom: nom })
+    })
+    .then(response => response.json())
+    .then(data => {
+        const newItem = creerItem(nom);
+        items.push(newItem);
+        if (type === 'biologie') {
+            biologieItems = items;
+            updateDisplayBiologie();
+        } else {
+            imagerieItems = items;
+            updateDisplayImagerie();
+        }
+        showToast(`"${nom}" ajouté au référentiel`, 'success');
+        // Fermer les résultats
+        const resultsId = type === 'biologie' ? 'biologieResults' : 'imagerieResults';
+        document.getElementById(resultsId).style.display = 'none';
+        document.getElementById(resultsId).innerHTML = '';
+    })
+    .catch(error => {
+        const newItem = creerItem(nom);
+        items.push(newItem);
+        if (type === 'biologie') {
+            biologieItems = items;
+            updateDisplayBiologie();
+        } else {
+            imagerieItems = items;
+            updateDisplayImagerie();
+        }
+        showToast(`"${nom}" ajouté localement`, 'success');
+        const resultsId = type === 'biologie' ? 'biologieResults' : 'imagerieResults';
+        document.getElementById(resultsId).style.display = 'none';
+        document.getElementById(resultsId).innerHTML = '';
+    });
+}
+
+// ==================== CIM-10 ====================
+document.addEventListener('DOMContentLoaded', function() {
+    const cim10Search = document.getElementById('cim10_search');
+    const cim10Results = document.getElementById('cim10_results');
+    const diagnosticField = document.getElementById('diagnostic');
+    
+    if (!cim10Search) return;
+    
+    let cim10Timeout = null;
+
     cim10Search.addEventListener('input', function() {
         clearTimeout(cim10Timeout);
         const term = this.value.trim();
@@ -288,9 +949,7 @@ if (cim10Search) {
                         div.textContent = item.nom;
                         div.onclick = function() {
                             cim10Search.value = item.nom;
-                            lastSelectedCIM10 = item.nom;
                             cim10Results.style.display = 'none';
-                            // Insérer automatiquement
                             insertCIM10();
                         };
                         cim10Results.appendChild(div);
@@ -298,69 +957,332 @@ if (cim10Search) {
                     cim10Results.style.display = 'block';
                 })
                 .catch(error => {
-                    console.error('Erreur:', error);
+                    console.error('Erreur CIM-10:', error);
                 });
         }, 300);
     });
-}
 
-// Insérer le code CIM-10 dans le diagnostic
-function insertCIM10() {
-    const value = cim10Search.value.trim();
-    if (!value) {
-        alert('Veuillez sélectionner un code CIM-10');
-        return;
-    }
-    
-    // Récupérer le texte actuel du diagnostic
-    let currentText = diagnosticField.value;
-    
-    // Si le diagnostic est vide, ajouter juste le code
-    if (!currentText.trim()) {
-        diagnosticField.value = value;
-    } else {
-        // Ajouter le code à la fin avec un séparateur
-        // Vérifier si le code est déjà présent
-        if (currentText.includes(value)) {
-            alert('Ce code est déjà dans le diagnostic !');
+    window.insertCIM10 = function() {
+        const value = cim10Search.value.trim();
+        if (!value) {
+            showToast('Veuillez sélectionner un code CIM-10', 'warning');
             return;
         }
-        diagnosticField.value = currentText + '\n' + value;
-    }
-    
-    // Vider la recherche
-    cim10Search.value = '';
-    cim10Results.style.display = 'none';
-    cim10Results.innerHTML = '';
-    
-    // Mettre à jour le textearea
-    diagnosticField.focus();
-    diagnosticField.scrollTop = diagnosticField.scrollHeight;
-}
-
-// Vider la recherche
-function clearCIM10Search() {
-    cim10Search.value = '';
-    cim10Results.style.display = 'none';
-    cim10Results.innerHTML = '';
-}
-
-// Fermer les résultats en cliquant ailleurs
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('#cim10_search') && !e.target.closest('#cim10_results')) {
+        
+        let currentText = diagnosticField ? diagnosticField.value : '';
+        
+        if (!currentText.trim()) {
+            diagnosticField.value = value;
+        } else {
+            if (currentText.includes(value)) {
+                showToast('Ce code est déjà dans le diagnostic !', 'warning');
+                return;
+            }
+            diagnosticField.value = currentText + '\n' + value;
+        }
+        
+        cim10Search.value = '';
         cim10Results.style.display = 'none';
-    }
-});
+        cim10Results.innerHTML = '';
+        showToast('Code CIM-10 inséré', 'success');
+        
+        if (diagnosticField) {
+            diagnosticField.focus();
+            diagnosticField.scrollTop = diagnosticField.scrollHeight;
+        }
+    };
 
-// Ajouter avec la touche Entrée
-if (cim10Search) {
+    window.clearCIM10Search = function() {
+        cim10Search.value = '';
+        cim10Results.style.display = 'none';
+        cim10Results.innerHTML = '';
+    };
+
     cim10Search.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
             insertCIM10();
         }
     });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#cim10_search') && !e.target.closest('#cim10_results')) {
+            cim10Results.style.display = 'none';
+        }
+    });
+});
+// ==================== EXAMEN PHYSIQUE ====================
+let examenLangue = 'fr';
+let examenSections = [];
+let examenModifications = {};
+let examenModal = null;
+
+// ==================== CHARGEMENT ====================
+async function chargerExamenPhysique() {
+    const container = document.getElementById('examenModalContainer');
+    if (!container) return;
+    
+    try {
+        const response = await fetch(`/api/examen-physique/sections?lang=${examenLangue}`);
+        const data = await response.json();
+        examenSections = data;
+        afficherExamenModal();
+        mettreAJourApercu();
+    } catch (error) {
+        console.error('Erreur:', error);
+        container.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                Erreur de chargement. 
+                <button class="btn btn-sm btn-primary" onclick="chargerExamenPhysique()">Réessayer</button>
+            </div>
+        `;
+    }
 }
 
+// ==================== AFFICHER LE MODAL ====================
+function afficherExamenModal() {
+    const container = document.getElementById('examenModalContainer');
+    if (!container) return;
+    
+    let html = '';
+    examenSections.forEach((section, index) => {
+        const estModifiee = examenModifications[index] !== undefined;
+        const texte = estModifiee ? examenModifications[index] : section.texte;
+        
+        html += `
+            <div class="border rounded p-3 mb-2 section-item" style="background: ${estModifiee ? '#fff3cd' : '#f8f9fa'}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="mb-1">
+                            <span class="badge bg-secondary me-1">${section.nom}</span>
+                            ${estModifiee ? '<span class="badge bg-warning">Modifié</span>' : '<span class="badge bg-success">Normal</span>'}
+                        </div>
+                        <p class="mb-0" style="white-space: pre-wrap; font-size: 14px;">${texte}</p>
+                    </div>
+                    <div class="ms-2" style="flex-shrink: 0;">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="modifierSectionExamenModal(${index})">
+                            <i class="fas fa-edit"></i> Modifier
+                        </button>
+                        ${estModifiee ? `
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="resetSectionExamenModal(${index})">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    mettreAJourApercu();
+}
+
+// ==================== MODIFIER UNE SECTION ====================
+function modifierSectionExamenModal(index) {
+    const section = examenSections[index];
+    const texteActuel = examenModifications[index] !== undefined ? examenModifications[index] : section.texte;
+    
+    const nouveauTexte = prompt(
+        `Modifier la section "${section.nom}" :\n\nTexte actuel :\n${texteActuel}`,
+        texteActuel
+    );
+    
+    if (nouveauTexte === null) return;
+    
+    if (nouveauTexte.trim() === '') {
+        delete examenModifications[index];
+    } else {
+        examenModifications[index] = nouveauTexte.trim();
+    }
+    
+    afficherExamenModal();
+}
+
+// ==================== RÉINITIALISER UNE SECTION ====================
+function resetSectionExamenModal(index) {
+    if (confirm(`Revenir au texte original pour "${examenSections[index].nom}" ?`)) {
+        delete examenModifications[index];
+        afficherExamenModal();
+    }
+}
+
+// ==================== RÉINITIALISER TOUT ====================
+function reinitialiserToutExamenModal() {
+    if (confirm('Réinitialiser toutes les sections ?')) {
+        examenModifications = {};
+        afficherExamenModal();
+    }
+}
+
+// ==================== AJOUTER UN APPAREIL ====================
+function ajouterAppareilExamenModal() {
+    const nom = prompt('Nom de l\'appareil / section :');
+    if (!nom) return;
+    
+    const texte = prompt(`Texte pour "${nom}" :`);
+    if (!texte) return;
+    
+    const index = examenSections.length;
+    examenSections.push({
+        nom: nom,
+        icone: 'fa-plus-circle',
+        texte: texte
+    });
+    examenModifications[index] = texte;
+    afficherExamenModal();
+}
+
+// ==================== CHANGER DE LANGUE ====================
+function basculerLangueExamenModal() {
+    examenLangue = examenLangue === 'fr' ? 'en' : 'fr';
+    document.getElementById('langueExamenModalBtn').textContent = examenLangue === 'fr' ? '🇫🇷 FR' : '🇬🇧 EN';
+    chargerExamenPhysique();
+}
+
+// ==================== METTRE À JOUR L'APERÇU ====================
+function mettreAJourApercu() {
+    const apercu = document.getElementById('examenApercu');
+    const cache = document.getElementById('examenPhysiqueCache');
+    const statut = document.getElementById('examenStatut');
+    
+    if (!apercu || !cache) return;
+    
+    let resume = '';
+    let nbModifications = 0;
+    examenSections.forEach((section, index) => {
+        const texte = examenModifications[index] !== undefined ? examenModifications[index] : section.texte;
+        resume += `--- ${section.nom.toUpperCase()} ---\n${texte}\n\n`;
+        if (examenModifications[index] !== undefined) nbModifications++;
+    });
+    
+    cache.value = resume.trim();
+    
+    // Mettre à jour l'aperçu
+    const texteCourt = resume.split('\n').filter(line => line.trim() && !line.startsWith('---')).join(' ').substring(0, 150);
+    if (texteCourt) {
+        apercu.innerHTML = `
+            <p class="mb-0" style="font-size: 13px; color: #333;">
+                ${texteCourt}...
+                <br><small class="text-muted">${nbModifications} section(s) modifiée(s)</small>
+            </p>
+        `;
+        statut.textContent = nbModifications > 0 ? 'Modifié' : 'Normal';
+        statut.className = `badge ${nbModifications > 0 ? 'bg-warning' : 'bg-success'} me-2`;
+    } else {
+        apercu.innerHTML = `
+            <p class="text-muted mb-0" style="font-size: 13px;">
+                <i class="fas fa-info-circle me-1"></i>
+                Cliquez sur "Renseigner / Modifier" pour saisir l'examen physique complet.
+            </p>
+        `;
+        statut.textContent = 'Non renseigné';
+        statut.className = 'badge bg-secondary me-2';
+    }
+}
+
+// ==================== OUVRIR LE MODAL ====================
+function ouvrirExamenPhysique() {
+    if (!examenModal) {
+        examenModal = new bootstrap.Modal(document.getElementById('examenPhysiqueModal'));
+    }
+    chargerExamenPhysique();
+    examenModal.show();
+}
+
+// ==================== ENREGISTRER L'EXAMEN ====================
+function enregistrerExamenModal() {
+    mettreAJourApercu();
+    examenModal.hide();
+    // Mettre à jour le statut
+    const statut = document.getElementById('examenStatut');
+    const nbModifications = Object.keys(examenModifications).length;
+    if (nbModifications > 0 || document.getElementById('examenPhysiqueCache').value.trim()) {
+        statut.textContent = nbModifications > 0 ? 'Modifié' : 'Normal';
+        statut.className = `badge ${nbModifications > 0 ? 'bg-warning' : 'bg-success'} me-2`;
+    }
+    showToast('✅ Examen physique enregistré', 'success');
+}
+
+// ==================== TOAST ====================
+function showToast(message, type = 'success') {
+    const toastContainer = document.querySelector('.toast-container') || (() => {
+        const container = document.createElement('div');
+        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        document.body.appendChild(container);
+        return container;
+    })();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast show bg-${type} text-white`;
+    toast.innerHTML = `
+        <div class="toast-body">
+            ${message}
+            <button type="button" class="btn-close btn-close-white float-end" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    toastContainer.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
 </script>
+
+<style>
+/* Styles pour les badges d'analyses modifiables */
+.badge input.form-control {
+    background-color: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    padding: 4px 10px;
+    height: auto;
+    min-height: 32px;
+    min-width: 150px;  /* ⭐ LARGEUR MINIMALE AGRANDIE */
+    max-width: 350px;   /* ⭐ LARGEUR MAXIMALE AGRANDIE */
+    font-size: 14px;    /* ⭐ TAILLE DE POLICE AGRANDIE */
+    transition: background-color 0.2s, min-width 0.3s;
+}
+
+.badge input.form-control:hover {
+    background-color: rgba(255,255,255,0.3);
+    min-width: 180px;   /* ⭐ S'AGRANDIT AU SURVOL */
+}
+
+.badge input.form-control:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.5);
+    background-color: rgba(255,255,255,0.3);
+    border-radius: 4px;
+    min-width: 250px;   /* ⭐ S'AGRANDIT ENCORE AU FOCUS */
+}
+
+.badge input.form-control::placeholder {
+    color: rgba(255,255,255,0.7);
+    font-size: 13px;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    margin: 4px !important;
+    font-size: 14px;
+    border-radius: 6px;
+}
+
+.badge .btn-close {
+    font-size: 0.7rem;
+    padding: 4px;
+    opacity: 0.8;
+    min-width: 20px;
+    min-height: 20px;
+}
+
+.badge .btn-close:hover {
+    opacity: 1;
+}
+</style>
+
+<!-- Inclure Bootstrap JS pour les toasts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

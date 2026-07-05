@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 import csv
 from io import StringIO
 from decorators import has_permission
+import uuid
 
 load_dotenv()
 
@@ -583,15 +584,30 @@ def patient_ajouter():
         adresse = request.form.get('adresse')
         profession = request.form.get('profession')
         
-        # Assurance
+        # Assurance principale
         type_assurance = request.form.get('type_assurance')
         autre_assurance_nom = request.form.get('autre_assurance_nom')
         num_assure = request.form.get('num_assure')
         
+        # ⭐ ASSURANCE 2 (NOUVEAU)
+        assurance2_nom = request.form.get('assurance2_nom')
+        taux_assurance2 = request.form.get('taux_assurance2')
+        numero_assure2 = request.form.get('numero_assure2')
+        
+        # ⭐ PERSONNE À PRÉVENIR (NOUVEAU)
+        personne_a_prevenir_nom = request.form.get('personne_a_prevenir_nom')
+        personne_a_prevenir_telephone = request.form.get('personne_a_prevenir_telephone')
+        personne_a_prevenir_relation = request.form.get('personne_a_prevenir_relation')
+        
+        # ⭐ TAUX DE PRISE EN CHARGE (NOUVEAU)
+        taux_prise_charge = request.form.get('taux_prise_charge')
+
+        groupe_sanguin = request.form.get('groupe_sanguin')
+
         # Médecin référent
         id_medecin_referent = request.form.get('id_medecin_referent')
         
-        # ⭐ CONSTANTES VITALES
+        # Constantes vitales
         temperature = request.form.get('temperature')
         tension = request.form.get('tension')
         pouls = request.form.get('pouls')
@@ -600,12 +616,15 @@ def patient_ajouter():
         taille = request.form.get('taille')
         imc = request.form.get('imc')
         
+        # Notes
+        notes = request.form.get('notes')
+        
         # Validation
         if not nom or not prenom:
             flash('Le nom et le prénom sont obligatoires', 'danger')
             return redirect(url_for('patient_ajouter'))
         
-        # Création du patient
+        # Création du patient avec TOUS les champs
         patient = Patient(
             id_structure=current_user.id_structure if current_user.id_structure else 1,
             nom=nom,
@@ -616,11 +635,29 @@ def patient_ajouter():
             email=email,
             adresse=adresse,
             profession=profession,
+            groupe_sanguin=groupe_sanguin,
+            # Assurance principale
             type_assurance=type_assurance,
             autre_assurance_nom=autre_assurance_nom if type_assurance == 'AUTRE_ASSURANCE' else None,
             num_assure=num_assure,
+            
+            # ⭐ ASSURANCE 2
+            assurance2_nom=assurance2_nom,
+            taux_assurance2=float(taux_assurance2) if taux_assurance2 else None,
+            numero_assure2=numero_assure2,
+            
+            # ⭐ PERSONNE À PRÉVENIR
+            personne_a_prevenir_nom=personne_a_prevenir_nom,
+            personne_a_prevenir_telephone=personne_a_prevenir_telephone,
+            personne_a_prevenir_relation=personne_a_prevenir_relation,
+            
+            # ⭐ TAUX DE PRISE EN CHARGE
+            taux_prise_charge=float(taux_prise_charge) if taux_prise_charge else None,
+            
+            # Médecin référent
             id_medecin_referent=int(id_medecin_referent) if id_medecin_referent else None,
-            # ⭐ CONSTANTES DANS PATIENT
+            
+            # Constantes
             temperature_c=float(temperature) if temperature else None,
             tension_arterielle=tension,
             pulse_bpm=int(pouls) if pouls else None,
@@ -628,20 +665,24 @@ def patient_ajouter():
             poids_kg=float(poids) if poids else None,
             taille_cm=float(taille) if taille else None,
             imc=float(imc) if imc else None,
+            
+            # Notes
+            notes=notes,
+            
+            # Statut
             statut_medical='PREMIERE_VISITE',
             date_premiere_visite=datetime.utcnow(),
             archived=False
         )
         
         db.session.add(patient)
-        db.session.flush()  # Pour obtenir l'ID du patient
+        db.session.flush()
         
-        # ⭐ CRÉER UNE PREMIÈRE CONSULTATION AVEC LES CONSTANTES
+        # Créer une première consultation avec les constantes
         consultation = Consultation(
             id_patient=patient.id,
             id_medecin=current_user.id if current_user.role == 'medecin' else int(id_medecin_referent) if id_medecin_referent else None,
             motif="Première consultation - Enregistrement initial",
-            # ⭐ CONSTANTES DANS CONSULTATION
             temperature_c=float(temperature) if temperature else None,
             tension_arterielle=tension,
             pulse_bpm=int(pouls) if pouls else None,
@@ -655,8 +696,9 @@ def patient_ajouter():
         
         db.session.commit()
         
-        flash(f'Patient {prenom} {nom} ajouté avec succès avec ses constantes vitales', 'success')
-        return redirect(url_for('patient_detail', id=patient.id))
+        flash(f'✅ Patient {prenom} {nom} créé avec succès !', 'success')
+        flash('📝 Renseignez maintenant les antécédents du patient.', 'info')
+        return redirect(url_for('patient_antecedents', patient_id=patient.id))
     
     return render_template('patients/ajouter.html', medecins=medecins)
 
@@ -933,6 +975,7 @@ def recherche_patients():
 @has_permission('PATIENTS')
 def patient_modifier(id):
     from models import Patient, Utilisateur
+    from datetime import datetime
     
     patient = Patient.query.get_or_404(id)
     
@@ -949,26 +992,101 @@ def patient_modifier(id):
     ).all()
     
     if request.method == 'POST':
+        # ═══════════════════════════════════════════
+        # IDENTITÉ
+        # ═══════════════════════════════════════════
         patient.nom = request.form.get('nom')
         patient.prenom = request.form.get('prenom')
-        patient.date_naissance = datetime.strptime(request.form.get('date_naissance'), '%Y-%m-%d') if request.form.get('date_naissance') else None
+        
+        date_naissance = request.form.get('date_naissance')
+        if date_naissance:
+            patient.date_naissance = datetime.strptime(date_naissance, '%Y-%m-%d').date()
+        else:
+            patient.date_naissance = None
+        
+        patient.lieu_naissance = request.form.get('lieu_naissance')
+        patient.sexe = request.form.get('sexe')
         patient.telephone = request.form.get('telephone')
         patient.email = request.form.get('email')
+        patient.profession = request.form.get('profession')
+        patient.code_postal = request.form.get('code_postal')
+        patient.ville = request.form.get('ville')
         patient.adresse = request.form.get('adresse')
+        
+        # ═══════════════════════════════════════════
+        # ASSURANCE PRINCIPALE
+        # ═══════════════════════════════════════════
         patient.type_assurance = request.form.get('type_assurance')
-        patient.autre_assurance_nom = request.form.get('autre_assurance_nom') if request.form.get('type_assurance') == 'AUTRE_ASSURANCE' else None
+        
+        autre_assurance_nom = request.form.get('autre_assurance_nom')
+        if patient.type_assurance == 'AUTRE_ASSURANCE':
+            patient.autre_assurance_nom = autre_assurance_nom
+        else:
+            patient.autre_assurance_nom = None
+        
         patient.num_assure = request.form.get('num_assure')
-        patient.id_medecin_referent = int(request.form.get('id_medecin_referent')) if request.form.get('id_medecin_referent') else None
-        patient.allergies = request.form.get('allergies')
-        patient.antecedents_medicaux = request.form.get('antecedents')
+        
+        # ═══════════════════════════════════════════
+        # ASSURANCE 2
+        # ═══════════════════════════════════════════
+        patient.assurance2_nom = request.form.get('assurance2_nom')
+        
+        taux_assurance2 = request.form.get('taux_assurance2')
+        patient.taux_assurance2 = float(taux_assurance2) if taux_assurance2 else None
+        
+        patient.numero_assure2 = request.form.get('numero_assure2')
+        
+        # ═══════════════════════════════════════════
+        # TAUX DE PRISE EN CHARGE
+        # ═══════════════════════════════════════════
+        taux_prise_charge = request.form.get('taux_prise_charge')
+        patient.taux_prise_charge = taux_prise_charge if taux_prise_charge else None
+        
+        # ═══════════════════════════════════════════
+        # PERSONNE À PRÉVENIR
+        # ═══════════════════════════════════════════
+        patient.personne_a_prevenir_nom = request.form.get('personne_a_prevenir_nom')
+        patient.personne_a_prevenir_telephone = request.form.get('personne_a_prevenir_telephone')
+        patient.personne_a_prevenir_relation = request.form.get('personne_a_prevenir_relation')
+        
+        # ═══════════════════════════════════════════
+        # INFORMATIONS MÉDICALES
+        # ═══════════════════════════════════════════
+        patient.groupe_sanguin = request.form.get('groupe_sanguin')
+        patient.mutuelle = request.form.get('mutuelle')
+        patient.medecin_traitant = request.form.get('medecin_traitant')
+        
+        # ═══════════════════════════════════════════
+        # HABITUDES DE VIE
+        # ═══════════════════════════════════════════
+        patient.tabac = request.form.get('tabac')
+        patient.alcool = request.form.get('alcool')
+        patient.allaitement = request.form.get('allaitement') == 'on'
+        patient.grossesse = request.form.get('grossesse') == 'on'
+        
+        # ═══════════════════════════════════════════
+        # MÉDECIN RÉFÉRENT
+        # ═══════════════════════════════════════════
+        id_medecin_referent = request.form.get('id_medecin_referent')
+        patient.id_medecin_referent = int(id_medecin_referent) if id_medecin_referent else None
+        
+        # ═══════════════════════════════════════════
+        # NOTES
+        # ═══════════════════════════════════════════
         patient.notes = request.form.get('notes')
         
+        # ═══════════════════════════════════════════
+        # ALLERGIES ET ANTÉCÉDENTS (si présents dans le formulaire)
+        # ═══════════════════════════════════════════
+        # Si tu as ces champs dans le formulaire, décommente :
+        # patient.allergies = request.form.get('allergies')
+        # patient.antecedents_medicaux = request.form.get('antecedents')
+        
         db.session.commit()
-        flash('Patient modifié avec succès', 'success')
+        flash('✅ Patient modifié avec succès', 'success')
         return redirect(url_for('patient_detail', id=patient.id))
     
     return render_template('patients/modifier.html', patient=patient, medecins=medecins)
-
 
 # ==================== CONSULTATION AVEC PATIENT SPECIFIQUE ====================
 
@@ -3336,6 +3454,1249 @@ def api_lits_disponibles():
         })
     
     return jsonify(result)
+# ==================== ANTÉCÉDENTS PATIENT ====================
+
+@app.route('/patient/<int:patient_id>/antecedents')
+@login_required
+def patient_antecedents(patient_id):
+    """Voir tous les antécédents d'un patient"""
+    from models import Patient, AntecedentPatient
+    
+    patient = Patient.query.get_or_404(patient_id)
+    
+    # Vérifier l'accès
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    antecedents = AntecedentPatient.query.filter_by(patient_id=patient_id).order_by(
+        AntecedentPatient.date_recueil.desc()
+    ).all()
+    
+    return render_template('patients/antecedents.html',
+                         patient=patient,
+                         antecedents=antecedents)
+
+
+@app.route('/patient/<int:patient_id>/antecedent/ajouter', methods=['POST'])
+@login_required
+def ajouter_antecedent(patient_id):
+    """Ajouter un antécédent (infirmier ou médecin)"""
+    from models import Patient, AntecedentPatient
+    
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    patient = Patient.query.get_or_404(patient_id)
+    
+    type_antecedent = request.form.get('type_antecedent')
+    description = request.form.get('description')
+    date_debut = request.form.get('date_debut')
+    date_fin = request.form.get('date_fin')
+    actif = request.form.get('actif') == 'on'
+    severite = request.form.get('severite')
+    traitement = request.form.get('traitement')
+    notes = request.form.get('notes')
+    
+    if not type_antecedent or not description:
+        flash('Le type et la description sont obligatoires', 'danger')
+        return redirect(url_for('patient_antecedents', patient_id=patient_id))
+    
+    antecedent = AntecedentPatient(
+        patient_id=patient_id,
+        type_antecedent=type_antecedent,
+        description=description,
+        date_debut=datetime.strptime(date_debut, '%Y-%m-%d') if date_debut else None,
+        date_fin=datetime.strptime(date_fin, '%Y-%m-%d') if date_fin else None,
+        actif=actif,
+        severite=severite,
+        traitement=traitement,
+        notes=notes,
+        recueilli_par=current_user.id
+    )
+    
+    db.session.add(antecedent)
+    db.session.commit()
+    
+    flash('✅ Antécédent ajouté avec succès', 'success')
+    return redirect(url_for('patient_antecedents', patient_id=patient_id))
+
+
+@app.route('/antecedent/<int:id>/modifier', methods=['POST'])
+@login_required
+def modifier_antecedent(id):
+    """Modifier un antécédent (médecin ou infirmier)"""
+    from models import AntecedentPatient
+    
+    antecedent = AntecedentPatient.query.get_or_404(id)
+    
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Mise à jour des champs
+    antecedent.type_antecedent = request.form.get('type_antecedent')
+    antecedent.description = request.form.get('description')
+    date_debut = request.form.get('date_debut')
+    date_fin = request.form.get('date_fin')
+    antecedent.actif = request.form.get('actif') == 'on'
+    antecedent.severite = request.form.get('severite')
+    antecedent.traitement = request.form.get('traitement')
+    antecedent.notes = request.form.get('notes')
+    antecedent.modified_by = current_user.id
+    antecedent.modified_at = datetime.utcnow()
+    
+    if date_debut:
+        antecedent.date_debut = datetime.strptime(date_debut, '%Y-%m-%d')
+    if date_fin:
+        antecedent.date_fin = datetime.strptime(date_fin, '%Y-%m-%d')
+    
+    db.session.commit()
+    
+    flash('✅ Antécédent modifié avec succès', 'success')
+    return redirect(url_for('patient_antecedents', patient_id=antecedent.patient_id))
+
+
+@app.route('/antecedent/<int:id>/supprimer', methods=['POST'])
+@login_required
+def supprimer_antecedent(id):
+    """Supprimer un antécédent"""
+    from models import AntecedentPatient
+    
+    antecedent = AntecedentPatient.query.get_or_404(id)
+    
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    patient_id = antecedent.patient_id
+    db.session.delete(antecedent)
+    db.session.commit()
+    
+    flash('✅ Antécédent supprimé avec succès', 'success')
+    return redirect(url_for('patient_antecedents', patient_id=patient_id))
+
+@app.route('/api/patient/<int:patient_id>/antecedents')
+@login_required
+def api_patient_antecedents(patient_id):
+    """API pour récupérer les antécédents (pour le formulaire consultation)"""
+    from models import AntecedentPatient
+    
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        return jsonify([])
+    
+    antecedents = AntecedentPatient.query.filter_by(
+        patient_id=patient_id,
+        actif=True
+    ).order_by(AntecedentPatient.date_recueil.desc()).all()
+    
+    result = []
+    for a in antecedents:
+        result.append({
+            'id': a.id,
+            'type': a.type_antecedent,
+            'description': a.description,
+            'date_debut': a.date_debut.strftime('%d/%m/%Y') if a.date_debut else None,
+            'severite': a.severite,
+            'traitement': a.traitement,
+            'recueilli_par': f"{a.recueillant.prenom} {a.recueillant.nom}" if a.recueillant else 'Inconnu'
+        })
+    
+    return jsonify(result)
+@app.route('/patient/<int:id>/constante/ajouter', methods=['POST'])
+@login_required
+def ajouter_constante_patient(id):
+    """Ajouter une nouvelle constante pour un patient (infirmier)"""
+    from models import Patient
+    from datetime import datetime
+    
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    patient = Patient.query.get_or_404(id)
+    
+    temperature = request.form.get('temperature')
+    tension = request.form.get('tension')
+    pouls = request.form.get('pouls')
+    saturation = request.form.get('saturation')
+    poids = request.form.get('poids')
+    taille = request.form.get('taille')
+    imc = request.form.get('imc')
+    
+    # ✅ Mettre à jour les constantes (écraser les anciennes)
+    if temperature:
+        patient.temperature_c = float(temperature)
+    if tension:
+        patient.tension_arterielle = tension
+    if pouls:
+        patient.pulse_bpm = int(pouls)
+    if saturation:
+        patient.oxygene_saturation = int(saturation)
+    if poids:
+        patient.poids_kg = float(poids)
+    if taille:
+        patient.taille_cm = float(taille)
+    if imc:
+        patient.imc = float(imc)
+    
+    patient.updated_at = datetime.utcnow()
+    db.session.commit()
+    
+    flash('✅ Nouvelles constantes enregistrées avec succès', 'success')
+    return redirect(url_for('patient_detail', id=patient.id))
+
+# ==================== ANALYSES DE RÉFÉRENCE ====================
+
+import csv
+import os
+
+_analyses_cache = None
+_analyses_last_update = None
+
+def charger_analyses_reference():
+    """Charge les analyses depuis le fichier CSV (id, nom)"""
+    global _analyses_cache, _analyses_last_update
+    
+    if _analyses_cache and _analyses_last_update:
+        from datetime import datetime
+        if (datetime.now() - _analyses_last_update).seconds < 3600:
+            return _analyses_cache
+    
+    try:
+        analyses_file = os.path.join(os.path.dirname(__file__), 'analyses_reference.csv')
+        
+        if not os.path.exists(analyses_file):
+            print(f"⚠️ Fichier {analyses_file} non trouvé")
+            return ['NFS', 'Glycémie', 'CRP', 'Radiographie']
+        
+        analyses_list = []
+        with open(analyses_file, 'r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if row and len(row) >= 2:
+                    # ⭐ PRENDRE LA DEUXIÈME COLONNE (LE NOM)
+                    nom = row[1].strip()
+                    if nom:
+                        analyses_list.append(nom)
+                elif row and row[0].strip():
+                    # Fallback : si une seule colonne
+                    analyses_list.append(row[0].strip())
+        
+        _analyses_cache = analyses_list
+        from datetime import datetime
+        _analyses_last_update = datetime.now()
+        
+        print(f"✅ {len(analyses_list)} analyses chargées depuis le fichier")
+        return analyses_list
+    except Exception as e:
+        print(f"❌ Erreur chargement analyses: {e}")
+        return []
+
+def search_analyses(search_term, limit=20):
+    """Recherche des analyses par nom"""
+    if not search_term or len(search_term) < 2:
+        return []
+    
+    all_analyses = charger_analyses_reference()
+    search_term = search_term.lower().strip()
+    
+    results = []
+    for analyse in all_analyses:
+        if search_term in analyse.lower():
+            results.append({'nom': analyse})
+            if len(results) >= limit:
+                break
+    
+    return results
+
+@app.route('/api/analyses/search')
+@login_required
+def api_analyses_search():
+    """API de recherche d'analyses"""
+    term = request.args.get('term', '')
+    if len(term) < 2:
+        return jsonify([])
+    
+    results = search_analyses(term)
+    return jsonify(results)
+
+@app.route('/api/analyses/ajouter', methods=['POST'])
+@login_required
+def api_analyses_ajouter():
+    """Ajouter une nouvelle analyse au fichier CSV"""
+    if current_user.role not in ['admin_structure', 'medecin']:
+        return jsonify({'success': False, 'error': 'Non autorisé'}), 403
+    
+    nom = request.json.get('nom', '').strip()
+    if not nom:
+        return jsonify({'success': False, 'error': 'Nom requis'}), 400
+    
+    # Vérifier si elle existe déjà
+    analyses = charger_analyses_reference()
+    if nom in analyses:
+        return jsonify({'success': False, 'error': 'Déjà existante'}), 400
+    
+    # Ajouter au fichier CSV
+    try:
+        analyses_file = os.path.join(os.path.dirname(__file__), 'analyses_reference.csv')
+        with open(analyses_file, 'a', encoding='utf-8') as f:
+            f.write(f'\n{nom}')
+        
+        # Vider le cache
+        global _analyses_cache, _analyses_last_update
+        _analyses_cache = None
+        _analyses_last_update = None
+        
+        return jsonify({'success': True, 'message': f'Analyse "{nom}" ajoutée'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+import pdfkit
+import tempfile
+import os
+
+@app.route('/patient/<int:id>/pdf')
+@login_required
+def patient_pdf(id):
+    """Générer le dossier patient en PDF"""
+    from models import Patient, Consultation, Prescription, Hospitalisation, AnalyseDemande, Reference, AntecedentPatient
+    from datetime import datetime
+    
+    patient = Patient.query.get_or_404(id)
+    
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Récupérer les données
+    consultations = Consultation.query.filter_by(id_patient=patient.id).order_by(
+        Consultation.date_consultation.desc()
+    ).all()
+    
+    prescriptions = Prescription.query.filter_by(id_patient=patient.id).order_by(
+        Prescription.date_prescription.desc()
+    ).all()
+    
+    hospitalisations = Hospitalisation.query.filter_by(patient_id=patient.id).order_by(
+        Hospitalisation.date_debut.desc()
+    ).all()
+    
+    analyses = AnalyseDemande.query.filter_by(patient_id=patient.id).order_by(
+        AnalyseDemande.date_demande.desc()
+    ).all()
+    
+    references = Reference.query.filter_by(patient_id=patient.id).order_by(
+        Reference.date_reference.desc()
+    ).all()
+    
+    antecedents = AntecedentPatient.query.filter_by(
+        patient_id=patient.id,
+        actif=True
+    ).all()
+    
+    age = None
+    if patient.date_naissance:
+        today = datetime.utcnow().date()
+        age = today.year - patient.date_naissance.year - ((today.month, today.day) < (patient.date_naissance.month, patient.date_naissance.day))
+    
+    # Rendre le template HTML
+    html_content = render_template('patients/pdf.html',
+                                 patient=patient,
+                                 age=age,
+                                 consultations=consultations,
+                                 prescriptions=prescriptions,
+                                 hospitalisations=hospitalisations,
+                                 analyses=analyses,
+                                 references=references,
+                                 antecedents=antecedents,
+                                 now=datetime.utcnow())
+    
+    # Chemin vers wkhtmltopdf
+    path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
+    
+    # Options de configuration
+    options = {
+        'page-size': 'A4',
+        'margin-top': '1.5cm',
+        'margin-bottom': '1.5cm',
+        'margin-left': '1.5cm',
+        'margin-right': '1.5cm',
+        'encoding': 'UTF-8',
+        'enable-local-file-access': None,
+        'no-stop-slow-scripts': None
+    }
+    
+    config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
+    
+    # Générer le PDF
+    pdf_file = pdfkit.from_string(html_content, False, options=options, configuration=config)
+    
+    # Créer un fichier temporaire
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as f:
+        f.write(pdf_file)
+        temp_path = f.name
+    
+    return send_file(
+        temp_path,
+        as_attachment=True,
+        download_name=f'Dossier_Patient_{patient.prenom}_{patient.nom}_{datetime.utcnow().strftime("%Y%m%d")}.pdf',
+        mimetype='application/pdf'
+    )
+@app.route('/patient/<int:id>/pdf-impression')
+@login_required
+def patient_pdf_impression(id):
+    """Version imprimable du dossier patient (pour PDF via navigateur)"""
+    from models import Patient, Consultation, Prescription, Hospitalisation, AnalyseDemande, Reference, AntecedentPatient
+    from datetime import datetime
+    
+    patient = Patient.query.get_or_404(id)
+    
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    consultations = Consultation.query.filter_by(id_patient=patient.id).order_by(
+        Consultation.date_consultation.desc()
+    ).all()
+    
+    prescriptions = Prescription.query.filter_by(id_patient=patient.id).order_by(
+        Prescription.date_prescription.desc()
+    ).all()
+    
+    hospitalisations = Hospitalisation.query.filter_by(patient_id=patient.id).order_by(
+        Hospitalisation.date_debut.desc()
+    ).all()
+    
+    analyses = AnalyseDemande.query.filter_by(patient_id=patient.id).order_by(
+        AnalyseDemande.date_demande.desc()
+    ).all()
+    
+    references = Reference.query.filter_by(patient_id=patient.id).order_by(
+        Reference.date_reference.desc()
+    ).all()
+    
+    antecedents = AntecedentPatient.query.filter_by(
+        patient_id=patient.id,
+        actif=True
+    ).all()
+    
+    age = None
+    if patient.date_naissance:
+        today = datetime.utcnow().date()
+        age = today.year - patient.date_naissance.year - ((today.month, today.day) < (patient.date_naissance.month, patient.date_naissance.day))
+    
+    return render_template('patients/pdf_impression.html',
+                         patient=patient,
+                         age=age,
+                         consultations=consultations,
+                         prescriptions=prescriptions,
+                         hospitalisations=hospitalisations,
+                         analyses=analyses,
+                         references=references,
+                         antecedents=antecedents,
+                         now=datetime.utcnow())
+# ==================== EXAMEN PHYSIQUE ====================
+
+_SECTIONS_EXAMEN = None
+
+def get_sections_examen():
+    """Récupère les sections de l'examen physique"""
+    global _SECTIONS_EXAMEN
+    
+    if _SECTIONS_EXAMEN is not None:
+        return _SECTIONS_EXAMEN
+    
+    _SECTIONS_EXAMEN = [
+        {
+            'nom': 'Général',
+            'icone': 'fa-user',
+            'fr': 'Patient en bon état général, conscient, orienté dans le temps et dans l\'espace, afébrile (température normale).',
+            'en': 'Patient in good general condition, conscious, oriented in time and space, afebrile (normal temperature).'
+        },
+        {
+            'nom': 'Neurologique',
+            'icone': 'fa-brain',
+            'fr': 'Motricité et sensibilité conservées. Réflexes ostéotendineux présents et symétriques. Pas de déficit neurologique. Pas de trouble de la marche ou de l\'équilibre.',
+            'en': 'Motor and sensory functions preserved. Osteotendinous reflexes present and symmetrical. No neurological deficit. No gait or balance disorders.'
+        },
+        {
+            'nom': 'Cardiovasculaire',
+            'icone': 'fa-heart',
+            'fr': 'Bruits du cœur réguliers, rythme sinusal régulier. Pas de souffle cardiaque. Pulsations périphériques présentes et symétriques. Pas d\'œdème des membres inférieurs.',
+            'en': 'Regular heart sounds, regular sinus rhythm. No heart murmur. Peripheral pulses present and symmetrical. No lower limb edema.'
+        },
+        {
+            'nom': 'Respiratoire',
+            'icone': 'fa-lungs',
+            'fr': 'Auscultation pulmonaire normale, murmure vésiculaire bien perçu. Pas de bruits anormaux (crépitants, sibilants). Pas de douleur thoracique à la respiration.',
+            'en': 'Normal lung auscultation, vesicular breath sounds well heard. No abnormal sounds (crackles, wheezes). No chest pain on respiration.'
+        },
+        {
+            'nom': 'Digestif',
+            'icone': 'fa-stomach',
+            'fr': 'Abdomen souple, non douloureux à la palpation. Bruits hydro-aériques présents. Pas de masse, pas de défense. Pas de douleur à la décompression.',
+            'en': 'Soft abdomen, non-tender on palpation. Bowel sounds present. No mass, no guarding. No pain on decompression.'
+        },
+        {
+            'nom': 'Splénoganglionnaire',
+            'icone': 'fa-blood',
+            'fr': 'Pas de splénomégalie palpable. Pas de polyadénopathie périphérique palpable. Aires ganglionnaires libres.',
+            'en': 'No palpable splenomegaly. No palpable peripheral lymphadenopathy. Lymph node areas clear.'
+        },
+        {
+            'nom': 'Urogénital',
+            'icone': 'fa-kidney',
+            'fr': 'Examen urogénital normal. Pas de douleur à la palpation des fosses lombaires. Pas de globe vésical. Organes génitaux externes normaux.',
+            'en': 'Normal urogenital examination. No pain on palpation of the lumbar fossae. No urinary retention. Normal external genitalia.'
+        },
+        {
+            'nom': 'Odonto-stomatologique',
+            'icone': 'fa-tooth',
+            'fr': 'Cavité buccale normale, muqueuse buccale saine. Pas de lésion, pas d\'infection. Dents en bon état. Pas de mobilité dentaire anormale.',
+            'en': 'Normal oral cavity, healthy oral mucosa. No lesions, no infection. Teeth in good condition. No abnormal tooth mobility.'
+        },
+        {
+            'nom': 'Dermatologique',
+            'icone': 'fa-hand',
+            'fr': 'Peau normale, pas de lésion, pas d\'éruption. Muqueuses sèches et normales. Pas de prurit. Ongles normaux.',
+            'en': 'Normal skin, no lesions, no rash. Mucous membranes dry and normal. No pruritus. Normal nails.'
+        },
+        {
+            'nom': 'Locomoteur (Ostéo-articulaire)',
+            'icone': 'fa-bone',
+            'fr': 'Amplitudes articulaires complètes. Pas de déformation, pas de douleur à la mobilisation. Pas de limitation de mouvement. Pas de raideur.',
+            'en': 'Complete joint ranges of motion. No deformity, no pain on mobilization. No limitation of movement. No stiffness.'
+        },
+        {
+            'nom': 'Oto-rhino-laryngologique',
+            'icone': 'fa-ear-deaf',
+            'fr': 'Conduits auditifs externes libres, tympans normaux. Fosses nasales libres, muqueuse normale. Pharynx normal. Pas de douleur à la mastication.',
+            'en': 'External auditory canals clear, normal tympanic membranes. Nasal passages clear, normal mucosa. Normal pharynx. No pain on mastication.'
+        },
+        {
+            'nom': 'Endocrinien',
+            'icone': 'fa-flask',
+            'fr': 'Pas de goitre palpable à la palpation cervicale. Pas de signe d\'hypo ou hyperthyroïdie. Pas de trouble de la croissance ou du développement.',
+            'en': 'No palpable goiter on cervical palpation. No signs of hypo or hyperthyroidism. No growth or developmental disorders.'
+        },
+        {
+            'nom': 'Psychiatrique',
+            'icone': 'fa-brain',
+            'fr': 'Humeur stable, contact facile et approprié. Pas de trouble du comportement, pas d\'idées délirantes. Pas de trouble de l\'humeur. Pas d\'anxiété ou de dépression.',
+            'en': 'Stable mood, easy and appropriate contact. No behavioral disorders, no delusional ideas. No mood disorders. No anxiety or depression.'
+        },
+        {
+            'nom': 'Autre à préciser',
+            'icone': 'fa-plus-circle',
+            'fr': 'Section personnalisée à ajouter selon les besoins de l\'examen.',
+            'en': 'Custom section to add according to the needs of the examination.'
+        }
+    ]
+    
+    return _SECTIONS_EXAMEN
+
+
+@app.route('/api/examen-physique/sections')
+@login_required
+def api_sections_examen():
+    """Récupère les sections de l'examen physique"""
+    lang = request.args.get('lang', 'fr')
+    sections = get_sections_examen()
+    
+    result = []
+    for s in sections:
+        result.append({
+            'nom': s['nom'],
+            'icone': s['icone'],
+            'texte': s['fr'] if lang == 'fr' else s['en']
+        })
+    
+    return jsonify(result)
+
+
+@app.route('/consultation/<int:id>/examen-physique')
+@login_required
+def examen_physique(id):
+    """Page de l'examen physique"""
+    from models import Consultation, Patient, ExamenPhysique
+    
+    consultation = Consultation.query.get_or_404(id)
+    patient = Patient.query.get(consultation.id_patient)
+    
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Récupérer l'examen existant
+    examen = ExamenPhysique.query.filter_by(consultation_id=id).first()
+    
+    return render_template('consultations/examen_physique.html',
+                         consultation=consultation,
+                         patient=patient,
+                         examen=examen)
+
+
+@app.route('/consultation/<int:id>/examen-physique/enregistrer', methods=['POST'])
+@login_required
+def enregistrer_examen_physique(id):
+    """Enregistrer l'examen physique"""
+    from models import Consultation, ExamenPhysique
+    from datetime import datetime
+    import json
+    
+    consultation = Consultation.query.get_or_404(id)
+    
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    examen_complet = request.form.get('examen_complet', '')
+    sections_modifiees = request.form.get('sections_modifiees', '{}')
+    
+    # Vérifier si un examen existe déjà
+    examen = ExamenPhysique.query.filter_by(consultation_id=id).first()
+    
+    if examen:
+        examen.examen_complet = examen_complet
+        examen.sections_modifiees = sections_modifiees
+        examen.modified_at = datetime.utcnow()
+    else:
+        examen = ExamenPhysique(
+            consultation_id=id,
+            examen_complet=examen_complet,
+            sections_modifiees=sections_modifiees,
+            created_by=current_user.id
+        )
+        db.session.add(examen)
+    
+    # Mettre à jour les notes cliniques de la consultation
+    if consultation.notes_cliniques:
+        # Si des notes existent déjà, ajouter l'examen en dessous
+        consultation.notes_cliniques = consultation.notes_cliniques + f"\n\n--- EXAMEN PHYSIQUE ---\n{examen_complet}"
+    else:
+        consultation.notes_cliniques = f"--- EXAMEN PHYSIQUE ---\n{examen_complet}"
+    
+    db.session.commit()
+    
+    flash('✅ Examen physique enregistré avec succès', 'success')
+    return redirect(url_for('consultation_detail', id=id))
+
+# ==================== SYNCHRONISATION GHP ====================
+
+import requests
+import uuid
+from datetime import datetime
+
+@app.route('/sync/ghp')
+@login_required
+def sync_ghp_config():
+    """Page de configuration de la synchronisation GHP"""
+    from models import Structure, StructureMapping
+    
+    if current_user.role != 'admin_structure':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    structures = Structure.query.filter_by(
+        id_structure=current_user.id_structure,
+        actif=True
+    ).all() if current_user.role == 'super_admin' else Structure.query.filter_by(id=current_user.id_structure).all()
+    
+    mappings = StructureMapping.query.filter_by(local_structure_id=current_user.id_structure).all()
+    
+    return render_template('sync/mapping.html', 
+                         structures=structures,
+                         mappings=mappings)
+
+
+@app.route('/sync/ghp', methods=['POST'])
+@login_required
+def sync_ghp_save():
+    """Enregistrer une configuration de mapping"""
+    from models import StructureMapping
+    
+    if current_user.role != 'admin_structure':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    local_structure_id = request.form.get('local_structure_id', type=int)
+    source_structure_id = request.form.get('source_structure_id', type=int)
+    api_url = request.form.get('api_url')
+    api_key = request.form.get('api_key')
+    
+    if not local_structure_id or not source_structure_id:
+        flash('Tous les champs sont obligatoires', 'danger')
+        return redirect(url_for('sync_ghp_config'))
+    
+    # Vérifier si le mapping existe déjà
+    mapping = StructureMapping.query.filter_by(
+        local_structure_id=local_structure_id,
+        source_structure_id=source_structure_id
+    ).first()
+    
+    if mapping:
+        mapping.api_url = api_url
+        mapping.api_key = api_key
+        mapping.actif = True
+    else:
+        mapping = StructureMapping(
+            local_structure_id=local_structure_id,
+            source_structure_id=source_structure_id,
+            api_url=api_url,
+            api_key=api_key,
+            source_name='ghp'
+        )
+        db.session.add(mapping)
+    
+    db.session.commit()
+    
+    flash('✅ Configuration enregistrée avec succès', 'success')
+    return redirect(url_for('sync_ghp_config'))
+
+# ============================================================
+# FONCTIONS DE NORMALISATION
+# ============================================================
+
+def normalize_assurance_type(value):
+    """
+    Normalise le type d'assurance pour standardiser les valeurs
+    """
+    if not value:
+        return 'NON_ASSURÉ'
+    
+    # Convertir en string et mettre en minuscules
+    value = str(value).lower().strip()
+    
+    # Mapping des valeurs
+    mapping = {
+        # AMU-CNSS
+        'amu_cnss': 'AMU-CNSS',
+        'amu-cnss': 'AMU-CNSS',
+        'amucnss': 'AMU-CNSS',
+        'amu cnss': 'AMU-CNSS',
+        'cnss': 'AMU-CNSS',
+        
+        # AMU-INAM
+        'amu_inam': 'AMU-INAM',
+        'amu-inam': 'AMU-INAM',
+        'amuinam': 'AMU-INAM',
+        'amu inam': 'AMU-INAM',
+        'inam': 'AMU-INAM',
+        
+        # Autre assurance
+        'autre_assurance': 'AUTRE_ASSURANCE',
+        'autre-assurance': 'AUTRE_ASSURANCE',
+        'autre assurance': 'AUTRE_ASSURANCE',
+        'autre': 'AUTRE_ASSURANCE',
+        'other': 'AUTRE_ASSURANCE',
+        
+        # Non assuré
+        'non_assure': 'NON_ASSURÉ',
+        'non-assure': 'NON_ASSURÉ',
+        'non assure': 'NON_ASSURÉ',
+        'nonassure': 'NON_ASSURÉ',
+        'non': 'NON_ASSURÉ',
+        'aucune': 'NON_ASSURÉ',
+        '': 'NON_ASSURÉ',
+    }
+    
+    # Vérifier si la valeur existe dans le mapping
+    if value in mapping:
+        return mapping[value]
+    
+    # Si la valeur contient 'amu' ou 'assurance', essayer de deviner
+    if 'amu' in value or 'assurance' in value:
+        if 'cnss' in value or 'inam' in value:
+            # Essayer de trouver le type
+            if 'cnss' in value:
+                return 'AMU-CNSS'
+            elif 'inam' in value:
+                return 'AMU-INAM'
+    
+    # Si rien ne correspond, retourner la valeur en majuscules
+    return value.upper().replace('_', '-')
+
+def sync_patients_from_ghp(structure_mapping):
+    """
+    Synchronise UNIQUEMENT les informations patient depuis GHP
+    Version avec normalisation des données
+    """
+    from models import Patient, Utilisateur
+    from datetime import datetime
+    import uuid
+    import requests
+    
+    try:
+        token = structure_mapping.api_key
+        
+        if not token:
+            print("❌ Token manquant dans le mapping")
+            return {'cree': 0, 'mis_a_jour': 0, 'erreur': 0, 'message': 'Token manquant'}
+        
+        url = f"{structure_mapping.api_url}/api/sync/patients"
+        params = {'token': token}
+        
+        print(f"🔄 Synchronisation depuis: {url}")
+        
+        response = requests.get(url, params=params, timeout=60)
+        
+        if response.status_code != 200:
+            print(f"❌ Erreur API GHP: {response.status_code}")
+            return {'cree': 0, 'mis_a_jour': 0, 'erreur': 1, 'message': f'Erreur API: {response.status_code}'}
+        
+        data = response.json()
+        patients = data.get('patients', [])
+        
+        print(f"✅ {len(patients)} patients récupérés depuis GHP")
+        
+        compteur = {'cree': 0, 'mis_a_jour': 0, 'erreur': 0}
+        
+        # Récupérer le médecin référent par défaut
+        medecin_id = None
+        try:
+            from flask_login import current_user
+            if current_user and current_user.is_authenticated and current_user.role == 'medecin':
+                medecin_id = current_user.id
+                print(f"👨‍⚕️ Assignation au médecin connecté: {current_user.nom} {current_user.prenom}")
+            else:
+                premier_medecin = Utilisateur.query.filter_by(
+                    id_structure=structure_mapping.local_structure_id,
+                    role='medecin',
+                    actif=True
+                ).first()
+                if premier_medecin:
+                    medecin_id = premier_medecin.id
+                    print(f"👨‍⚕️ Assignation par défaut: Dr {premier_medecin.nom} {premier_medecin.prenom}")
+                else:
+                    print("⚠️ Aucun médecin trouvé - patients non assignés")
+        except:
+            premier_medecin = Utilisateur.query.filter_by(
+                id_structure=structure_mapping.local_structure_id,
+                role='medecin',
+                actif=True
+            ).first()
+            if premier_medecin:
+                medecin_id = premier_medecin.id
+                print(f"👨‍⚕️ Assignation par défaut: Dr {premier_medecin.nom} {premier_medecin.prenom}")
+        
+        for p_data in patients:
+            try:
+                source_id = p_data.get('ID')
+                if not source_id:
+                    compteur['erreur'] += 1
+                    print(f"❌ Patient sans ID ignoré")
+                    continue
+                
+                # ⭐⭐⭐ NORMALISATION DES DONNÉES D'ASSURANCE ⭐⭐⭐
+                
+                # -------- ASSURANCE PRINCIPALE --------
+                raw_type = p_data.get('type_assurance') or p_data.get('TypeAssurance') or 'non_assure'
+                type_assurance = normalize_assurance_type(raw_type)
+                
+                # Taux de prise en charge
+                taux_prise_charge = p_data.get('taux_assurance') or p_data.get('taux_prise_charge') or 0
+                
+                # Numéro d'assuré
+                numero_assure = p_data.get('numero_assure') or p_data.get('NumeroAssure') or p_data.get('num_assure') or ''
+                
+                # -------- ASSURANCE 2 --------
+                assurance2_nom = p_data.get('assurance2_nom') or p_data.get('Assurance2Nom') or ''
+                if assurance2_nom:
+                    assurance2_nom = assurance2_nom.upper().strip()
+                
+                taux_assurance2 = p_data.get('taux_assurance2') or p_data.get('TauxAssurance2') or 0
+                numero_assure2 = p_data.get('numero_assure2') or p_data.get('NumeroAssure2') or ''
+                
+                # 🔍 LOG POUR DEBUG
+                print(f"📝 Patient {source_id} - {p_data.get('nom')} {p_data.get('prenom')}:")
+                print(f"   type_assurance (normalisé): {type_assurance}")
+                print(f"   taux_prise_charge: {taux_prise_charge}")
+                print(f"   numero_assure: {numero_assure}")
+                print(f"   assurance2_nom: {assurance2_nom}")
+                print(f"   taux_assurance2: {taux_assurance2}")
+                print(f"   numero_assure2: {numero_assure2}")
+                
+                # Date de naissance
+                date_naissance = p_data.get('date_naissance')
+                if date_naissance and isinstance(date_naissance, str):
+                    try:
+                        date_naissance = datetime.strptime(date_naissance, '%Y-%m-%d').date()
+                    except:
+                        date_naissance = None
+                elif isinstance(date_naissance, datetime):
+                    date_naissance = date_naissance.date()
+                
+                # Chercher si le patient existe déjà
+                patient = Patient.query.filter_by(
+                    patient_source_id=str(source_id),
+                    source_structure_id=structure_mapping.source_structure_id,
+                    id_structure=structure_mapping.local_structure_id
+                ).first()
+                
+                if patient:
+                    # 📝 MISE À JOUR DU PATIENT EXISTANT
+                    print(f"📝 Mise à jour: {p_data.get('nom')} {p_data.get('prenom')} (ID GHP: {source_id})")
+                    
+                    patient.nom = p_data.get('nom') or ''
+                    patient.prenom = p_data.get('prenom') or ''
+                    patient.telephone = str(p_data.get('telephone') or '')
+                    patient.adresse = p_data.get('adresse') or ''
+                    patient.date_naissance = date_naissance
+                    
+                    # ⭐ ASSURANCE PRINCIPALE (NORMALISÉE)
+                    patient.type_assurance = type_assurance
+                    patient.taux_prise_charge = str(taux_prise_charge) if taux_prise_charge else None
+                    patient.numero_assure = str(numero_assure) if numero_assure else ''
+                    
+                    # ⭐ ASSURANCE 2
+                    patient.assurance2_nom = assurance2_nom if assurance2_nom else None
+                    patient.taux_assurance2 = float(taux_assurance2) if taux_assurance2 else None
+                    patient.numero_assure2 = str(numero_assure2) if numero_assure2 else ''
+                    
+                    # Assigner si pas de médecin référent
+                    if not patient.id_medecin_referent and medecin_id:
+                        patient.id_medecin_referent = medecin_id
+                        print(f"   👨‍⚕️ Assigné au médecin ID {medecin_id}")
+                    
+                    patient.synced_at = datetime.utcnow()
+                    patient.synced_from = 'ghp'
+                    compteur['mis_a_jour'] += 1
+                    
+                else:
+                    # ➕ CRÉATION D'UN NOUVEAU PATIENT
+                    print(f"➕ Création: {p_data.get('nom')} {p_data.get('prenom')} (ID GHP: {source_id})")
+                    
+                    patient = Patient(
+                        id_structure=structure_mapping.local_structure_id,
+                        uuid=str(uuid.uuid4()),
+                        patient_source_id=str(source_id),
+                        source_structure_id=structure_mapping.source_structure_id,
+                        source_name='ghp',
+                        
+                        # Identité
+                        nom=p_data.get('nom') or '',
+                        prenom=p_data.get('prenom') or '',
+                        telephone=str(p_data.get('telephone') or ''),
+                        adresse=p_data.get('adresse') or '',
+                        date_naissance=date_naissance,
+                        
+                        # ⭐ ASSURANCE PRINCIPALE (NORMALISÉE)
+                        type_assurance=type_assurance,
+                        taux_prise_charge=str(taux_prise_charge) if taux_prise_charge else None,
+                        numero_assure=str(numero_assure) if numero_assure else '',
+                        
+                        # ⭐ ASSURANCE 2
+                        assurance2_nom=assurance2_nom if assurance2_nom else None,
+                        taux_assurance2=float(taux_assurance2) if taux_assurance2 else None,
+                        numero_assure2=str(numero_assure2) if numero_assure2 else '',
+                        
+                        # Autres champs
+                        lieu_naissance=p_data.get('lieu_naissance') or '',
+                        sexe=p_data.get('sexe') or '',
+                        email=p_data.get('email') or '',
+                        profession=p_data.get('profession') or '',
+                        
+                        # Assignation au médecin
+                        id_medecin_referent=medecin_id,
+                        
+                        # Statut
+                        statut_medical='PREMIERE_VISITE',
+                        archived=False,
+                        
+                        # Métadonnées
+                        synced_at=datetime.utcnow(),
+                        synced_from='ghp'
+                    )
+                    
+                    db.session.add(patient)
+                    compteur['cree'] += 1
+                    
+                    if medecin_id:
+                        print(f"   👨‍⚕️ Assigné au médecin ID {medecin_id}")
+                    else:
+                        print(f"   ⚠️ Non assigné (aucun médecin disponible)")
+                
+                db.session.flush()
+                
+            except Exception as e:
+                compteur['erreur'] += 1
+                print(f"❌ Erreur patient {p_data.get('ID')}: {e}")
+                import traceback
+                traceback.print_exc()
+                db.session.rollback()
+                continue
+        
+        # Mettre à jour la date de dernière synchronisation
+        structure_mapping.last_sync = datetime.utcnow()
+        db.session.commit()
+        
+        message = f"✅ Sync terminée: {compteur['cree']} créés, {compteur['mis_a_jour']} mis à jour, {compteur['erreur']} erreurs"
+        print(message)
+        
+        return {
+            'cree': compteur['cree'],
+            'mis_a_jour': compteur['mis_a_jour'],
+            'erreur': compteur['erreur'],
+            'message': message,
+            'total': len(patients)
+        }
+        
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Erreur de connexion à GHP: {e}")
+        return {
+            'cree': 0,
+            'mis_a_jour': 0,
+            'erreur': 1,
+            'message': f'Erreur de connexion: {str(e)}'
+        }
+    except Exception as e:
+        print(f"❌ Erreur générale: {e}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        return {
+            'cree': 0,
+            'mis_a_jour': 0,
+            'erreur': 1,
+            'message': f'Erreur: {str(e)}'
+        }
+
+@app.route('/api/sync/patients/<int:mapping_id>', methods=['POST'])
+@login_required
+def api_sync_patients(mapping_id):
+    """Déclencher la synchronisation des patients depuis GHP"""
+    from models import StructureMapping
+    
+    if current_user.role not in ['admin_structure', 'super_admin']:
+        return jsonify({'success': False, 'message': 'Non autorisé'}), 403
+    
+    mapping = StructureMapping.query.get_or_404(mapping_id)
+    
+    if mapping.local_structure_id != current_user.id_structure:
+        return jsonify({'success': False, 'message': 'Accès non autorisé'}), 403
+    
+    if not mapping.api_key:
+        return jsonify({
+            'success': False,
+            'message': 'Token manquant dans la configuration'
+        }), 400
+    
+    try:
+        # ⭐ APPELER LA FONCTION DE SYNCHRONISATION
+        resultat = sync_patients_from_ghp(mapping)
+        
+        if resultat.get('erreur', 0) > 0 and resultat.get('cree', 0) == 0 and resultat.get('mis_a_jour', 0) == 0:
+            return jsonify({
+                'success': False,
+                'message': resultat.get('message', 'Erreur lors de la synchronisation'),
+                'details': resultat
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'message': resultat.get('message', 'Synchronisation terminée'),
+            'details': {
+                'cree': resultat.get('cree', 0),
+                'mis_a_jour': resultat.get('mis_a_jour', 0),
+                'erreur': resultat.get('erreur', 0),
+                'total': resultat.get('total', 0)
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Erreur: {str(e)}'
+        }), 500
+
+@app.route('/api/webhook/patient-created', methods=['POST'])
+def webhook_patient_created():
+    """
+    Webhook appelé par GHP quand un patient est créé
+    Synchronisation immédiate en arrière-plan
+    """
+    from models import StructureMapping
+    from threading import Thread
+    import os
+    from datetime import datetime
+    
+    # ⭐ Récupérer le token depuis les headers
+    webhook_secret = os.environ.get('WEBHOOK_SECRET', 'mon_secret_webhook_123456')
+    token = request.headers.get('X-Webhook-Token')
+    
+    # ⭐ Vérifier le token
+    if token != webhook_secret:
+        logger.warning(f"⚠️ Webhook: Token invalide reçu - {token}")
+        return jsonify({
+            'success': False, 
+            'message': 'Token invalide'
+        }), 401
+    
+    # ⭐ Récupérer les données
+    data = request.json
+    if not data:
+        logger.warning("⚠️ Webhook: Données JSON manquantes")
+        return jsonify({
+            'success': False, 
+            'message': 'Données JSON manquantes'
+        }), 400
+    
+    patient_id = data.get('patient_id')
+    structure_id = data.get('structure_id')
+    source = data.get('source', 'ghp')
+    
+    if not patient_id or not structure_id:
+        logger.warning(f"⚠️ Webhook: patient_id ou structure_id manquant - {data}")
+        return jsonify({
+            'success': False, 
+            'message': 'patient_id et structure_id sont obligatoires'
+        }), 400
+    
+    # ⭐ Récupérer le mapping
+    mapping = StructureMapping.query.filter_by(
+        local_structure_id=structure_id,
+        actif=True
+    ).first()
+    
+    if not mapping:
+        logger.warning(f"⚠️ Webhook: Configuration GHP non trouvée pour structure {structure_id}")
+        return jsonify({
+            'success': False, 
+            'message': f'Configuration GHP non trouvée pour la structure {structure_id}'
+        }), 404
+    
+    # ⭐ Synchronisation en arrière-plan
+    def sync_in_background():
+        with app.app_context():
+            try:
+                logger.info(f"⚡ Webhook: Sync immédiate patient {patient_id} depuis {source}")
+                
+                # Vérifier si le patient existe déjà
+                from models import Patient
+                existing_patient = Patient.query.filter_by(
+                    patient_source_id=str(patient_id),
+                    source_structure_id=mapping.source_structure_id,
+                    id_structure=mapping.local_structure_id
+                ).first()
+                
+                if existing_patient:
+                    logger.info(f"📝 Patient {patient_id} existe déjà - Mise à jour")
+                
+                resultat = sync_patients_from_ghp(mapping)
+                
+                if resultat.get('cree', 0) > 0:
+                    logger.info(f"✅ Patient {patient_id} synchronisé immédiatement")
+                elif resultat.get('mis_a_jour', 0) > 0:
+                    logger.info(f"📝 Patient {patient_id} mis à jour")
+                else:
+                    logger.warning(f"⚠️ Patient {patient_id} non trouvé dans GHP")
+                    
+            except Exception as e:
+                logger.error(f"❌ Erreur webhook patient {patient_id}: {e}")
+                import traceback
+                traceback.print_exc()
+    
+    # ⭐ Démarrer la synchronisation en arrière-plan
+    Thread(target=sync_in_background).start()
+    
+    logger.info(f"📡 Webhook: Sync déclenchée pour patient {patient_id}")
+    
+    return jsonify({
+        'success': True,
+        'message': f'Synchronisation déclenchée en arrière-plan pour patient {patient_id}',
+        'patient_id': patient_id,
+        'structure_id': structure_id,
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
+
+# ═══════════════════════════════════════════
+# ROUTE DE TEST DU WEBHOOK
+# ═══════════════════════════════════════════
+
+# app.py - Ajouter cette route
+
+@app.route('/api/webhook/test', methods=['GET', 'POST'])
+def webhook_test():
+    """
+    Route de test pour vérifier que le webhook est accessible
+    """
+    if request.method == 'POST':
+        data = request.json or {}
+        return jsonify({
+            'success': True,
+            'message': 'Webhook accessible',
+            'received_data': data,
+            'headers': dict(request.headers)
+        })
+    else:
+        return jsonify({
+            'success': True,
+            'message': '✅ Webhook accessible',
+            'instructions': 'Envoyer une requête POST avec patient_id et structure_id',
+            'example': {
+                'url': '/api/webhook/patient-created',
+                'method': 'POST',
+                'headers': {
+                    'X-Webhook-Token': 'mon_secret_webhook_123456',
+                    'Content-Type': 'application/json'
+                },
+                'body': {
+                    'patient_id': 123,
+                    'structure_id': 1
+                }
+            }
+        })
+
+@app.route('/api/sync/mapping/<int:id>', methods=['DELETE'])
+@login_required
+def api_delete_mapping(id):
+    """Supprimer un mapping"""
+    from models import StructureMapping
+    
+    mapping = StructureMapping.query.get_or_404(id)
+    
+    if mapping.local_structure_id != current_user.id_structure:
+        return jsonify({'success': False, 'message': 'Non autorisé'}), 403
+    
+    db.session.delete(mapping)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+@app.route('/patient/<int:patient_id>/update-habitudes', methods=['POST'])
+@login_required
+def patient_update_habitudes(patient_id):
+    """Mettre à jour les habitudes de vie du patient"""
+    from models import Patient
+    
+    patient = Patient.query.get_or_404(patient_id)
+    
+    # Vérifier les permissions
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patient_antecedents', patient_id=patient_id))
+    
+    # Récupérer les données
+    tabac = request.form.get('tabac')
+    alcool = request.form.get('alcool')
+    allaitement = request.form.get('allaitement') == 'on'
+    grossesse = request.form.get('grossesse') == 'on'
+    
+    # Mettre à jour
+    patient.tabac = tabac if tabac else None
+    patient.alcool = alcool if alcool else None
+    patient.allaitement = allaitement
+    patient.grossesse = grossesse
+    
+    db.session.commit()
+    
+    flash('✅ Habitudes de vie mises à jour avec succès', 'success')
+    return redirect(url_for('patient_antecedents', patient_id=patient_id))
 
 if __name__ == '__main__':
     app.run(debug=True)

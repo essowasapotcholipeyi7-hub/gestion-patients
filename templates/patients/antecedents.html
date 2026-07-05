@@ -1,0 +1,533 @@
+{% extends "base.html" %}
+
+{% block title %}Antécédents - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3">
+                <i class="fas fa-history me-2 text-warning"></i>
+                Antécédents - {{ patient.prenom }} {{ patient.nom }}
+            </h1>
+            <p class="text-muted">N° dossier: P{{ "%05d" % patient.id }}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-secondary" data-loading="true">
+                <i class="fas fa-arrow-left me-2"></i>Retour au dossier
+            </a>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- ⭐ SECTION HABITUDES DE VIE (Patient) -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-heartbeat me-2"></i>Habitudes de vie</h5>
+            <small>Renseigné par : {{ current_user.prenom }} {{ current_user.nom }}</small>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('patient_update_habitudes', patient_id=patient.id) }}" id="formHabitudes">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Tabac</label>
+                        <select name="tabac" class="form-select">
+                            <option value="" {% if not patient.tabac %}selected{% endif %}>Non renseigné</option>
+                            <option value="Non" {% if patient.tabac == 'Non' %}selected{% endif %}>Non</option>
+                            <option value="Oui" {% if patient.tabac == 'Oui' %}selected{% endif %}>Oui</option>
+                            <option value="Ancien" {% if patient.tabac == 'Ancien' %}selected{% endif %}>Ancien fumeur</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Alcool</label>
+                        <select name="alcool" class="form-select">
+                            <option value="" {% if not patient.alcool %}selected{% endif %}>Non renseigné</option>
+                            <option value="Non" {% if patient.alcool == 'Non' %}selected{% endif %}>Non</option>
+                            <option value="Oui" {% if patient.alcool == 'Oui' %}selected{% endif %}>Oui</option>
+                            <option value="Occasionnel" {% if patient.alcool == 'Occasionnel' %}selected{% endif %}>Occasionnel</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <div class="form-check mt-4">
+                            <input type="checkbox" name="allaitement" class="form-check-input" id="allaitement" {% if patient.allaitement %}checked{% endif %}>
+                            <label class="form-check-label" for="allaitement">Allaitement</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <div class="form-check mt-4">
+                            <input type="checkbox" name="grossesse" class="form-check-input" id="grossesse" {% if patient.grossesse %}checked{% endif %}>
+                            <label class="form-check-label" for="grossesse">Grossesse</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-success" id="btnHabitudes">
+                        <i class="fas fa-save me-2"></i>Enregistrer les habitudes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Formulaire d'ajout d'antécédent -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-plus me-2"></i>Ajouter un antécédent</h5>
+            <small>Recueilli par : {{ current_user.prenom }} {{ current_user.nom }}</small>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ajouter_antecedent', patient_id=patient.id) }}" id="formAjoutAntecedent">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Type *</label>
+                        <select name="type_antecedent" id="typeAntecedent" class="form-select" required>
+                            <option value="MEDICAL">ATCD Médicaux</option>
+                            <option value="CHIRURGICAL">ATCD Chirurgicaux</option>
+                            <option value="PSYCHOLOGIQUE">ATCD Psychologiques</option>
+                            <option value="OBSTETRIQUE">ATCD Obstétriques</option>
+                            <option value="ALLERGIE">Allergie</option>
+                            <option value="AUTRE">📌 Autre</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3" id="zonePrecision" style="display: none;">
+                        <label class="form-label">Précisez le type</label>
+                        <input type="text" name="type_precision" class="form-control" placeholder="Ex: Allergie, Intolérance...">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Sévérité</label>
+                        <select name="severite" class="form-select">
+                            <option value="">Non spécifiée</option>
+                            <option value="LEGERE">Légère</option>
+                            <option value="MODEREE">Modérée</option>
+                            <option value="SEVERE">Sévère</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="form-label">Description *</label>
+                        <textarea name="description" class="form-control" rows="2" required placeholder="Décrire l'antécédent..."></textarea>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Date début</label>
+                        <input type="date" name="date_debut" class="form-control">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Date fin</label>
+                        <input type="date" name="date_fin" class="form-control">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Traitement associé</label>
+                        <input type="text" name="traitement" class="form-control" placeholder="Ex: Antihistaminique...">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" class="form-control" rows="1" placeholder="Informations complémentaires..."></textarea>
+                    </div>
+                </div>
+                <div class="form-check mb-3">
+                    <input type="checkbox" name="actif" class="form-check-input" id="actif" checked>
+                    <label class="form-check-label" for="actif">Antécédent actif</label>
+                </div>
+                <button type="submit" class="btn btn-primary" id="btnAjoutAntecedent">
+                    <i class="fas fa-save me-2"></i>Ajouter l'antécédent
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des antécédents -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>Antécédents du patient</h5>
+            <span class="badge bg-primary">{{ antecedents|length }}</span>
+        </div>
+        <div class="card-body">
+            {% if antecedents %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Description</th>
+                                <th>Début</th>
+                                <th>Fin</th>
+                                <th>Sévérité</th>
+                                <th>Statut</th>
+                                <th>Recueilli par</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in antecedents %}
+                            <tr>
+                                <td>
+                                    <span class="badge 
+                                        {% if a.type_antecedent == 'MEDICAL' %}bg-primary
+                                        {% elif a.type_antecedent == 'CHIRURGICAL' %}bg-info
+                                        {% elif a.type_antecedent == 'PSYCHOLOGIQUE' %}bg-secondary
+                                        {% elif a.type_antecedent == 'OBSTETRIQUE' %}bg-pink text-dark
+                                        {% elif a.type_antecedent == 'ALLERGIE' %}bg-danger
+                                        {% elif a.type_antecedent == 'AUTRE' %}bg-dark
+                                        {% endif %}">
+                                        {{ a.type_antecedent }}
+                                    </span>
+                                </td>
+                                <td>{{ a.description }}</td>
+                                <td>{{ a.date_debut.strftime('%d/%m/%Y') if a.date_debut else '-' }}</td>
+                                <td>{{ a.date_fin.strftime('%d/%m/%Y') if a.date_fin else '-' }}</td>
+                                <td>
+                                    {% if a.severite %}
+                                        <span class="badge 
+                                            {% if a.severite == 'LEGERE' %}bg-success
+                                            {% elif a.severite == 'MODEREE' %}bg-warning
+                                            {% elif a.severite == 'SEVERE' %}bg-danger
+                                            {% endif %}">
+                                            {{ a.severite }}
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if a.actif %}
+                                        <span class="badge bg-success">Actif</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactif</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ a.recueillant.prenom }} {{ a.recueillant.nom }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-warning edit-btn" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editModal{{ a.id }}">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    
+                                    <form method="POST" action="{{ url_for('supprimer_antecedent', id=a.id) }}" style="display:inline;" onsubmit="return confirm('Supprimer définitivement cet antécédent ?')">
+                                        <input type="hidden" name="patient_id" value="{{ patient.id }}">
+                                        <button type="submit" class="btn btn-sm btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">Aucun antécédent enregistré pour ce patient</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modals de modification -->
+{% for a in antecedents %}
+<div class="modal fade" id="editModal{{ a.id }}" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('modifier_antecedent', id=a.id) }}" class="edit-form">
+                <div class="modal-header">
+                    <h5 class="modal-title">Modifier l'antécédent</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Type</label>
+                            <select name="type_antecedent" class="form-select">
+                                <option value="MEDICAL" {% if a.type_antecedent == 'MEDICAL' %}selected{% endif %}>ATCD Médicaux</option>
+                                <option value="CHIRURGICAL" {% if a.type_antecedent == 'CHIRURGICAL' %}selected{% endif %}>ATCD Chirurgicaux</option>
+                                <option value="PSYCHOLOGIQUE" {% if a.type_antecedent == 'PSYCHOLOGIQUE' %}selected{% endif %}>ATCD Psychologiques</option>
+                                <option value="OBSTETRIQUE" {% if a.type_antecedent == 'OBSTETRIQUE' %}selected{% endif %}>ATCD Obstétriques</option>
+                                <option value="ALLERGIE" {% if a.type_antecedent == 'ALLERGIE' %}selected{% endif %}>Allergie</option>
+                                <option value="AUTRE" {% if a.type_antecedent == 'AUTRE' %}selected{% endif %}>📌 Autre</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Sévérité</label>
+                            <select name="severite" class="form-select">
+                                <option value="">Non spécifiée</option>
+                                <option value="LEGERE" {% if a.severite == 'LEGERE' %}selected{% endif %}>Légère</option>
+                                <option value="MODEREE" {% if a.severite == 'MODEREE' %}selected{% endif %}>Modérée</option>
+                                <option value="SEVERE" {% if a.severite == 'SEVERE' %}selected{% endif %}>Sévère</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check mt-4">
+                                <input type="checkbox" name="actif" class="form-check-input" id="editActif{{ a.id }}" {% if a.actif %}checked{% endif %}>
+                                <label class="form-check-label" for="editActif{{ a.id }}">Actif</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-control" rows="2" required>{{ a.description }}</textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Date début</label>
+                            <input type="date" name="date_debut" class="form-control" value="{{ a.date_debut.strftime('%Y-%m-%d') if a.date_debut else '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Date fin</label>
+                            <input type="date" name="date_fin" class="form-control" value="{{ a.date_fin.strftime('%Y-%m-%d') if a.date_fin else '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Traitement associé</label>
+                            <input type="text" name="traitement" class="form-control" value="{{ a.traitement or '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" class="form-control" rows="1">{{ a.notes or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestion du type "Autre"
+    const typeSelect = document.getElementById('typeAntecedent');
+    const zonePrecision = document.getElementById('zonePrecision');
+    
+    if (typeSelect) {
+        typeSelect.addEventListener('change', function() {
+            if (this.value === 'AUTRE') {
+                zonePrecision.style.display = 'block';
+            } else {
+                zonePrecision.style.display = 'none';
+            }
+        });
+    }
+
+    // ⭐ EMPÊCHER LA SOUMISSION DU FORMULAIRE DES HABITUDES SI AUCUN CHANGEMENT
+    const formHabitudes = document.getElementById('formHabitudes');
+    const btnHabitudes = document.getElementById('btnHabitudes');
+    let habitudesModifiees = false;
+
+    if (formHabitudes) {
+        formHabitudes.querySelectorAll('select, input').forEach(function(input) {
+            input.addEventListener('change', function() {
+                habitudesModifiees = true;
+            });
+        });
+
+        formHabitudes.addEventListener('submit', function(e) {
+            if (!habitudesModifiees) {
+                e.preventDefault();
+                alert('Aucune modification à enregistrer.');
+                return false;
+            }
+            btnHabitudes.disabled = true;
+            btnHabitudes.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enregistrement...';
+        });
+    }
+
+    // ⭐ EMPÊCHER LA DOUBLE SOUMISSION DU FORMULAIRE ANTÉCÉDENT
+    const formAjout = document.getElementById('formAjoutAntecedent');
+    const btnAjout = document.getElementById('btnAjoutAntecedent');
+    
+    if (formAjout) {
+        formAjout.addEventListener('submit', function(e) {
+            btnAjout.disabled = true;
+            btnAjout.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Ajout en cours...';
+        });
+    }
+
+    // Fonction pour fermer proprement un modal
+    function closeModalProperly(modalElement) {
+        if (!modalElement) return;
+        
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+        
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        
+        document.querySelectorAll('.modal-backdrop').forEach(function(backdrop) {
+            backdrop.remove();
+        });
+        
+        modalElement.classList.remove('show');
+        modalElement.style.display = 'none';
+        modalElement.removeAttribute('aria-modal');
+        modalElement.setAttribute('aria-hidden', 'true');
+    }
+
+    // Gestion de la fermeture des modals
+    document.querySelectorAll('.modal').forEach(function(modal) {
+        modal.addEventListener('show.bs.modal', function(e) {
+            document.querySelectorAll('.modal.show').forEach(function(openModal) {
+                if (openModal !== modal) {
+                    closeModalProperly(openModal);
+                }
+            });
+            document.body.style.overflow = 'hidden';
+        });
+        
+        modal.addEventListener('shown.bs.modal', function(e) {
+            const firstInput = this.querySelector('input, select, textarea');
+            if (firstInput) {
+                setTimeout(function() {
+                    firstInput.focus();
+                }, 100);
+            }
+        });
+        
+        modal.addEventListener('hide.bs.modal', function(e) {
+            document.body.style.overflow = '';
+        });
+        
+        modal.addEventListener('hidden.bs.modal', function(e) {
+            closeModalProperly(this);
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
+        });
+    });
+
+    document.querySelectorAll('[data-bs-dismiss="modal"]').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const modal = this.closest('.modal');
+            if (modal) {
+                closeModalProperly(modal);
+            }
+        });
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const openModal = document.querySelector('.modal.show');
+            if (openModal) {
+                closeModalProperly(openModal);
+            }
+        }
+    });
+
+    document.querySelectorAll('.modal').forEach(function(modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModalProperly(this);
+            }
+        });
+    });
+
+    document.querySelectorAll('.edit-form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enregistrement...';
+            }
+            
+            const modal = this.closest('.modal');
+            if (modal) {
+                setTimeout(function() {
+                    closeModalProperly(modal);
+                }, 100);
+            }
+        });
+    });
+
+    document.querySelectorAll('.edit-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            document.querySelectorAll('.modal.show').forEach(function(openModal) {
+                closeModalProperly(openModal);
+            });
+            
+            const target = document.querySelector(this.dataset.bsTarget);
+            if (target) {
+                const modal = new bootstrap.Modal(target, {
+                    backdrop: 'static',
+                    keyboard: false
+                });
+                modal.show();
+            }
+        });
+    });
+});
+
+window.addEventListener('beforeunload', function() {
+    document.querySelectorAll('.modal.show').forEach(function(modal) {
+        const modalInstance = bootstrap.Modal.getInstance(modal);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+    });
+    document.querySelectorAll('.modal-backdrop').forEach(function(backdrop) {
+        backdrop.remove();
+    });
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+});
+</script>
+
+<style>
+    .modal {
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+    
+    .modal-backdrop {
+        z-index: 1040;
+    }
+    
+    .modal {
+        z-index: 1050;
+    }
+    
+    .modal.fade .modal-dialog {
+        transition: transform 0.3s ease-out;
+    }
+    
+    .modal.show .modal-dialog {
+        transform: none;
+    }
+    
+    body.modal-open {
+        overflow: hidden !important;
+        padding-right: 0 !important;
+    }
+    
+    .btn:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+    }
+
+    /* Style pour la section habitudes */
+    .bg-pink {
+        background-color: #d63384;
+        color: white;
+    }
+</style>
+{% endblock %}
