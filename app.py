@@ -12,12 +12,13 @@ import csv
 from io import StringIO
 from decorators import has_permission
 import uuid
-
+import logging
 load_dotenv()
 
 # Initialisation de l'application
 app = Flask(__name__)
 app.config.from_object('config.Config')
+logger = logging.getLogger(__name__)
 
 # Initialisation de la base de données
 from models import db
@@ -4532,104 +4533,70 @@ def api_sync_patients(mapping_id):
 
 @app.route('/api/webhook/patient-created', methods=['POST'])
 def webhook_patient_created():
-    """
-    Webhook appelé par GHP quand un patient est créé
-    Synchronisation immédiate en arrière-plan
-    """
     from models import StructureMapping
     from threading import Thread
     import os
-    from datetime import datetime
     
-    # ⭐ Récupérer le token depuis les headers
-    webhook_secret = os.environ.get('WEBHOOK_SECRET', 'mon_secret_webhook_123456')
-    token = request.headers.get('X-Webhook-Token')
-    
-    # ⭐ Vérifier le token
-    if token != webhook_secret:
-        logger.warning(f"⚠️ Webhook: Token invalide reçu - {token}")
-        return jsonify({
-            'success': False, 
-            'message': 'Token invalide'
-        }), 401
-    
-    # ⭐ Récupérer les données
-    data = request.json
-    if not data:
-        logger.warning("⚠️ Webhook: Données JSON manquantes")
-        return jsonify({
-            'success': False, 
-            'message': 'Données JSON manquantes'
-        }), 400
-    
-    patient_id = data.get('patient_id')
-    structure_id = data.get('structure_id')
-    source = data.get('source', 'ghp')
-    
-    if not patient_id or not structure_id:
-        logger.warning(f"⚠️ Webhook: patient_id ou structure_id manquant - {data}")
-        return jsonify({
-            'success': False, 
-            'message': 'patient_id et structure_id sont obligatoires'
-        }), 400
-    
-    # ⭐ Récupérer le mapping
-    mapping = StructureMapping.query.filter_by(
-        local_structure_id=structure_id,
-        actif=True
-    ).first()
-    
-    if not mapping:
-        logger.warning(f"⚠️ Webhook: Configuration GHP non trouvée pour structure {structure_id}")
-        return jsonify({
-            'success': False, 
-            'message': f'Configuration GHP non trouvée pour la structure {structure_id}'
-        }), 404
-    
-    # ⭐ Synchronisation en arrière-plan
-    def sync_in_background():
-        with app.app_context():
-            try:
-                logger.info(f"⚡ Webhook: Sync immédiate patient {patient_id} depuis {source}")
-                
-                # Vérifier si le patient existe déjà
-                from models import Patient
-                existing_patient = Patient.query.filter_by(
-                    patient_source_id=str(patient_id),
-                    source_structure_id=mapping.source_structure_id,
-                    id_structure=mapping.local_structure_id
-                ).first()
-                
-                if existing_patient:
-                    logger.info(f"📝 Patient {patient_id} existe déjà - Mise à jour")
-                
-                resultat = sync_patients_from_ghp(mapping)
-                
-                if resultat.get('cree', 0) > 0:
-                    logger.info(f"✅ Patient {patient_id} synchronisé immédiatement")
-                elif resultat.get('mis_a_jour', 0) > 0:
-                    logger.info(f"📝 Patient {patient_id} mis à jour")
-                else:
-                    logger.warning(f"⚠️ Patient {patient_id} non trouvé dans GHP")
+    try:
+        webhook_secret = os.environ.get('WEBHOOK_SECRET', 'mon_secret_webhook_123456')
+        token = request.headers.get('X-Webhook-Token')
+        
+        if token != webhook_secret:
+            return jsonify({'success': False, 'message': 'Token invalide'}), 401
+        
+        data = request.json
+        if not data:
+            return jsonify({'success': False, 'message': 'Données JSON manquantes'}), 400
+        
+        patient_id = data.get('patient_id')
+        structure_id = data.get('structure_id')
+        
+        if not patient_id or not structure_id:
+            return jsonify({'success': False, 'message': 'patient_id et structure_id sont obligatoires'}), 400
+        
+        mapping = StructureMapping.query.filter_by(
+            local_structure_id=structure_id,
+            actif=True
+        ).first()
+        
+        if not mapping:
+            return jsonify({
+                'success': False,
+                'message': f'Configuration GHP non trouvée pour la structure {structure_id}'
+            }), 404
+        
+        def sync_in_background():
+            with app.app_context():
+                try:
+                    print(f"⚡ Webhook: Sync immédiate patient {patient_id}")
+                    resultat = sync_patients_from_ghp(mapping)
                     
-            except Exception as e:
-                logger.error(f"❌ Erreur webhook patient {patient_id}: {e}")
-                import traceback
-                traceback.print_exc()
-    
-    # ⭐ Démarrer la synchronisation en arrière-plan
-    Thread(target=sync_in_background).start()
-    
-    logger.info(f"📡 Webhook: Sync déclenchée pour patient {patient_id}")
-    
-    return jsonify({
-        'success': True,
-        'message': f'Synchronisation déclenchée en arrière-plan pour patient {patient_id}',
-        'patient_id': patient_id,
-        'structure_id': structure_id,
-        'timestamp': datetime.utcnow().isoformat()
-    })
-
+                    if resultat.get('cree', 0) > 0:
+                        print(f"✅ Patient {patient_id} synchronisé immédiatement")
+                    else:
+                        print(f"⚠️ Patient {patient_id} déjà existant ou non trouvé")
+                except Exception as e:
+                    print(f"❌ Erreur webhook patient {patient_id}: {e}")
+                    import traceback
+                    traceback.print_exc()
+        
+        Thread(target=sync_in_background).start()
+        
+        print(f"📡 Webhook: Sync déclenchée pour patient {patient_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Synchronisation déclenchée en arrière-plan pour patient {patient_id}'
+        })
+        
+    except Exception as e:
+        print(f"❌ Erreur webhook: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Erreur interne: {str(e)}'
+        }), 500
 
 # ═══════════════════════════════════════════
 # ROUTE DE TEST DU WEBHOOK
