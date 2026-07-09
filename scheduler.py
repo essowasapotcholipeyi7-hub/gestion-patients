@@ -1,10 +1,12 @@
-# scheduler.py
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 import logging
 import os
 
 logger = logging.getLogger(__name__)
+
+# ⭐ Une seule instance du scheduler
 scheduler = None
 
 def scheduled_sync_ghp():
@@ -12,7 +14,6 @@ def scheduled_sync_ghp():
     from app import app
     from models import db, StructureMapping
     
-    # ⭐ Vérifier si on est en production (Render)
     env = os.getenv('FLASK_ENV', 'development')
     
     with app.app_context():
@@ -40,19 +41,31 @@ def scheduled_sync_ghp():
         except Exception as e:
             logger.error(f"❌ Erreur synchronisation GHP: {e}")
 
+
+def scheduled_sync_prescriptions():
+    """
+    Synchronisation automatique des prescriptions toutes les 5 minutes
+    (rattrapage si l'envoi automatique a échoué)
+    """
+    try:
+        from tasks import sync_prescriptions_to_ghp
+        result = sync_prescriptions_to_ghp()
+        if result.get('success'):
+            logger.info(f"🔄 Sync prescriptions: {result.get('message')}")
+    except Exception as e:
+        logger.error(f"❌ Erreur sync prescriptions: {e}")
+
+
 def start_scheduler():
     """Démarre le planificateur de tâches"""
     global scheduler
     
-    # ⭐ Ne pas démarrer le scheduler en production si inutile
     env = os.getenv('FLASK_ENV', 'development')
-    if env == 'production':
-        logger.info("🔄 Mode production - Scheduler démarré")
     
     if scheduler is None:
         scheduler = BackgroundScheduler()
         
-        # Synchronisation GHP toutes les 3 minutes
+        # ---- 1. SYNCHRONISATION GHP (toutes les 3 minutes) ----
         scheduler.add_job(
             func=scheduled_sync_ghp,
             trigger=IntervalTrigger(minutes=3),
@@ -61,12 +74,36 @@ def start_scheduler():
         )
         logger.info("🔄 GHP: Synchronisation automatique toutes les 3 minutes")
         
+        # ---- 2. SYNCHRONISATION GHP (sécurité horaire) ----
+        scheduler.add_job(
+            func=scheduled_sync_ghp,
+            trigger=CronTrigger(minute=0),
+            id='ghp_sync_hourly',
+            replace_existing=True
+        )
+        logger.info("🔄 GHP: Synchronisation horaire (sécurité)")
+        
+        # ---- 3. SYNCHRONISATION PRESCRIPTIONS (toutes les 5 minutes) ----
+        scheduler.add_job(
+            func=scheduled_sync_prescriptions,
+            trigger=IntervalTrigger(minutes=5),
+            id='sync_prescriptions',
+            replace_existing=True
+        )
+        logger.info("🔄 Prescriptions: Synchronisation toutes les 5 minutes")
+        
+        # ---- DÉMARRAGE ----
         scheduler.start()
-        logger.info("✅ Scheduler GHP démarré")
+        logger.info(f"✅ Scheduler démarré - Mode: {env}")
+        
+    else:
+        logger.info("ℹ️ Scheduler déjà en cours d'exécution")
+
 
 def stop_scheduler():
     """Arrête le planificateur"""
     global scheduler
-    if scheduler:
+    if scheduler and scheduler.running:
         scheduler.shutdown()
-        logger.info("⏹️ Scheduler GHP arrêté")
+        scheduler = None
+        logger.info("⏹️ Scheduler arrêté")

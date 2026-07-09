@@ -729,8 +729,9 @@ def patient_detail(id):
 @app.route('/consultation/ajouter', methods=['GET', 'POST'])
 @login_required
 def consultation_ajouter():
-    from models import Patient, Consultation, AnalyseDemande
+    from models import Patient, Consultation, AnalyseDemande, Prescription
     from datetime import datetime
+    import json
     
     if current_user.role == 'medecin':
         patients = Patient.query.filter_by(
@@ -777,6 +778,9 @@ def consultation_ajouter():
         antecedents_medicaux = request.form.get('antecedents_medicaux')
         antecedents_chirurgicaux = request.form.get('antecedents_chirurgicaux')
         
+        # ⭐ MÉDICAMENTS PRESCRITS
+        medicaments_prescrits = request.form.get('medicaments_prescrits')
+        
         # Création de la consultation
         consultation = Consultation(
             id_patient=int(id_patient),
@@ -807,11 +811,10 @@ def consultation_ajouter():
         )
         
         db.session.add(consultation)
-        db.session.flush()  # Pour obtenir l'ID de la consultation
+        db.session.flush()
         
         # ⭐⭐⭐ CRÉATION AUTOMATIQUE DES ANALYSES ⭐⭐⭐
         
-        # Analyser les examens de biologie (une par ligne)
         if examens_biologie:
             for ligne in examens_biologie.split('\n'):
                 nom = ligne.strip()
@@ -827,7 +830,6 @@ def consultation_ajouter():
                     )
                     db.session.add(analyse)
         
-        # Analyser les examens d'imagerie (une par ligne)
         if examens_imagerie:
             for ligne in examens_imagerie.split('\n'):
                 nom = ligne.strip()
@@ -842,6 +844,86 @@ def consultation_ajouter():
                         statut='EN_ATTENTE'
                     )
                     db.session.add(analyse)
+        
+        # ═══════════════════════════════════════════
+        # ⭐⭐⭐ CRÉATION DES PRESCRIPTIONS (Médicaments + Actes) ⭐⭐⭐
+        # ═══════════════════════════════════════════
+        
+        prescriptions_creees = 0
+        
+        # ---- 1. CRÉATION DES PRESCRIPTIONS POUR LES MÉDICAMENTS ----
+        if medicaments_prescrits:
+            try:
+                meds_data = json.loads(medicaments_prescrits)
+                
+                for med in meds_data:
+                    prescription = Prescription(
+                        id_patient=int(id_patient),
+                        id_consultation=consultation.id,
+                        id_medecin=current_user.id,
+                        medicament=med.get('nom', ''),
+                        dosage=med.get('dosage', ''),
+                        forme=med.get('forme', ''),
+                        quantite=str(med.get('quantite', 1)),
+                        duree_jours=med.get('duree', 7),
+                        frequence=med.get('posologie', ''),
+                        instructions=med.get('instructions', ''),
+                        renouvelable=med.get('renouvelable', False),
+                        type_prescription='medicament',  # ⭐ AJOUTÉ
+                        prescripteur=f"{current_user.prenom} {current_user.nom}",
+                        statut='active',
+                        date_prescription=datetime.utcnow(),
+                        notes=med.get('notes', ''),
+                        source_id=med.get('source_id'),
+                        stock_disponible=med.get('stock')
+                    )
+                    db.session.add(prescription)
+                    prescriptions_creees += 1
+                    
+                print(f"✅ {prescriptions_creees} prescription(s) médicamenteuse(s) enregistrée(s)")
+                
+            except Exception as e:
+                print(f"❌ Erreur sauvegarde prescriptions médicaments: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # ---- 2. CRÉATION DES PRESCRIPTIONS POUR LES ACTES (Biologie) ----
+        if examens_biologie:
+            for ligne in examens_biologie.split('\n'):
+                nom = ligne.strip()
+                if nom:
+                    prescription = Prescription(
+                        id_patient=int(id_patient),
+                        id_consultation=consultation.id,
+                        id_medecin=current_user.id,
+                        medicament=nom,
+                        type_prescription='acte',  # ⭐ TYPE ACTE
+                        prescripteur=f"{current_user.prenom} {current_user.nom}",
+                        statut='active',
+                        date_prescription=datetime.utcnow()
+                    )
+                    db.session.add(prescription)
+                    prescriptions_creees += 1
+                    print(f"📋 Prescription d'acte (biologie) ajoutée: {nom}")
+        
+        # ---- 3. CRÉATION DES PRESCRIPTIONS POUR LES ACTES (Imagerie) ----
+        if examens_imagerie:
+            for ligne in examens_imagerie.split('\n'):
+                nom = ligne.strip()
+                if nom:
+                    prescription = Prescription(
+                        id_patient=int(id_patient),
+                        id_consultation=consultation.id,
+                        id_medecin=current_user.id,
+                        medicament=nom,
+                        type_prescription='acte',  # ⭐ TYPE ACTE
+                        prescripteur=f"{current_user.prenom} {current_user.nom}",
+                        statut='active',
+                        date_prescription=datetime.utcnow()
+                    )
+                    db.session.add(prescription)
+                    prescriptions_creees += 1
+                    print(f"📋 Prescription d'acte (imagerie) ajoutée: {nom}")
         
         # Mise à jour du patient
         patient = Patient.query.get(id_patient)
@@ -870,7 +952,23 @@ def consultation_ajouter():
         elif patient.statut_medical == 'PREMIERE_VISITE':
             patient.statut_medical = 'EN_TRAITEMENT'
         
+        # ═══════════════════════════════════════════
+        # ⭐⭐⭐ COMMIT ET SYNCHRONISATION ⭐⭐⭐
+        # ═══════════════════════════════════════════
+        
         db.session.commit()
+        
+        # ⭐ SYNCHRONISATION AUTOMATIQUE VERS GHP
+        if prescriptions_creees > 0:
+            try:
+                from tasks import sync_prescriptions_to_ghp
+                result = sync_prescriptions_to_ghp()
+                if result.get('success'):
+                    print(f"✅ {result.get('message')}")
+                else:
+                    print(f"⚠️ {result.get('message')}")
+            except Exception as e:
+                print(f"⚠️ Erreur sync auto: {e}")
         
         flash('Consultation enregistrée avec succès', 'success')
         return redirect(url_for('patient_detail', id=id_patient))
@@ -894,45 +992,98 @@ def consultation_detail(id):
 @login_required
 def prescription_ajouter():
     from models import Patient, Prescription
+    from datetime import datetime, timezone
+    import json
     
-    if current_user.role == 'medecin':
-        patients = Patient.query.filter_by(
-            id_structure=current_user.id_structure,
-            id_medecin_referent=current_user.id,
-            archived=False
-        ).all()
-    else:
-        patients = Patient.query.filter_by(
-            id_structure=current_user.id_structure,
-            archived=False
-        ).all()
+    try:
+        # ✅ FORCER UNE NOUVELLE SESSION
+        db.session.expire_all()
+        
+        if current_user.role == 'medecin':
+            patients = Patient.query.filter_by(
+                id_structure=current_user.id_structure,
+                id_medecin_referent=current_user.id,
+                archived=False
+            ).all()
+        else:
+            patients = Patient.query.filter_by(
+                id_structure=current_user.id_structure,
+                archived=False
+            ).all()
+    except Exception as e:
+        print(f"❌ Erreur récupération patients: {e}")
+        patients = []
+        flash('Erreur de chargement des patients', 'danger')
     
     if request.method == 'POST':
-        id_patient = request.form.get('id_patient')
-        medicament = request.form.get('medicament')
-        dosage = request.form.get('dosage')
-        duree_jours = request.form.get('duree_jours')
-        instructions = request.form.get('instructions')
-        
-        prescription = Prescription(
-            id_patient=int(id_patient),
-            id_medecin=current_user.id,
-            medicament=medicament,
-            dosage=dosage,
-            duree_jours=int(duree_jours) if duree_jours else None,
-            instructions=instructions,
-            date_prescription=datetime.utcnow(),
-            statut='active'
-        )
-        
-        db.session.add(prescription)
-        db.session.commit()
-        
-        flash('Prescription enregistrée avec succès', 'success')
-        return redirect(url_for('patient_detail', id=id_patient))
+        try:
+            id_patient = request.form.get('id_patient')
+            notes = request.form.get('notes', '')
+            medicaments_prescrits = request.form.get('medicaments_prescrits')
+            
+            if not medicaments_prescrits:
+                flash('Veuillez ajouter au moins un médicament', 'danger')
+                return redirect(url_for('prescription_ajouter'))
+            
+            meds_data = json.loads(medicaments_prescrits)
+            
+            if not meds_data:
+                flash('Aucun médicament valide', 'danger')
+                return redirect(url_for('prescription_ajouter'))
+            
+            patient = db.session.get(Patient, int(id_patient))
+            if not patient:
+                flash('Patient non trouvé', 'danger')
+                return redirect(url_for('prescription_ajouter'))
+            
+            prescriptions = []
+            
+            for med in meds_data:
+                nom_med = med.get('nom', '').strip()
+                if not nom_med:
+                    continue
+                
+                prescription = Prescription(
+                    id_patient=int(id_patient),
+                    id_medecin=current_user.id,
+                    medicament=nom_med,
+                    dosage=med.get('dosage', ''),
+                    quantite=str(med.get('quantite', 1)),
+                    duree_jours=int(med.get('duree', 7) or 7),
+                    frequence=med.get('posologie', ''),
+                    instructions=med.get('instructions', ''),
+                    prescripteur=f"{current_user.prenom} {current_user.nom}",
+                    statut='active',
+                    date_prescription=datetime.now(timezone.utc),
+                    notes=notes
+                )
+                prescriptions.append(prescription)
+                print(f"✅ Prescription préparée: {nom_med}")
+            
+            if len(prescriptions) == 0:
+                flash('Aucun médicament valide à enregistrer', 'danger')
+                return redirect(url_for('prescription_ajouter'))
+            
+            # ✅ AJOUTER UN PAR UN AVEC FLUSH
+            for p in prescriptions:
+                db.session.add(p)
+                db.session.flush()  # ← Flush après chaque ajout
+            
+            # ✅ COMMIT FINAL
+            db.session.commit()
+            
+            flash(f'✅ {len(prescriptions)} prescription(s) enregistrée(s)', 'success')
+            return redirect(url_for('patients_list'))
+            
+        except Exception as e:
+            print(f"❌ Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            db.session.rollback()
+            flash(f'Erreur: {str(e)}', 'danger')
+            return redirect(url_for('prescription_ajouter'))
     
     return render_template('prescriptions/ajouter.html', patients=patients)
-
 
 # ==================== RECHERCHE ====================
 
@@ -1094,8 +1245,9 @@ def patient_modifier(id):
 @app.route('/patient/<int:id>/consultation/ajouter', methods=['GET', 'POST'])
 @login_required
 def consultation_ajouter_avec_patient(id):
-    from models import Patient, Consultation, AnalyseDemande
+    from models import Patient, Consultation, Prescription, AnalyseDemande
     from datetime import datetime
+    import json
     
     patient = Patient.query.get_or_404(id)
     
@@ -1104,6 +1256,10 @@ def consultation_ajouter_avec_patient(id):
         return redirect(url_for('patients_list'))
     
     if request.method == 'POST':
+        # ═══════════════════════════════════════════
+        # 1. RÉCUPÉRATION DES DONNÉES DU FORMULAIRE
+        # ═══════════════════════════════════════════
+        
         motif = request.form.get('motif')
         diagnostic = request.form.get('diagnostic')
         
@@ -1142,13 +1298,18 @@ def consultation_ajouter_avec_patient(id):
         antecedents_medicaux = request.form.get('antecedents_medicaux')
         antecedents_chirurgicaux = request.form.get('antecedents_chirurgicaux')
         
-        # Création de la consultation
+        # ⭐ MÉDICAMENTS PRESCRITS
+        medicaments_prescrits = request.form.get('medicaments_prescrits')
+        
+        # ═══════════════════════════════════════════
+        # 2. CRÉATION DE LA CONSULTATION
+        # ═══════════════════════════════════════════
+        
         consultation = Consultation(
             id_patient=patient.id,
             id_medecin=current_user.id if current_user.role == 'medecin' else None,
             motif=motif,
             diagnostic=diagnostic,
-            # Constantes
             tension_arterielle=tension,
             temperature_c=float(temperature) if temperature else None,
             pulse_bpm=int(pouls) if pouls else None,
@@ -1156,21 +1317,16 @@ def consultation_ajouter_avec_patient(id):
             poids_kg=float(poids) if poids else None,
             taille_cm=float(taille) if taille else None,
             imc=float(imc) if imc else None,
-            # Examens
             examens_cliniques=examens_cliniques,
             examens_biologie=examens_biologie,
             examens_imagerie=examens_imagerie,
-            # Diagnostic et traitement
             traitement_prescrit=traitement,
             notes_cliniques=notes,
             cim10=cim10,
-            # Arrêt de travail
             arret_travail=arret_travail,
             arret_jours=int(arret_jours) if arret_jours else None,
-            # Prochain RDV
             prochain_rdv=datetime.strptime(prochain_rdv, '%Y-%m-%d') if prochain_rdv else None,
             date_consultation=datetime.utcnow(),
-            # Antécédents
             allergies=allergies,
             traitements_en_cours=traitements_en_cours,
             antecedents_medicaux=antecedents_medicaux,
@@ -1178,11 +1334,12 @@ def consultation_ajouter_avec_patient(id):
         )
         
         db.session.add(consultation)
-        db.session.flush()  # ⭐ Pour obtenir l'ID de la consultation
+        db.session.flush()
         
-        # ⭐⭐⭐ CRÉATION AUTOMATIQUE DES ANALYSES ⭐⭐⭐
+        # ═══════════════════════════════════════════
+        # 3. CRÉATION DES ANALYSES
+        # ═══════════════════════════════════════════
         
-        # Analyser les examens de biologie (une par ligne)
         if examens_biologie:
             for ligne in examens_biologie.split('\n'):
                 nom = ligne.strip()
@@ -1198,7 +1355,6 @@ def consultation_ajouter_avec_patient(id):
                     )
                     db.session.add(analyse)
         
-        # Analyser les examens d'imagerie (une par ligne)
         if examens_imagerie:
             for ligne in examens_imagerie.split('\n'):
                 nom = ligne.strip()
@@ -1214,7 +1370,92 @@ def consultation_ajouter_avec_patient(id):
                     )
                     db.session.add(analyse)
         
-        # Mettre à jour les constantes dans Patient
+        # ═══════════════════════════════════════════
+        # ⭐ 4. CRÉATION DES PRESCRIPTIONS
+        # ═══════════════════════════════════════════
+        
+        prescriptions_creees = 0
+        
+        # ---- 4.1 MÉDICAMENTS ----
+        if medicaments_prescrits:
+            try:
+                meds_data = json.loads(medicaments_prescrits)
+                print(f"📦 Données reçues: {medicaments_prescrits}")
+
+                for med in meds_data:
+                    print(f"   Médicament: {med.get('nom')}, Durée: {med.get('duree')}")
+                    prescription = Prescription(
+                        id_patient=patient.id,
+                        id_consultation=consultation.id,
+                        id_medecin=current_user.id,
+                        medicament=med.get('nom', ''),
+                        dosage=med.get('dosage', ''),
+                        forme=med.get('forme', ''),
+                        quantite=str(med.get('quantite', 1)),
+                        duree_jours=med.get('duree', 7),
+                        frequence=med.get('posologie', ''),
+                        instructions=med.get('instructions', ''),
+                        renouvelable=med.get('renouvelable', False),
+                        type_prescription='medicament',  # ⭐ AJOUTÉ
+                        prescripteur=f"{current_user.prenom} {current_user.nom}",
+                        statut='active',
+                        date_prescription=datetime.utcnow(),
+                        notes=med.get('notes', ''),
+                        source_id=med.get('source_id'),
+                        stock_disponible=med.get('stock')
+                    )
+                    db.session.add(prescription)
+                    prescriptions_creees += 1
+                    
+                print(f"✅ {len(meds_data)} prescription(s) médicamenteuse(s) enregistrée(s)")
+                
+            except Exception as e:
+                print(f"❌ Erreur sauvegarde prescriptions médicaments: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # ---- 4.2 ACTES (Biologie) ----
+        if examens_biologie:
+            for ligne in examens_biologie.split('\n'):
+                nom = ligne.strip()
+                if nom:
+                    prescription = Prescription(
+                        id_patient=patient.id,
+                        id_consultation=consultation.id,
+                        id_medecin=current_user.id,
+                        medicament=nom,
+                        type_prescription='acte',  # ⭐ TYPE ACTE
+                        prescripteur=f"{current_user.prenom} {current_user.nom}",
+                        statut='active',
+                        date_prescription=datetime.utcnow()
+                    )
+                    db.session.add(prescription)
+                    prescriptions_creees += 1
+                    print(f"📋 Prescription d'acte (biologie) ajoutée: {nom}")
+        
+        # ---- 4.3 ACTES (Imagerie) ----
+        if examens_imagerie:
+            for ligne in examens_imagerie.split('\n'):
+                nom = ligne.strip()
+                if nom:
+                    prescription = Prescription(
+                        id_patient=patient.id,
+                        id_consultation=consultation.id,
+                        id_medecin=current_user.id,
+                        medicament=nom,
+                        type_prescription='acte',  # ⭐ TYPE ACTE
+                        prescripteur=f"{current_user.prenom} {current_user.nom}",
+                        statut='active',
+                        date_prescription=datetime.utcnow()
+                    )
+                    db.session.add(prescription)
+                    prescriptions_creees += 1
+                    print(f"📋 Prescription d'acte (imagerie) ajoutée: {nom}")
+        
+        # ═══════════════════════════════════════════
+        # 5. MISE À JOUR DU PATIENT
+        # ═══════════════════════════════════════════
+        
         if temperature:
             patient.temperature_c = float(temperature)
         if tension:
@@ -1232,7 +1473,6 @@ def consultation_ajouter_avec_patient(id):
         
         patient.date_derniere_consultation = datetime.utcnow()
         
-        # Mettre à jour le statut médical
         if statut_medical:
             patient.statut_medical = statut_medical
             if statut_medical == 'GUERI':
@@ -1240,11 +1480,28 @@ def consultation_ajouter_avec_patient(id):
         elif patient.statut_medical == 'PREMIERE_VISITE':
             patient.statut_medical = 'EN_TRAITEMENT'
         
+        # ═══════════════════════════════════════════
+        # ⭐ 6. COMMIT ET SYNCHRONISATION
+        # ═══════════════════════════════════════════
+        
         db.session.commit()
+        
+        # ⭐ SYNCHRONISATION AUTOMATIQUE VERS GHP
+        if prescriptions_creees > 0:
+            try:
+                from tasks import sync_prescriptions_to_ghp
+                result = sync_prescriptions_to_ghp()
+                if result.get('success'):
+                    print(f"✅ {result.get('message')}")
+                else:
+                    print(f"⚠️ {result.get('message')}")
+            except Exception as e:
+                print(f"⚠️ Erreur sync auto: {e}")
         
         flash(f'Consultation pour {patient.prenom} {patient.nom} enregistrée avec succès', 'success')
         return redirect(url_for('patient_detail', id=patient.id))
     
+    # GET - Afficher le formulaire
     return render_template('consultations/ajouter_avec_patient.html', patient=patient)
 
 # ==================== STATISTIQUES ====================
@@ -4680,6 +4937,216 @@ def patient_update_habitudes(patient_id):
     
     flash('✅ Habitudes de vie mises à jour avec succès', 'success')
     return redirect(url_for('patient_antecedents', patient_id=patient_id))
+
+
+@app.route('/api/medicaments/disponibles')
+@login_required
+def api_medicaments_disponibles():
+    """
+    Récupère les médicaments depuis Google Sheets (via GHP)
+    """
+    from models import StructureMapping
+    import requests
+    
+    # Récupérer le mapping GHP
+    mapping = StructureMapping.query.filter_by(
+        local_structure_id=current_user.id_structure,
+        actif=True
+    ).first()
+    
+    if not mapping:
+        return jsonify([])
+    
+    try:
+        # Appeler l'API de GHP pour récupérer les médicaments
+        url = f"{mapping.api_url}/api/medicaments"
+        params = {'token': mapping.api_key}
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code != 200:
+            return jsonify([])
+        
+        data = response.json()
+        medicaments = data.get('medicaments', [])
+        
+        # Filtrer et formater pour le médecin
+        result = []
+        for m in medicaments:
+            # ⭐ Le médecin voit seulement le nom et le stock
+            result.append({
+                'id': m.get('ID'),
+                'nom': m.get('nom', ''),
+                'quantite_stock': m.get('quantite_stock', 0)
+            })
+        
+        # Trier par nom
+        result.sort(key=lambda x: x['nom'])
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"❌ Erreur récupération médicaments: {e}")
+        return jsonify([])
+
+@app.route('/api/medicamentos/disponibles')
+@login_required
+def api_medicamentos_disponibles():
+    """
+    Récupère les médicaments disponibles depuis GHP
+    Le médecin voit seulement : id, nom, quantite_stock
+    """
+    from models import StructureMapping
+    import requests
+    
+    # Récupérer le mapping GHP
+    mapping = StructureMapping.query.filter_by(
+        local_structure_id=current_user.id_structure,
+        actif=True
+    ).first()
+    
+    if not mapping:
+        print(f"⚠️ Aucun mapping GHP trouvé pour la structure {current_user.id_structure}")
+        return jsonify([])
+    
+    try:
+        # Appeler l'API de GHP pour récupérer les médicaments
+        url = f"{mapping.api_url}/api/medicamentos"
+        params = {'token': mapping.api_key}
+        
+        print(f"📡 Récupération des médicaments depuis: {url}")
+        print(f"   Structure source: {mapping.source_structure_id}")
+        
+        response = requests.get(url, params=params, timeout=15)
+        
+        if response.status_code != 200:
+            print(f"❌ Erreur GHP: {response.status_code} - {response.text[:100]}")
+            return jsonify([])
+        
+        data = response.json()
+        medicamentos = data.get('medicamentos', [])
+        
+        # Formater pour le médecin (seulement nom + stock)
+        result = []
+        for m in medicamentos:
+            if m.get('nom'):
+                result.append({
+                    'id': m.get('ID'),
+                    'nom': m.get('nom', ''),
+                    'quantite_stock': m.get('quantite_stock', 0)
+                })
+        
+        result.sort(key=lambda x: x['nom'])
+        
+        print(f"✅ {len(result)} médicaments disponibles chargés")
+        return jsonify(result)
+        
+    except requests.exceptions.Timeout:
+        print("❌ Timeout lors de la récupération des médicaments")
+        return jsonify([])
+    except requests.exceptions.ConnectionError:
+        print("❌ Erreur de connexion à GHP")
+        return jsonify([])
+    except Exception as e:
+        print(f"❌ Erreur récupération médicaments: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify([])
+
+@app.route('/api/sync/prescriptions', methods=['POST'])
+@login_required
+def api_sync_prescriptions_to_ghp():
+    """
+    Envoie les prescriptions vers GHP
+    """
+    from models import Prescription, StructureMapping
+    from datetime import datetime
+    import requests
+    
+    try:
+        # ⭐ Récupérer le mapping GHP
+        mapping = StructureMapping.query.filter_by(
+            local_structure_id=current_user.id_structure,
+            actif=True
+        ).first()
+        
+        if not mapping:
+            return jsonify({'success': False, 'message': 'Configuration GHP non trouvée'}), 400
+        
+        # ⭐ Récupérer les prescriptions non synchronisées
+        prescriptions = Prescription.query.filter_by(
+            synced_at=None,
+            statut='active'
+        ).all()
+        
+        if not prescriptions:
+            return jsonify({'success': True, 'message': 'Aucune prescription à synchroniser'})
+        
+        # ⭐ Formater les données
+        data = []
+        for p in prescriptions:
+            # 🔥 Déterminer le type automatiquement
+            type_presc = 'medicament'  # Par défaut
+            
+            # Si c'est un acte (ex: contient des mots-clés)
+            mots_actes = ['examen', 'radio', 'scan', 'echo', 'analyse', 'test', 'biopsie', 'radiographie', 'irm']
+            if p.medicament and any(mot in p.medicament.lower() for mot in mots_actes):
+                type_presc = 'acte'
+            
+            # Ou si c'est un médicament (par défaut)
+            presc_data = {
+                'id': p.id,
+                'patient_id': p.id_patient,
+                'patient_nom': p.patient.nom if p.patient else '',
+                'patient_prenom': p.patient.prenom if p.patient else '',
+                'medicament': p.medicament or '',
+                'type_prescription': type_presc,  # 🔥 AJOUT DU TYPE
+                'dosage': p.dosage or '',
+                'forme': p.forme or '',
+                'quantite': p.quantite or '1',
+                'duree_jours': p.duree_jours or 0,
+                'frequence': p.frequence or '',
+                'instructions': p.instructions or '',
+                'date_prescription': p.date_prescription.isoformat() if p.date_prescription else datetime.now().isoformat(),
+                'prescripteur': p.prescripteur or ''
+            }
+            data.append(presc_data)
+        
+        # ⭐ Envoyer vers GHP
+        url = f"{mapping.api_url}/api/prescriptions"
+        params = {'token': mapping.api_key}
+        
+        print(f"📡 Envoi de {len(data)} prescriptions vers GHP")
+        
+        response = requests.post(
+            url,
+            json={'prescriptions': data},
+            params=params,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            # ⭐ Marquer comme synchronisées
+            for p in prescriptions:
+                p.synced_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'✅ {len(data)} prescriptions envoyées'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Erreur GHP: {response.status_code}',
+                'response': response.text[:500]
+            }), 500
+            
+    except Exception as e:
+        print(f"❌ Erreur sync prescriptions: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

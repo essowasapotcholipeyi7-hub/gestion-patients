@@ -16,7 +16,7 @@
 
     <div class="card">
         <div class="card-body">
-            <form method="POST" id="consultationForm">
+            <form method="POST" id="consultationForm" onsubmit="return validerFormulaire()">
                 <!-- Motif -->
                 <div class="mb-3">
                     <label class="form-label">Motif *</label>
@@ -81,37 +81,37 @@
                     </small>
                 </div>                
 
-<!-- ==================== EXAMEN PHYSIQUE ==================== -->
-<div class="row">
-    <div class="col-md-12 mb-3">
-        <div class="card bg-light">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="fw-bold text-primary mb-0">
-                        <i class="fas fa-stethoscope me-2"></i>🔬 Examen physique
-                    </h6>
-                    <div>
-                        <span id="examenStatut" class="badge bg-secondary me-2">Non renseigné</span>
-                        <button type="button" class="btn btn-sm btn-primary" onclick="ouvrirExamenPhysique()">
-                            <i class="fas fa-edit me-1"></i>Renseigner / Modifier
-                        </button>
+                <!-- ==================== EXAMEN PHYSIQUE ==================== -->
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="fw-bold text-primary mb-0">
+                                        <i class="fas fa-stethoscope me-2"></i>🔬 Examen physique
+                                    </h6>
+                                    <div>
+                                        <span id="examenStatut" class="badge bg-secondary me-2">Non renseigné</span>
+                                        <button type="button" class="btn btn-sm btn-primary" onclick="ouvrirExamenPhysique()">
+                                            <i class="fas fa-edit me-1"></i>Renseigner / Modifier
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Aperçu -->
+                                <div id="examenApercu" class="mt-2 p-2 border rounded" style="background: #f8f9fa; min-height: 40px;">
+                                    <p class="text-muted mb-0" style="font-size: 13px;">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Cliquez sur "Renseigner / Modifier" pour saisir l'examen physique complet.
+                                    </p>
+                                </div>
+                                
+                                <!-- Champ caché pour stocker l'examen -->
+                                <textarea name="examens_cliniques" id="examenPhysiqueCache" style="display:none;"></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                
-                <!-- Aperçu -->
-                <div id="examenApercu" class="mt-2 p-2 border rounded" style="background: #f8f9fa; min-height: 40px;">
-                    <p class="text-muted mb-0" style="font-size: 13px;">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Cliquez sur "Renseigner / Modifier" pour saisir l'examen physique complet.
-                    </p>
-                </div>
-                
-                <!-- Champ caché pour stocker l'examen -->
-                <textarea name="examens_cliniques" id="examenPhysiqueCache" style="display:none;"></textarea>
-            </div>
-        </div>
-    </div>
-</div>
 
                 <!-- Diagnostic avec CIM-10 intégré -->
                 <div class="mb-3">
@@ -211,12 +211,103 @@
 
                 <hr>
 
-                <div class="mb-3">
-                    <label class="form-label">Traitement prescrit</label>
-                    <textarea name="traitement" class="form-control" rows="3"></textarea>
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- PRESCRIPTION MÉDICAMENTEUSE AVEC STOCK -->
+                <!-- ═══════════════════════════════════════════ -->
+                <h5 class="mt-3 mb-3">
+                    <i class="fas fa-prescription-bottle me-2 text-success"></i>
+                    Prescription médicamenteuse
+                    <span class="badge bg-success" id="medicamentCount">0</span>
+                </h5>
+                <hr>
+
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Recherche de médicaments :</strong>
+                            Tapez le nom du médicament pour voir le stock disponible.
+                            Si le médicament n'existe pas, vous pouvez l'ajouter manuellement.
+                        </div>
+                    </div>
+                    
+                    <!-- Recherche -->
+                    <div class="col-md-7 mb-3">
+                        <label class="form-label">Rechercher un médicament</label>
+                        <div class="input-group">
+                            <input type="text" id="medicamentSearch" class="form-control" 
+                                   placeholder="Tapez le nom du médicament..." autocomplete="off">
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearMedicamentSearch()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="medicamentResults" class="list-group mt-1" style="max-height: 200px; overflow-y: auto; display: none;"></div>
+                    </div>
+                    
+                    <!-- Ajout manuel -->
+                    <div class="col-md-5 mb-3">
+                        <label class="form-label">Ajouter manuellement</label>
+                        <div class="input-group">
+                            <input type="text" id="medicamentManual" class="form-control" 
+                                   placeholder="Nom du médicament non trouvé...">
+                            <button class="btn btn-primary" type="button" onclick="ajouterMedicamentManuel()">
+                                <i class="fas fa-plus"></i> Ajouter
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Quantité, dosage et posologie -->
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Quantité</label>
+                        <input type="number" id="medicamentQuantite" class="form-control" value="1" min="1">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Dosage</label>
+                        <input type="text" id="medicamentDosage" class="form-control" placeholder="Ex: 500mg">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Posologie</label>
+                        <input type="text" id="medicamentPosologie" class="form-control" placeholder="Ex: 2x/jour">
+                    </div>
+                    <div class="col-md-1 mb-3">
+                        <label class="form-label">Durée (jours)</label>
+                        <input type="number" id="medicamentDuree" class="form-control" value="7" min="1">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-success w-100" type="button" onclick="ajouterMedicamentAuPanier()">
+                            <i class="fas fa-plus me-1"></i> Ajouter
+                        </button>
+                    </div>
                 </div>
+
+                <!-- Liste des médicaments prescrits (panier) -->
+                <div class="table-responsive mt-3">
+                    <table class="table table-bordered" id="medicamentTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 23%">Médicament</th>
+                                <th style="width: 15%">Dosage</th>
+                                <th style="width: 10%">Quantité</th>
+                                <th style="width: 27%">Posologie</th>
+                                <th style="width: 10%">Durée (jours)</th>
+                                <th style="width: 15%">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="medicamentBody">
+                            <tr><td colspan="6" class="text-center text-muted">Aucun médicament prescrit</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <button class="btn btn-sm btn-danger mt-2" type="button" onclick="viderPanierMedicaments()">
+                    <i class="fas fa-trash-alt"></i> Vider le panier
+                </button>
+
+                <!-- Champ caché pour stocker les médicaments prescrits -->
+                <textarea name="medicaments_prescrits" id="medicamentsHidden" style="display:none;"></textarea>
                 
-                <div class="mb-3">
+                <!-- Notes -->
+                <div class="mt-3 mb-3">
                     <label class="form-label">Notes cliniques</label>
                     <textarea name="notes" class="form-control" rows="3"></textarea>
                 </div>
@@ -266,6 +357,7 @@
         </div>
     </div>
 </div>
+
 <!-- ==================== MODAL EXAMEN PHYSIQUE ==================== -->
 <div class="modal fade" id="examenPhysiqueModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
@@ -276,7 +368,7 @@
                     Examen Physique Complet
                 </h5>
                 <div>
-                    <button class="btn btn-sm btn-outline-primary me-2" onclick="basculerLangueExamenModal()">
+                    <button class="btn btn-sm btn-outline-primary me-2" type="button" onclick="basculerLangueExamenModal()">
                         <i class="fas fa-globe me-1"></i>
                         <span id="langueExamenModalBtn">🇫🇷 FR</span>
                     </button>
@@ -316,42 +408,28 @@
         </div>
     </div>
 </div>
+
 <script>
 // ==================== TOAST NOTIFICATION ====================
 function showToast(message, type = 'info') {
-    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
     
     const toast = document.createElement('div');
-    toast.className = `toast align-items-center text-white bg-${type} border-0`;
-    toast.setAttribute('role', 'alert');
-    toast.setAttribute('aria-live', 'assertive');
-    toast.setAttribute('aria-atomic', 'true');
-    
+    toast.className = `toast show bg-${type} text-white`;
     toast.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">
-                ${message}
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        <div class="toast-body d-flex justify-content-between align-items-center">
+            <span>${message}</span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" onclick="this.closest('.toast').remove()"></button>
         </div>
     `;
-    
     toastContainer.appendChild(toast);
-    const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
-    bsToast.show();
-    
-    toast.addEventListener('hidden.bs.toast', function() {
-        this.remove();
-    });
-}
-
-function createToastContainer() {
-    const container = document.createElement('div');
-    container.id = 'toastContainer';
-    container.className = 'position-fixed bottom-0 end-0 p-3';
-    container.style.zIndex = '9999';
-    document.body.appendChild(container);
-    return container;
+    setTimeout(() => toast.remove(), 4000);
 }
 
 // ==================== CHARGEMENT DES DONNÉES PATIENT ====================
@@ -488,48 +566,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ==================== INITIALISATION DES ANALYSES ====================
     initAnalyseSystem();
+    chargerMedicamentsDisponibles();
 });
 
 // ==================== SYSTÈME D'ANALYSES ====================
-// Stockage séparé pour biologie et imagerie
 let biologieItems = [];
 let imagerieItems = [];
 let biologieTimeout = null;
 let imagerieTimeout = null;
 
 function initAnalyseSystem() {
-    // Configuration de la biologie
-    setupAnalyseSearch(
-        'biologieSearch', 
-        'biologieResults', 
-        'biologieList', 
-        'biologieHidden', 
-        'biologie',
-        'success',
-        'biologieItems'
-    );
-    
-    // Configuration de l'imagerie
-    setupAnalyseSearch(
-        'imagerieSearch', 
-        'imagerieResults', 
-        'imagerieList', 
-        'imagerieHidden', 
-        'imagerie',
-        'warning',
-        'imagerieItems'
-    );
+    setupAnalyseSearch('biologieSearch', 'biologieResults', 'biologieList', 'biologieHidden', 'biologie', 'success');
+    setupAnalyseSearch('imagerieSearch', 'imagerieResults', 'imagerieList', 'imagerieHidden', 'imagerie', 'warning');
 }
 
 function creerItem(nom) {
-    return {
-        id: Date.now() + Math.random(),
-        nom: nom,
-        nomModifie: nom
-    };
+    return { id: Date.now() + Math.random(), nom: nom, nomModifie: nom };
 }
 
-function setupAnalyseSearch(searchInputId, resultsId, listId, hiddenId, type, color, itemsArrayName) {
+function setupAnalyseSearch(searchInputId, resultsId, listId, hiddenId, type, color) {
     const searchInput = document.getElementById(searchInputId);
     const resultsDiv = document.getElementById(resultsId);
     const listDiv = document.getElementById(listId);
@@ -537,21 +592,15 @@ function setupAnalyseSearch(searchInputId, resultsId, listId, hiddenId, type, co
     
     if (!searchInput) return;
     
-    // Fonction pour obtenir les items du bon tableau
     function getItems() {
         return type === 'biologie' ? biologieItems : imagerieItems;
     }
     
-    // Fonction pour définir les items du bon tableau
     function setItems(items) {
-        if (type === 'biologie') {
-            biologieItems = items;
-        } else {
-            imagerieItems = items;
-        }
+        if (type === 'biologie') biologieItems = items;
+        else imagerieItems = items;
     }
     
-    // Mettre à jour l'affichage
     function updateDisplay() {
         const items = getItems();
         listDiv.innerHTML = '';
@@ -559,29 +608,27 @@ function setupAnalyseSearch(searchInputId, resultsId, listId, hiddenId, type, co
             const div = document.createElement('div');
             div.className = `badge bg-${color} p-2 m-1 d-inline-flex align-items-center`;
             div.style.gap = '8px';
-            div.style.padding = '8px 14px';     // ⭐ PADDING AGRANDI
-            div.style.borderRadius = '8px';      // ⭐ BORDS ARRONDIS
+            div.style.padding = '8px 14px';
+            div.style.borderRadius = '8px';
             div.style.fontSize = '14px';
             
-            // Champ de texte pour modifier le libellé
             const input = document.createElement('input');
             input.type = 'text';
             input.className = 'form-control form-control-sm';
             input.style.width = 'auto';
-            input.style.minWidth = '180px';      // ⭐ LARGEUR MINIMALE
-            input.style.maxWidth = '400px';      // ⭐ LARGEUR MAXIMALE
+            input.style.minWidth = '180px';
+            input.style.maxWidth = '400px';
             input.style.display = 'inline-block';
             input.style.backgroundColor = 'rgba(255,255,255,0.15)';
             input.style.border = 'none';
             input.style.color = 'white';
             input.style.borderRadius = '4px';
-            input.style.padding = '6px 12px';    // ⭐ PADDING
-            input.style.fontSize = '14px';       // ⭐ POLICE
+            input.style.padding = '6px 12px';
+            input.style.fontSize = '14px';
             input.style.fontWeight = '500';
             input.value = item.nomModifie || item.nom;
             input.placeholder = item.nom;
             
-            // Agrandir au focus
             input.addEventListener('focus', function() {
                 this.style.minWidth = '280px';
                 this.style.backgroundColor = 'rgba(255,255,255,0.25)';
@@ -592,7 +639,6 @@ function setupAnalyseSearch(searchInputId, resultsId, listId, hiddenId, type, co
                 this.style.backgroundColor = 'rgba(255,255,255,0.15)';
             });
             
-            // Sauvegarder la modification
             input.addEventListener('change', function() {
                 const newValue = this.value.trim();
                 if (newValue) {
@@ -605,12 +651,9 @@ function setupAnalyseSearch(searchInputId, resultsId, listId, hiddenId, type, co
             });
             
             input.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    this.blur();
-                }
+                if (e.key === 'Enter') this.blur();
             });
             
-            // Bouton supprimer
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'btn-close btn-close-white';
             deleteBtn.style.fontSize = '0.7rem';
@@ -636,7 +679,17 @@ function setupAnalyseSearch(searchInputId, resultsId, listId, hiddenId, type, co
         hiddenField.value = valeurs.join('\n');
     }
     
-    // Fonction pour ajouter une analyse (accessible globalement)
+    function retirerAnalyse(id, type) {
+        let items = getItems();
+        const item = items.find(i => i.id === id);
+        items = items.filter(item => item.id !== id);
+        setItems(items);
+        updateDisplay();
+        if (item) showToast(`"${item.nomModifie || item.nom}" retiré de ${type}`, 'info');
+    }
+    window.retirerAnalyse = retirerAnalyse;
+    
+    // Fonction pour ajouter une analyse
     window['ajouterAnalyse' + type.charAt(0).toUpperCase() + type.slice(1)] = function() {
         const nom = searchInput.value.trim();
         if (!nom) {
@@ -660,19 +713,6 @@ function setupAnalyseSearch(searchInputId, resultsId, listId, hiddenId, type, co
         showToast(`"${nom}" ajouté à ${type}`, 'success');
     };
     
-    // Fonction pour retirer une analyse
-    function retirerAnalyse(id, type) {
-        let items = getItems();
-        const item = items.find(i => i.id === id);
-        items = items.filter(item => item.id !== id);
-        setItems(items);
-        updateDisplay();
-        if (item) {
-            showToast(`"${item.nomModifie || item.nom}" retiré de ${type}`, 'info');
-        }
-    }
-    window.retirerAnalyse = retirerAnalyse;
-    
     // Recherche en temps réel
     searchInput.addEventListener('input', function() {
         clearTimeout(type === 'biologie' ? biologieTimeout : imagerieTimeout);
@@ -692,10 +732,7 @@ function setupAnalyseSearch(searchInputId, resultsId, listId, hiddenId, type, co
                     if (data.length === 0) {
                         resultsDiv.innerHTML = `
                             <div class="list-group-item text-muted">
-                                Aucune analyse trouvée. 
-                                <button class="btn btn-sm btn-primary" onclick="ajouterNouvelleAnalyse('${term}', '${type}')">
-                                    <i class="fas fa-plus"></i> Ajouter "${term}"
-                                </button>
+                                Aucune analyse trouvée.
                             </div>
                         `;
                         resultsDiv.style.display = 'block';
@@ -754,11 +791,9 @@ function ajouterNouvelleAnalyseManuelle(type) {
         return;
     }
     
-    // Ajouter directement
     const newItem = creerItem(nom);
     items.push(newItem);
     
-    // Mettre à jour l'affichage
     if (type === 'biologie') {
         biologieItems = items;
         updateDisplayBiologie();
@@ -771,7 +806,6 @@ function ajouterNouvelleAnalyseManuelle(type) {
     showToast(`"${nom}" ajouté à ${type}`, 'success');
 }
 
-// Fonctions pour mettre à jour les affichages
 function updateDisplayBiologie() {
     const listDiv = document.getElementById('biologieList');
     const hiddenField = document.getElementById('biologieHidden');
@@ -790,28 +824,27 @@ function updateDisplayGeneric(listDiv, hiddenField, items, color) {
         const div = document.createElement('div');
         div.className = `badge bg-${color} p-2 m-1 d-inline-flex align-items-center`;
         div.style.gap = '8px';
-        div.style.padding = '8px 12px';  // ⭐ PLUS DE PADDING
-        div.style.borderRadius = '8px';   // ⭐ BORDS PLUS ARRONDIS
+        div.style.padding = '8px 14px';
+        div.style.borderRadius = '8px';
+        div.style.fontSize = '14px';
         
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'form-control form-control-sm';
         input.style.width = 'auto';
-        input.style.minWidth = '180px';   // ⭐ LARGEUR MINIMALE
-        input.style.maxWidth = '400px';   // ⭐ LARGEUR MAXIMALE
+        input.style.minWidth = '180px';
+        input.style.maxWidth = '400px';
         input.style.display = 'inline-block';
         input.style.backgroundColor = 'rgba(255,255,255,0.15)';
         input.style.border = 'none';
         input.style.color = 'white';
         input.style.borderRadius = '4px';
-        input.style.padding = '6px 10px';  // ⭐ PLUS DE PADDING
-        input.style.fontSize = '14px';     // ⭐ POLICE PLUS GRANDE
-        input.style.fontWeight = '500';    // ⭐ GRAS
+        input.style.padding = '6px 12px';
+        input.style.fontSize = '14px';
+        input.style.fontWeight = '500';
         input.value = item.nomModifie || item.nom;
         input.placeholder = item.nom;
-        input.spellcheck = true;
         
-        // Agrandir au focus
         input.addEventListener('focus', function() {
             this.style.minWidth = '280px';
             this.style.backgroundColor = 'rgba(255,255,255,0.25)';
@@ -834,9 +867,7 @@ function updateDisplayGeneric(listDiv, hiddenField, items, color) {
         });
         
         input.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                this.blur();
-            }
+            if (e.key === 'Enter') this.blur();
         });
         
         const deleteBtn = document.createElement('button');
@@ -859,57 +890,10 @@ function updateDisplayGeneric(listDiv, hiddenField, items, color) {
     });
     updateHiddenFieldGeneric(hiddenField, items);
 }
+
 function updateHiddenFieldGeneric(hiddenField, items) {
     const valeurs = items.map(item => item.nomModifie || item.nom);
     hiddenField.value = valeurs.join('\n');
-}
-
-// Ajouter une nouvelle analyse (si elle n'existe pas dans la base)
-function ajouterNouvelleAnalyse(nom, type) {
-    const items = type === 'biologie' ? biologieItems : imagerieItems;
-    const existe = items.some(item => item.nom === nom || item.nomModifie === nom);
-    if (existe) {
-        showToast(`"${nom}" déjà ajouté`, 'warning');
-        return;
-    }
-    
-    fetch('/api/analyses/ajouter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nom: nom })
-    })
-    .then(response => response.json())
-    .then(data => {
-        const newItem = creerItem(nom);
-        items.push(newItem);
-        if (type === 'biologie') {
-            biologieItems = items;
-            updateDisplayBiologie();
-        } else {
-            imagerieItems = items;
-            updateDisplayImagerie();
-        }
-        showToast(`"${nom}" ajouté au référentiel`, 'success');
-        // Fermer les résultats
-        const resultsId = type === 'biologie' ? 'biologieResults' : 'imagerieResults';
-        document.getElementById(resultsId).style.display = 'none';
-        document.getElementById(resultsId).innerHTML = '';
-    })
-    .catch(error => {
-        const newItem = creerItem(nom);
-        items.push(newItem);
-        if (type === 'biologie') {
-            biologieItems = items;
-            updateDisplayBiologie();
-        } else {
-            imagerieItems = items;
-            updateDisplayImagerie();
-        }
-        showToast(`"${nom}" ajouté localement`, 'success');
-        const resultsId = type === 'biologie' ? 'biologieResults' : 'imagerieResults';
-        document.getElementById(resultsId).style.display = 'none';
-        document.getElementById(resultsId).innerHTML = '';
-    });
 }
 
 // ==================== CIM-10 ====================
@@ -1011,13 +995,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
 // ==================== EXAMEN PHYSIQUE ====================
 let examenLangue = 'fr';
 let examenSections = [];
 let examenModifications = {};
 let examenModal = null;
 
-// ==================== CHARGEMENT ====================
 async function chargerExamenPhysique() {
     const container = document.getElementById('examenModalContainer');
     if (!container) return;
@@ -1040,7 +1024,6 @@ async function chargerExamenPhysique() {
     }
 }
 
-// ==================== AFFICHER LE MODAL ====================
 function afficherExamenModal() {
     const container = document.getElementById('examenModalContainer');
     if (!container) return;
@@ -1079,7 +1062,6 @@ function afficherExamenModal() {
     mettreAJourApercu();
 }
 
-// ==================== MODIFIER UNE SECTION ====================
 function modifierSectionExamenModal(index) {
     const section = examenSections[index];
     const texteActuel = examenModifications[index] !== undefined ? examenModifications[index] : section.texte;
@@ -1100,7 +1082,6 @@ function modifierSectionExamenModal(index) {
     afficherExamenModal();
 }
 
-// ==================== RÉINITIALISER UNE SECTION ====================
 function resetSectionExamenModal(index) {
     if (confirm(`Revenir au texte original pour "${examenSections[index].nom}" ?`)) {
         delete examenModifications[index];
@@ -1108,7 +1089,6 @@ function resetSectionExamenModal(index) {
     }
 }
 
-// ==================== RÉINITIALISER TOUT ====================
 function reinitialiserToutExamenModal() {
     if (confirm('Réinitialiser toutes les sections ?')) {
         examenModifications = {};
@@ -1116,7 +1096,6 @@ function reinitialiserToutExamenModal() {
     }
 }
 
-// ==================== AJOUTER UN APPAREIL ====================
 function ajouterAppareilExamenModal() {
     const nom = prompt('Nom de l\'appareil / section :');
     if (!nom) return;
@@ -1134,14 +1113,12 @@ function ajouterAppareilExamenModal() {
     afficherExamenModal();
 }
 
-// ==================== CHANGER DE LANGUE ====================
 function basculerLangueExamenModal() {
     examenLangue = examenLangue === 'fr' ? 'en' : 'fr';
     document.getElementById('langueExamenModalBtn').textContent = examenLangue === 'fr' ? '🇫🇷 FR' : '🇬🇧 EN';
     chargerExamenPhysique();
 }
 
-// ==================== METTRE À JOUR L'APERÇU ====================
 function mettreAJourApercu() {
     const apercu = document.getElementById('examenApercu');
     const cache = document.getElementById('examenPhysiqueCache');
@@ -1159,7 +1136,6 @@ function mettreAJourApercu() {
     
     cache.value = resume.trim();
     
-    // Mettre à jour l'aperçu
     const texteCourt = resume.split('\n').filter(line => line.trim() && !line.startsWith('---')).join(' ').substring(0, 150);
     if (texteCourt) {
         apercu.innerHTML = `
@@ -1182,7 +1158,6 @@ function mettreAJourApercu() {
     }
 }
 
-// ==================== OUVRIR LE MODAL ====================
 function ouvrirExamenPhysique() {
     if (!examenModal) {
         examenModal = new bootstrap.Modal(document.getElementById('examenPhysiqueModal'));
@@ -1191,11 +1166,9 @@ function ouvrirExamenPhysique() {
     examenModal.show();
 }
 
-// ==================== ENREGISTRER L'EXAMEN ====================
 function enregistrerExamenModal() {
     mettreAJourApercu();
     examenModal.hide();
-    // Mettre à jour le statut
     const statut = document.getElementById('examenStatut');
     const nbModifications = Object.keys(examenModifications).length;
     if (nbModifications > 0 || document.getElementById('examenPhysiqueCache').value.trim()) {
@@ -1205,30 +1178,418 @@ function enregistrerExamenModal() {
     showToast('✅ Examen physique enregistré', 'success');
 }
 
-// ==================== TOAST ====================
-function showToast(message, type = 'success') {
-    const toastContainer = document.querySelector('.toast-container') || (() => {
-        const container = document.createElement('div');
-        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-        document.body.appendChild(container);
-        return container;
-    })();
+// ==================== GESTION DES MÉDICAMENTS ====================
+let medicamentsPrescrits = [];
+let medicamentsDisponibles = [];
+let medicamentTimeout = null;
+
+// Charger la liste des médicaments disponibles
+function chargerMedicamentsDisponibles() {
+    fetch('/api/medicamentos/disponibles')
+        .then(response => response.json())
+        .then(data => {
+            medicamentsDisponibles = data;
+            console.log(`✅ ${data.length} médicaments disponibles chargés`);
+        })
+        .catch(error => console.error('Erreur chargement médicaments:', error));
+}
+
+// Recherche dynamique des médicaments
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('medicamentSearch');
+    const resultsDiv = document.getElementById('medicamentResults');
     
-    const toast = document.createElement('div');
-    toast.className = `toast show bg-${type} text-white`;
-    toast.innerHTML = `
-        <div class="toast-body">
-            ${message}
-            <button type="button" class="btn-close btn-close-white float-end" data-bs-dismiss="toast"></button>
-        </div>
-    `;
-    toastContainer.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
+    if (!searchInput) return;
+    
+    searchInput.addEventListener('input', function() {
+        clearTimeout(medicamentTimeout);
+        const term = this.value.trim().toLowerCase();
+        
+        if (term.length < 2) {
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+            return;
+        }
+        
+        resultsDiv.innerHTML = `
+            <div class="list-group-item text-muted text-center">
+                <i class="fas fa-spinner fa-spin me-2"></i>
+                Recherche en cours...
+            </div>
+        `;
+        resultsDiv.style.display = 'block';
+        
+        medicamentTimeout = setTimeout(() => {
+            const results = medicamentsDisponibles.filter(m => 
+                m.nom.toLowerCase().includes(term)
+            );
+            
+            resultsDiv.innerHTML = '';
+            if (results.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="list-group-item text-muted">
+                        Aucun médicament trouvé. 
+                        <span class="text-primary" style="cursor:pointer;" onclick="ajouterMedicamentManuel()">
+                            <i class="fas fa-plus"></i> Ajouter "${term}"
+                        </span>
+                    </div>
+                `;
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            results.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'list-group-item list-group-item-action';
+                
+                let stockStatus = '';
+                if (m.quantite_stock === 0) {
+                    stockStatus = '<span class="badge bg-danger">Rupture de stock</span>';
+                } else if (m.quantite_stock < 5) {
+                    stockStatus = `<span class="badge bg-warning">Stock: ${m.quantite_stock}</span>`;
+                } else {
+                    stockStatus = `<span class="badge bg-success">Stock: ${m.quantite_stock}</span>`;
+                }
+                
+                div.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${m.nom}</strong>
+                            ${m.dosage ? `<br><small class="text-muted">${m.dosage}</small>` : ''}
+                        </div>
+                        <div>
+                            ${stockStatus}
+                            <button type="button" class="btn btn-sm btn-success ms-2" onclick="selectionnerMedicament(${m.id})">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                div.onclick = function() {
+                    selectionnerMedicament(m.id);
+                };
+                resultsDiv.appendChild(div);
+            });
+            resultsDiv.style.display = 'block';
+        }, 300);
+    });
+    
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#medicamentSearch') && !e.target.closest('#medicamentResults')) {
+            resultsDiv.style.display = 'none';
+        }
+    });
+});
+
+function clearMedicamentSearch() {
+    document.getElementById('medicamentSearch').value = '';
+    document.getElementById('medicamentSearch').dataset.selectedId = '';
+    document.getElementById('medicamentResults').style.display = 'none';
+    document.getElementById('medicamentResults').innerHTML = '';
+}
+
+function selectionnerMedicament(id) {
+    const medicament = medicamentsDisponibles.find(m => m.id === id);
+    if (!medicament) return;
+    
+    if (medicament.quantite_stock === 0) {
+        showToast(`❌ ${medicament.nom} est en rupture de stock`, 'danger');
+        return;
+    }
+    
+    document.getElementById('medicamentSearch').value = medicament.nom;
+    document.getElementById('medicamentSearch').dataset.selectedId = medicament.id;
+    document.getElementById('medicamentQuantite').value = 1;
+    if (medicament.dosage) {
+        document.getElementById('medicamentDosage').value = medicament.dosage;
+    }
+    document.getElementById('medicamentResults').style.display = 'none';
+    document.getElementById('medicamentResults').innerHTML = '';
+    
+    showToast(`✅ ${medicament.nom} sélectionné (stock: ${medicament.quantite_stock})`, 'success');
+}
+
+function ajouterMedicamentAuPanier() {
+    const searchInput = document.getElementById('medicamentSearch');
+    const nom = searchInput.value.trim();
+    const id = searchInput.dataset.selectedId;
+    const quantite = parseInt(document.getElementById('medicamentQuantite').value) || 1;
+    const posologie = document.getElementById('medicamentPosologie').value.trim() || 'À définir';
+    const dosage = document.getElementById('medicamentDosage').value.trim() || '';
+    const duree = parseInt(document.getElementById('medicamentDuree').value) || 7;
+    
+    if (!nom) {
+        showToast('Veuillez sélectionner un médicament', 'warning');
+        return;
+    }
+    
+    const medicament = medicamentsDisponibles.find(m => m.id == id || m.nom === nom);
+    let stock = 0;
+    if (medicament) {
+        stock = medicament.quantite_stock || 0;
+        if (stock < quantite) {
+            showToast(`⚠️ Stock insuffisant ! ${stock} disponibles`, 'danger');
+            return;
+        }
+    }
+    
+    const existant = medicamentsPrescrits.find(m => m.nom === nom && m.dosage === dosage);
+    if (existant) {
+        const nouvelleQuantite = existant.quantite + quantite;
+        if (existant.stock !== null && nouvelleQuantite > existant.stock) {
+            showToast(`⚠️ Stock insuffisant ! ${existant.stock} disponibles`, 'danger');
+            return;
+        }
+        existant.quantite = nouvelleQuantite;
+        if (posologie) existant.posologie = posologie;
+        if (duree) existant.duree = duree;
+    } else {
+        medicamentsPrescrits.push({
+            nom: nom,
+            id: id,
+            quantite: quantite,
+            posologie: posologie,
+            dosage: dosage,
+            duree: duree,
+            stock: stock
+        });
+    }
+    
+    afficherPanierMedicaments();
+    
+    document.getElementById('medicamentSearch').value = '';
+    document.getElementById('medicamentSearch').dataset.selectedId = '';
+    document.getElementById('medicamentQuantite').value = '1';
+    document.getElementById('medicamentPosologie').value = '';
+    document.getElementById('medicamentDosage').value = '';
+    document.getElementById('medicamentDuree').value = '7';
+    document.getElementById('medicamentResults').style.display = 'none';
+    
+    showToast(`✅ "${nom}" ajouté au panier (${quantite})`, 'success');
+}
+
+function ajouterMedicamentManuel() {
+    const input = document.getElementById('medicamentManual');
+    const nom = input.value.trim() || document.getElementById('medicamentSearch').value.trim();
+    
+    if (!nom) {
+        showToast('Veuillez saisir un nom de médicament', 'warning');
+        return;
+    }
+    
+    const existant = medicamentsDisponibles.find(m => m.nom.toLowerCase() === nom.toLowerCase());
+    
+    if (existant) {
+        selectionnerMedicament(existant.id);
+        document.getElementById('medicamentManual').value = '';
+        return;
+    }
+    
+    const quantite = parseInt(document.getElementById('medicamentQuantite').value) || 1;
+    const posologie = document.getElementById('medicamentPosologie').value.trim() || 'À définir';
+    const dosage = document.getElementById('medicamentDosage').value.trim() || '';
+    const duree = parseInt(document.getElementById('medicamentDuree').value) || 7;
+    
+    if (!confirm(`⚠️ "${nom}" n'existe pas dans la base.\n\nVoulez-vous l'ajouter manuellement ?\n(Le stock ne sera pas vérifié)`)) {
+        return;
+    }
+    
+    medicamentsPrescrits.push({
+        nom: nom,
+        id: null,
+        quantite: quantite,
+        posologie: posologie,
+        dosage: dosage,
+        duree: duree,
+        stock: null
+    });
+    
+    afficherPanierMedicaments();
+    document.getElementById('medicamentManual').value = '';
+    document.getElementById('medicamentSearch').value = '';
+    document.getElementById('medicamentQuantite').value = '1';
+    document.getElementById('medicamentPosologie').value = '';
+    document.getElementById('medicamentDosage').value = '';
+    document.getElementById('medicamentDuree').value = '7';
+    
+    showToast(`✅ "${nom}" ajouté manuellement (stock non vérifié)`, 'info');
+}
+
+function afficherPanierMedicaments() {
+    const tbody = document.getElementById('medicamentBody');
+    const count = document.getElementById('medicamentCount');
+    const hidden = document.getElementById('medicamentsHidden');
+    
+    const data = medicamentsPrescrits.map(item => ({
+        nom: item.nom,
+        quantite: item.quantite,
+        posologie: item.posologie,
+        dosage: item.dosage || '',
+        duree: item.duree || 7
+    }));
+    if (hidden) hidden.value = JSON.stringify(data);
+    
+    if (medicamentsPrescrits.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Aucun médicament prescrit</td></tr>';
+        if (count) count.textContent = '0';
+        return;
+    }
+    
+    let html = '';
+    medicamentsPrescrits.forEach((item, index) => {
+        html += `
+            <tr>
+                <td>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" value="${item.nom}" 
+                               onchange="modifierNomMedicament(${index}, this.value)">
+                        <button type="button" class="btn btn-outline-secondary" onclick="modifierNomMedicament(${index})">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm" value="${item.dosage || ''}" 
+                           placeholder="Dosage" onchange="modifierDosageMedicament(${index}, this.value)">
+                </td>
+                <td>
+                    <div class="input-group input-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" onclick="modifierQuantiteMedicament(${index}, -1)">-</button>
+                        <input type="number" class="form-control text-center" value="${item.quantite}" 
+                               style="width: 60px;" min="1" 
+                               onchange="modifierQuantiteMedicament(${index}, 0, this.value)">
+                        <button type="button" class="btn btn-outline-secondary" onclick="modifierQuantiteMedicament(${index}, 1)">+</button>
+                    </div>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm" value="${item.posologie}" 
+                           placeholder="Posologie" onchange="modifierPosologieMedicament(${index}, this.value)">
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm text-center" value="${item.duree || 7}" 
+                           min="1" onchange="modifierDureeMedicament(${index}, this.value)">
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="supprimerMedicamentPanier(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    if (count) count.textContent = medicamentsPrescrits.length;
+}
+
+function modifierNomMedicament(index, nouvelleValeur) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    
+    if (nouvelleValeur !== undefined) {
+        item.nom = nouvelleValeur.trim() || item.nom;
+        afficherPanierMedicaments();
+        return;
+    }
+    
+    const nouveauNom = prompt('Modifier le nom du médicament :', item.nom);
+    if (nouveauNom && nouveauNom.trim() !== '') {
+        item.nom = nouveauNom.trim();
+        afficherPanierMedicaments();
+        showToast(`✅ Nom modifié: "${item.nom}"`, 'success');
+    }
+}
+
+function modifierQuantiteMedicament(index, delta, nouvelleValeur) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    
+    let qte = nouvelleValeur !== undefined ? parseInt(nouvelleValeur) : item.quantite + delta;
+    if (isNaN(qte) || qte < 1) qte = 1;
+    
+    if (item.stock !== null && qte > item.stock) {
+        showToast(`⚠️ Stock insuffisant ! ${item.stock} disponibles`, 'danger');
+        return;
+    }
+    
+    item.quantite = qte;
+    afficherPanierMedicaments();
+}
+
+function modifierPosologieMedicament(index, value) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    item.posologie = value || 'À définir';
+}
+
+function modifierDosageMedicament(index, value) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    item.dosage = value || '';
+    afficherPanierMedicaments();
+}
+
+function modifierDureeMedicament(index, value) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    const duree = parseInt(value);
+    if (!isNaN(duree) && duree > 0) {
+        item.duree = duree;
+        afficherPanierMedicaments();
+    }
+}
+
+function supprimerMedicamentPanier(index) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    if (confirm(`Retirer "${item.nom}" du panier ?`)) {
+        medicamentsPrescrits.splice(index, 1);
+        afficherPanierMedicaments();
+        showToast(`✅ "${item.nom}" retiré du panier`, 'info');
+    }
+}
+
+function viderPanierMedicaments() {
+    if (medicamentsPrescrits.length === 0) return;
+    if (confirm('Vider tous les médicaments prescrits ?')) {
+        medicamentsPrescrits = [];
+        afficherPanierMedicaments();
+        showToast('🗑️ Panier vidé', 'info');
+    }
+}
+
+// ==================== VALIDATION DU FORMULAIRE ====================
+function validerFormulaire() {
+    const motif = document.querySelector('textarea[name="motif"]');
+    if (!motif || !motif.value.trim()) {
+        showToast('⚠️ Veuillez saisir le motif de la consultation', 'warning');
+        motif.focus();
+        return false;
+    }
+    
+    const hidden = document.getElementById('medicamentsHidden');
+    if (hidden && medicamentsPrescrits.length > 0) {
+        hidden.value = JSON.stringify(medicamentsPrescrits);
+    }
+    
+    return true;
 }
 </script>
 
 <style>
-/* Styles pour les badges d'analyses modifiables */
+.toast-container {
+    z-index: 9999;
+}
+.list-group-item-action {
+    cursor: pointer;
+}
+.list-group-item-action:hover {
+    background-color: #f8f9fa;
+}
+#patientResults, #medicamentResults {
+    position: relative;
+    z-index: 1000;
+}
 .badge input.form-control {
     background-color: rgba(255,255,255,0.2);
     border: none;
@@ -1236,30 +1597,26 @@ function showToast(message, type = 'success') {
     padding: 4px 10px;
     height: auto;
     min-height: 32px;
-    min-width: 150px;  /* ⭐ LARGEUR MINIMALE AGRANDIE */
-    max-width: 350px;   /* ⭐ LARGEUR MAXIMALE AGRANDIE */
-    font-size: 14px;    /* ⭐ TAILLE DE POLICE AGRANDIE */
+    min-width: 150px;
+    max-width: 350px;
+    font-size: 14px;
     transition: background-color 0.2s, min-width 0.3s;
 }
-
 .badge input.form-control:hover {
     background-color: rgba(255,255,255,0.3);
-    min-width: 180px;   /* ⭐ S'AGRANDIT AU SURVOL */
+    min-width: 180px;
 }
-
 .badge input.form-control:focus {
     outline: none;
     box-shadow: 0 0 0 2px rgba(255,255,255,0.5);
     background-color: rgba(255,255,255,0.3);
     border-radius: 4px;
-    min-width: 250px;   /* ⭐ S'AGRANDIT ENCORE AU FOCUS */
+    min-width: 250px;
 }
-
 .badge input.form-control::placeholder {
     color: rgba(255,255,255,0.7);
     font-size: 13px;
 }
-
 .badge {
     display: inline-flex;
     align-items: center;
@@ -1269,7 +1626,6 @@ function showToast(message, type = 'success') {
     font-size: 14px;
     border-radius: 6px;
 }
-
 .badge .btn-close {
     font-size: 0.7rem;
     padding: 4px;
@@ -1277,12 +1633,10 @@ function showToast(message, type = 'success') {
     min-width: 20px;
     min-height: 20px;
 }
-
 .badge .btn-close:hover {
     opacity: 1;
 }
 </style>
 
-<!-- Inclure Bootstrap JS pour les toasts -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

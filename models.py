@@ -69,6 +69,9 @@ class Prescription(db.Model):
     id_patient = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     id_consultation = db.Column(db.Integer, db.ForeignKey('consultations.id'))
     id_medecin = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))
+    
+    type_prescription = db.Column(db.String(20), default='medicament')  # 'medicament' ou 'acte
+    # Détails du médicament
     medicament = db.Column(db.String(100), nullable=False)
     dosage = db.Column(db.String(50))
     forme = db.Column(db.String(50))
@@ -76,14 +79,29 @@ class Prescription(db.Model):
     duree_jours = db.Column(db.Integer)
     frequence = db.Column(db.String(100))
     instructions = db.Column(db.Text)
+    # Renouvellement
     renouvelable = db.Column(db.Boolean, default=False)
     nombre_renouvellements = db.Column(db.Integer, default=0)
+    
+    # Suivi
     prescripteur = db.Column(db.String(100))
     statut = db.Column(db.String(50), default='active')
     date_debut = db.Column(db.Date)
     date_fin = db.Column(db.Date)
     date_prescription = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)
+    
+    # ⭐ Champs pour la synchronisation
+    source_id = db.Column(db.String(50), nullable=True)
+    source_medicament_id = db.Column(db.Integer, nullable=True)
+    stock_disponible = db.Column(db.Integer, nullable=True)
+    synced_at = db.Column(db.DateTime, nullable=True)
+    synced_from = db.Column(db.String(20), default='consultation')
+    
+    # ⭐ Relations avec des noms UNIQUES
+    patient = db.relationship('Patient', foreign_keys=[id_patient], backref='prescriptions_list')
+    consultation = db.relationship('Consultation', foreign_keys=[id_consultation], backref='prescriptions_consultation_list')
+    medecin = db.relationship('Utilisateur', foreign_keys=[id_medecin], backref='prescriptions_redigees')
 
 
 # ==================== CONSULTATIONS (AVANT PATIENT) ====================
@@ -98,7 +116,7 @@ class Consultation(db.Model):
     type_consultation = db.Column(db.String(20))
     motif = db.Column(db.String(200))
     symptomes = db.Column(db.Text)
-    
+    type_prescription = db.Column(db.String(20), default='acte')
     # Constantes vitales
     temperature_c = db.Column(db.Float)
     tension_arterielle = db.Column(db.String(20))
@@ -147,7 +165,6 @@ class Consultation(db.Model):
     created_by = db.Column(db.Integer)
     
     # Relations
-    prescriptions = db.relationship('Prescription', backref='consultation', lazy=True)
     consultation_precedente = db.relationship('Consultation', remote_side=[id])
 
 
@@ -245,7 +262,6 @@ class Patient(db.Model):
     
     # Relations
     consultations = db.relationship('Consultation', backref='patient', lazy=True, cascade='all, delete-orphan')
-    prescriptions = db.relationship('Prescription', backref='patient', lazy=True)
     medecin_referent = db.relationship('Utilisateur', foreign_keys=[id_medecin_referent], backref='patients_suivis')
 
 class StructureMapping(db.Model):

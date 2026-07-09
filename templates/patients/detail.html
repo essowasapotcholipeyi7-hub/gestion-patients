@@ -648,6 +648,7 @@
                                         <th>Date</th>
                                         <th>Médicament</th>
                                         <th>Dosage</th>
+                                        <th>Posologie</th>  <!-- ⭐ NOUVEAU -->
                                         <th>Durée</th>
                                         <th>Instructions</th>
                                         <th>Statut</th>
@@ -659,6 +660,7 @@
                                         <td>{{ prescription.date_prescription.strftime('%d/%m/%Y') if prescription.date_prescription else '-' }}</td>
                                         <td><strong>{{ prescription.medicament or '-' }}</strong></td>
                                         <td>{{ prescription.dosage or '-' }}</td>
+                                        <td>{{ prescription.frequence or '-' }}</td>  <!-- ⭐ NOUVEAU -->
                                         <td>{{ prescription.duree_jours or '-' }} jours</td>
                                         <td>{{ prescription.instructions or '-' }}</td>
                                         <td>

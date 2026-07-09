@@ -233,10 +233,102 @@
 
                 <hr>
 
-                <div class="mb-3">
-                    <label class="form-label">Traitement prescrit</label>
-                    <textarea name="traitement" class="form-control" rows="2"></textarea>
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- PRESCRIPTION MÉDICAMENTEUSE AVEC STOCK -->
+                <!-- ═══════════════════════════════════════════ -->
+                <h5 class="mt-3 mb-3">
+                    <i class="fas fa-prescription-bottle me-2 text-success"></i>
+                    Prescription médicamenteuse
+                    <span class="badge bg-success" id="medicamentCount">0</span>
+                </h5>
+                <hr>
+
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Recherche de médicaments :</strong>
+                            Tapez le nom du médicament pour voir le stock disponible.
+                            Si le médicament n'existe pas, vous pouvez l'ajouter manuellement.
+                        </div>
+                    </div>
+                    
+                    <!-- Recherche -->
+                    <div class="col-md-7 mb-3">
+                        <label class="form-label">Rechercher un médicament</label>
+                        <div class="input-group">
+                            <input type="text" id="medicamentSearch" class="form-control" 
+                                   placeholder="Tapez le nom du médicament..." autocomplete="off">
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearMedicamentSearch()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="medicamentResults" class="list-group mt-1" style="max-height: 200px; overflow-y: auto; display: none;"></div>
+                    </div>
+                    
+                    <!-- Ajout manuel -->
+                    <div class="col-md-5 mb-3">
+                        <label class="form-label">Ajouter manuellement</label>
+                        <div class="input-group">
+                            <input type="text" id="medicamentManual" class="form-control" 
+                                   placeholder="Nom du médicament non trouvé...">
+                            <button class="btn btn-primary" type="button" onclick="ajouterMedicamentManuel()">
+                                <i class="fas fa-plus"></i> Ajouter
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Quantité, dosage et posologie -->
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Quantité</label>
+                        <input type="number" id="medicamentQuantite" class="form-control" value="1" min="1">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Dosage</label>
+                        <input type="text" id="medicamentDosage" class="form-control" placeholder="Ex: 500mg">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Posologie</label>
+                        <input type="text" id="medicamentPosologie" class="form-control" placeholder="Ex: 2x/jour">
+                    </div>
+                    <div class="col-md-1 mb-3">
+                        <label class="form-label">Durée (jours)</label>
+                        <input type="number" id="medicamentDuree" class="form-control" value="7" min="1">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-success w-100" type="button" onclick="ajouterMedicamentAuPanier()">
+                            <i class="fas fa-plus me-1"></i> Ajouter
+                        </button>
+                    </div>
                 </div>
+
+                <!-- Liste des médicaments prescrits (panier) -->
+                <div class="table-responsive mt-3">
+                    <table class="table table-bordered" id="medicamentTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 23%">Médicament</th>
+                                <th style="width: 15%">Dosage</th>
+                                <th style="width: 10%">Quantité</th>
+                                <th style="width: 27%">Posologie</th>
+                                <th style="width: 10%">Durée (jours)</th>
+                                <th style="width: 15%">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="medicamentBody">
+                            <tr><td colspan="6" class="text-center text-muted">Aucun médicament prescrit</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <button class="btn btn-sm btn-danger mt-2" type="button" onclick="viderPanierMedicaments()">
+                    <i class="fas fa-trash-alt"></i> Vider le panier
+                </button>
+
+                <!-- Champ caché pour stocker les médicaments prescrits -->
+                <textarea name="medicaments_prescrits" id="medicamentsHidden" style="display:none;"></textarea>
+                
+
 
                 <div class="mb-3">
                     <label class="form-label">Notes cliniques</label>
@@ -1523,6 +1615,417 @@ function showToast(message, type = 'success') {
     toastContainer.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
 }
+
+// ==================== GESTION DES MÉDICAMENTS ====================
+let medicamentsPrescrits = [];
+let medicamentsDisponibles = [];
+let medicamentTimeout = null;
+
+// Charger la liste des médicaments disponibles
+function chargerMedicamentsDisponibles() {
+    fetch('/api/medicamentos/disponibles')
+        .then(response => response.json())
+        .then(data => {
+            medicamentsDisponibles = data;
+            console.log(`✅ ${data.length} médicaments disponibles chargés`);
+        })
+        .catch(error => console.error('Erreur chargement médicaments:', error));
+}
+
+// Recherche dynamique des médicaments
+document.addEventListener('DOMContentLoaded', function() {
+    // Charger les médicaments
+    chargerMedicamentsDisponibles();
+    
+    const searchInput = document.getElementById('medicamentSearch');
+    const resultsDiv = document.getElementById('medicamentResults');
+    
+    if (!searchInput) return;
+    
+    searchInput.addEventListener('input', function() {
+        clearTimeout(medicamentTimeout);
+        const term = this.value.trim().toLowerCase();
+        
+        if (term.length < 2) {
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+            return;
+        }
+        
+        medicamentTimeout = setTimeout(() => {
+            // Filtrer les médicaments par nom
+            const results = medicamentsDisponibles.filter(m => 
+                m.nom.toLowerCase().includes(term)
+            );
+            
+            resultsDiv.innerHTML = '';
+            if (results.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="list-group-item text-muted">
+                        Aucun médicament trouvé. 
+                        <span class="text-primary" style="cursor:pointer;" onclick="ajouterMedicamentManuel()">
+                            <i class="fas fa-plus"></i> Ajouter "${term}"
+                        </span>
+                    </div>
+                `;
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            results.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'list-group-item list-group-item-action';
+                
+                // Afficher le stock
+                let stockStatus = '';
+                if (m.quantite_stock === 0) {
+                    stockStatus = '<span class="badge bg-danger">Rupture de stock</span>';
+                } else if (m.quantite_stock < 5) {
+                    stockStatus = `<span class="badge bg-warning">Stock: ${m.quantite_stock}</span>`;
+                } else {
+                    stockStatus = `<span class="badge bg-success">Stock: ${m.quantite_stock}</span>`;
+                }
+                
+                div.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${m.nom}</strong>
+                        </div>
+                        <div>
+                            ${stockStatus}
+                            <button class="btn btn-sm btn-success ms-2" onclick="selectionnerMedicament(${m.id})">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                div.onclick = function() {
+                    selectionnerMedicament(m.id);
+                };
+                resultsDiv.appendChild(div);
+            });
+            resultsDiv.style.display = 'block';
+        }, 300);
+    });
+    
+    // Fermer les résultats en cliquant ailleurs
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#medicamentSearch') && !e.target.closest('#medicamentResults')) {
+            resultsDiv.style.display = 'none';
+        }
+    });
+});
+
+// Sélectionner un médicament
+function selectionnerMedicament(id) {
+    const medicament = medicamentsDisponibles.find(m => m.id === id);
+    if (!medicament) return;
+    
+    // Vérifier le stock
+    if (medicament.quantite_stock === 0) {
+        showToast(`❌ ${medicament.nom} est en rupture de stock`, 'danger');
+        return;
+    }
+    
+    // Pré-remplir le champ de recherche
+    document.getElementById('medicamentSearch').value = medicament.nom;
+    document.getElementById('medicamentResults').style.display = 'none';
+    document.getElementById('medicamentResults').innerHTML = '';
+    
+    // Mettre la quantité à 1
+    document.getElementById('medicamentQuantite').value = 1;
+    
+    // Stocker l'ID du médicament sélectionné
+    document.getElementById('medicamentSearch').dataset.selectedId = medicament.id;
+    
+    showToast(`✅ ${medicament.nom} sélectionné (stock: ${medicament.quantite_stock})`, 'success');
+}
+
+// Ajouter au panier (depuis la recherche)
+function ajouterMedicamentAuPanier() {
+    const searchInput = document.getElementById('medicamentSearch');
+    const nom = searchInput.value.trim();
+    const id = searchInput.dataset.selectedId;
+    const quantite = parseInt(document.getElementById('medicamentQuantite').value) || 1;
+    const posologie = document.getElementById('medicamentPosologie').value.trim() || 'À définir';
+    const dosage = document.getElementById('medicamentDosage').value.trim() || '';
+    const duree = parseInt(document.getElementById('medicamentDuree').value) || 7;
+    
+    if (!nom) {
+        showToast('Veuillez sélectionner un médicament', 'warning');
+        return;
+    }
+    
+    const medicament = medicamentsDisponibles.find(m => m.id == id || m.nom === nom);
+    let stock = 0;
+    if (medicament) {
+        stock = medicament.quantite_stock || 0;
+        if (stock < quantite) {
+            showToast(`⚠️ Stock insuffisant ! ${stock} disponibles`, 'danger');
+            return;
+        }
+    }
+    
+    const existant = medicamentsPrescrits.find(m => m.nom === nom && m.dosage === dosage);
+    if (existant) {
+        const nouvelleQuantite = existant.quantite + quantite;
+        if (existant.stock !== null && nouvelleQuantite > existant.stock) {
+            showToast(`⚠️ Stock insuffisant ! ${existant.stock} disponibles`, 'danger');
+            return;
+        }
+        existant.quantite = nouvelleQuantite;
+        if (posologie) existant.posologie = posologie;
+        if (duree) existant.duree = duree;
+    } else {
+        medicamentsPrescrits.push({
+            nom: nom,
+            id: id,
+            quantite: quantite,
+            posologie: posologie,
+            dosage: dosage,
+            duree: duree,
+            stock: stock
+        });
+    }
+    
+    afficherPanierMedicaments();
+    
+    document.getElementById('medicamentSearch').value = '';
+    document.getElementById('medicamentSearch').dataset.selectedId = '';
+    document.getElementById('medicamentQuantite').value = '1';
+    document.getElementById('medicamentPosologie').value = '';
+    document.getElementById('medicamentDosage').value = '';
+    document.getElementById('medicamentDuree').value = '7';
+    document.getElementById('medicamentResults').style.display = 'none';
+    
+    showToast(`✅ "${nom}" ajouté au panier (${quantite})`, 'success');
+}
+
+// Ajouter manuellement un médicament (non trouvé dans la base)
+function ajouterMedicamentManuel() {
+    const input = document.getElementById('medicamentManual');
+    const nom = input.value.trim() || document.getElementById('medicamentSearch').value.trim();
+    
+    if (!nom) {
+        showToast('Veuillez saisir un nom de médicament', 'warning');
+        return;
+    }
+    
+    const existant = medicamentsDisponibles.find(m => m.nom.toLowerCase() === nom.toLowerCase());
+    
+    if (existant) {
+        selectionnerMedicament(existant.id);
+        document.getElementById('medicamentManual').value = '';
+        return;
+    }
+    
+    const quantite = parseInt(document.getElementById('medicamentQuantite').value) || 1;
+    const posologie = document.getElementById('medicamentPosologie').value.trim() || 'À définir';
+    const dosage = document.getElementById('medicamentDosage').value.trim() || '';
+    const duree = parseInt(document.getElementById('medicamentDuree').value) || 7;
+    
+    if (!confirm(`⚠️ "${nom}" n'existe pas dans la base.\n\nVoulez-vous l'ajouter manuellement ?\n(Le stock ne sera pas vérifié)`)) {
+        return;
+    }
+    
+    medicamentsPrescrits.push({
+        nom: nom,
+        id: null,
+        quantite: quantite,
+        posologie: posologie,
+        dosage: dosage,
+        duree: duree,
+        stock: null
+    });
+    
+    afficherPanierMedicaments();
+    document.getElementById('medicamentManual').value = '';
+    document.getElementById('medicamentSearch').value = '';
+    document.getElementById('medicamentQuantite').value = '1';
+    document.getElementById('medicamentPosologie').value = '';
+    document.getElementById('medicamentDosage').value = '';
+    document.getElementById('medicamentDuree').value = '7';
+    
+    showToast(`✅ "${nom}" ajouté manuellement (stock non vérifié)`, 'info');
+}
+
+// Fonction centrale d'ajout au panier
+function ajouterAuPanier(nom, id, quantite,dosage, posologie, stock) {
+    // Vérifier si déjà présent dans le panier
+    const existant = medicamentsPrescrits.find(m => m.nom === nom);
+    if (existant) {
+        existant.quantite += quantite;
+        if (posologie) existant.posologie = posologie;
+        afficherPanierMedicaments();
+        showToast(`📝 "${nom}" mis à jour (${existant.quantite})`, 'info');
+        return;
+    }
+    
+    medicamentsPrescrits.push({
+        nom: nom,
+        id: id,
+        quantite: quantite,
+        dosage: dosage,
+        posologie: posologie,
+        stock: stock
+    });
+    
+    afficherPanierMedicaments();
+    showToast(`✅ "${nom}" ajouté au panier (${quantite})`, 'success');
+    
+    // Vider la recherche
+    document.getElementById('medicamentSearch').value = '';
+    document.getElementById('medicamentSearch').dataset.selectedId = '';
+    document.getElementById('medicamentQuantite').value = '1';
+    document.getElementById('medicamentPosologie').value = '';
+    document.getElementById('medicamentResults').style.display = 'none';
+}
+
+// Afficher le panier des médicaments
+function afficherPanierMedicaments() {
+    const tbody = document.getElementById('medicamentBody');
+    const count = document.getElementById('medicamentCount');
+    const hidden = document.getElementById('medicamentsHidden');
+    
+    const data = medicamentsPrescrits.map(item => ({
+        nom: item.nom,
+        quantite: item.quantite,
+        posologie: item.posologie,
+        dosage: item.dosage || '',
+        duree: item.duree || 7
+    }));
+    if (hidden) hidden.value = JSON.stringify(data);
+    
+    if (medicamentsPrescrits.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Aucun médicament prescrit</td></tr>';
+        if (count) count.textContent = '0';
+        return;
+    }
+    
+    let html = '';
+    medicamentsPrescrits.forEach((item, index) => {
+        html += `
+            <tr>
+                <td>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" value="${item.nom}" 
+                               onchange="modifierNomMedicament(${index}, this.value)">
+                        <button type="button" class="btn btn-outline-secondary" onclick="modifierNomMedicament(${index})">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm" value="${item.dosage || ''}" 
+                           placeholder="Dosage" onchange="modifierDosageMedicament(${index}, this.value)">
+                </td>
+                <td>
+                    <div class="input-group input-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" onclick="modifierQuantiteMedicament(${index}, -1)">-</button>
+                        <input type="number" class="form-control text-center" value="${item.quantite}" 
+                               style="width: 60px;" min="1" 
+                               onchange="modifierQuantiteMedicament(${index}, 0, this.value)">
+                        <button type="button" class="btn btn-outline-secondary" onclick="modifierQuantiteMedicament(${index}, 1)">+</button>
+                    </div>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm" value="${item.posologie}" 
+                           placeholder="Posologie" onchange="modifierPosologieMedicament(${index}, this.value)">
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm text-center" value="${item.duree || 7}" 
+                           min="1" onchange="modifierDureeMedicament(${index}, this.value)">
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="supprimerMedicamentPanier(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    if (count) count.textContent = medicamentsPrescrits.length;
+}
+
+function modifierNomMedicament(index, nouvelleValeur) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    
+    if (nouvelleValeur !== undefined) {
+        item.nom = nouvelleValeur.trim() || item.nom;
+        afficherPanierMedicaments();
+        return;
+    }
+    
+    const nouveauNom = prompt('Modifier le nom du médicament :', item.nom);
+    if (nouveauNom && nouveauNom.trim() !== '') {
+        item.nom = nouveauNom.trim();
+        afficherPanierMedicaments();
+        showToast(`✅ Nom modifié: "${item.nom}"`, 'success');
+    }
+}
+
+function modifierQuantiteMedicament(index, delta, nouvelleValeur) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    
+    let qte = nouvelleValeur !== undefined ? parseInt(nouvelleValeur) : item.quantite + delta;
+    if (isNaN(qte) || qte < 1) qte = 1;
+    
+    if (item.stock !== null && qte > item.stock) {
+        showToast(`⚠️ Stock insuffisant ! ${item.stock} disponibles`, 'danger');
+        return;
+    }
+    
+    item.quantite = qte;
+    afficherPanierMedicaments();
+}
+
+function modifierPosologieMedicament(index, value) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    item.posologie = value || 'À définir';
+}
+
+function modifierDosageMedicament(index, value) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    item.dosage = value || '';
+    afficherPanierMedicaments();
+}
+
+function modifierDureeMedicament(index, value) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    const duree = parseInt(value);
+    if (!isNaN(duree) && duree > 0) {
+        item.duree = duree;
+        afficherPanierMedicaments();
+    }
+}
+
+function supprimerMedicamentPanier(index) {
+    const item = medicamentsPrescrits[index];
+    if (!item) return;
+    if (confirm(`Retirer "${item.nom}" du panier ?`)) {
+        medicamentsPrescrits.splice(index, 1);
+        afficherPanierMedicaments();
+        showToast(`✅ "${item.nom}" retiré du panier`, 'info');
+    }
+}
+
+function viderPanierMedicaments() {
+    if (medicamentsPrescrits.length === 0) return;
+    if (confirm('Vider tous les médicaments prescrits ?')) {
+        medicamentsPrescrits = [];
+        afficherPanierMedicaments();
+        showToast('🗑️ Panier vidé', 'info');
+    }
+}
+
+
 </script>
 
 <style>
