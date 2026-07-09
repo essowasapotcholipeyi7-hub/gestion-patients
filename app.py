@@ -708,12 +708,18 @@ def patient_ajouter():
 @has_permission('PATIENTS')
 def patient_detail(id):
     from models import Patient, Consultation, Prescription
+    from datetime import datetime
     
     patient = Patient.query.get_or_404(id)
     
-    if current_user.role == 'medecin' and patient.id_medecin_referent != current_user.id:
-        flash('Accès non autorisé', 'danger')
-        return redirect(url_for('patients_list'))
+    # ⭐⭐⭐ VÉRIFICATION POUR LE MÉDECIN ⭐⭐⭐
+    if current_user.role == 'medecin':
+        # Si le patient a un médecin référent différent du médecin connecté
+        if patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
+            flash('Accès non autorisé - Ce patient n\'est pas votre patient référent', 'danger')
+            return redirect(url_for('patients_list'))
+        # Si le patient n'a pas de médecin référent (cas des patients GHP non encore consultés)
+        # On autorise l'accès car le médecin va le consulter et devenir référent
     
     consultations = Consultation.query.filter_by(id_patient=patient.id).order_by(Consultation.date_consultation.desc()).all()
     prescriptions = Prescription.query.filter_by(id_patient=patient.id).order_by(Prescription.date_prescription.desc()).all()
@@ -733,6 +739,7 @@ def consultation_ajouter():
     from datetime import datetime
     import json
     
+    # Récupération des patients
     if current_user.role == 'medecin':
         patients = Patient.query.filter_by(
             id_structure=current_user.id_structure,
@@ -778,10 +785,21 @@ def consultation_ajouter():
         antecedents_medicaux = request.form.get('antecedents_medicaux')
         antecedents_chirurgicaux = request.form.get('antecedents_chirurgicaux')
         
-        # ⭐ MÉDICAMENTS PRESCRITS
+        # Médicaments prescrits
         medicaments_prescrits = request.form.get('medicaments_prescrits')
         
-        # Création de la consultation
+        # ⭐⭐⭐ RÉCUPÉRER LE PATIENT ⭐⭐⭐
+        patient = Patient.query.get(id_patient)
+        if not patient:
+            flash('Patient non trouvé', 'danger')
+            return redirect(url_for('consultation_ajouter'))
+        
+        # ⭐⭐⭐ LE MÉDECIN QUI CONSULTE DEVIENT LE RÉFÉRENT ⭐⭐⭐
+        # C'est la règle : le médecin qui consulte devient automatiquement le médecin référent
+        patient.id_medecin_referent = current_user.id
+        print(f"✅ Médecin référent : Dr {current_user.nom} {current_user.prenom} pour le patient {patient.nom} {patient.prenom}")
+        
+        # ⭐⭐⭐ CRÉER LA CONSULTATION ⭐⭐⭐
         consultation = Consultation(
             id_patient=int(id_patient),
             id_medecin=current_user.id,
@@ -846,7 +864,7 @@ def consultation_ajouter():
                     db.session.add(analyse)
         
         # ═══════════════════════════════════════════
-        # ⭐⭐⭐ CRÉATION DES PRESCRIPTIONS (Médicaments + Actes) ⭐⭐⭐
+        # ⭐⭐⭐ CRÉATION DES PRESCRIPTIONS ⭐⭐⭐
         # ═══════════════════════════════════════════
         
         prescriptions_creees = 0
@@ -869,7 +887,7 @@ def consultation_ajouter():
                         frequence=med.get('posologie', ''),
                         instructions=med.get('instructions', ''),
                         renouvelable=med.get('renouvelable', False),
-                        type_prescription='medicament',  # ⭐ AJOUTÉ
+                        type_prescription='medicament',
                         prescripteur=f"{current_user.prenom} {current_user.nom}",
                         statut='active',
                         date_prescription=datetime.utcnow(),
@@ -897,7 +915,7 @@ def consultation_ajouter():
                         id_consultation=consultation.id,
                         id_medecin=current_user.id,
                         medicament=nom,
-                        type_prescription='acte',  # ⭐ TYPE ACTE
+                        type_prescription='acte',
                         prescripteur=f"{current_user.prenom} {current_user.nom}",
                         statut='active',
                         date_prescription=datetime.utcnow()
@@ -916,7 +934,7 @@ def consultation_ajouter():
                         id_consultation=consultation.id,
                         id_medecin=current_user.id,
                         medicament=nom,
-                        type_prescription='acte',  # ⭐ TYPE ACTE
+                        type_prescription='acte',
                         prescripteur=f"{current_user.prenom} {current_user.nom}",
                         statut='active',
                         date_prescription=datetime.utcnow()
@@ -925,8 +943,7 @@ def consultation_ajouter():
                     prescriptions_creees += 1
                     print(f"📋 Prescription d'acte (imagerie) ajoutée: {nom}")
         
-        # Mise à jour du patient
-        patient = Patient.query.get(id_patient)
+        # ⭐⭐⭐ MISE À JOUR DU PATIENT ⭐⭐⭐
         
         if temperature:
             patient.temperature_c = float(temperature)
@@ -953,7 +970,7 @@ def consultation_ajouter():
             patient.statut_medical = 'EN_TRAITEMENT'
         
         # ═══════════════════════════════════════════
-        # ⭐⭐⭐ COMMIT ET SYNCHRONISATION ⭐⭐⭐
+        # ⭐⭐⭐ COMMIT FINAL ⭐⭐⭐
         # ═══════════════════════════════════════════
         
         db.session.commit()
@@ -4512,33 +4529,9 @@ def sync_patients_from_ghp(structure_mapping):
         
         compteur = {'cree': 0, 'mis_a_jour': 0, 'erreur': 0}
         
-        # Récupérer le médecin référent par défaut
-        medecin_id = None
-        try:
-            from flask_login import current_user
-            if current_user and current_user.is_authenticated and current_user.role == 'medecin':
-                medecin_id = current_user.id
-                print(f"👨‍⚕️ Assignation au médecin connecté: {current_user.nom} {current_user.prenom}")
-            else:
-                premier_medecin = Utilisateur.query.filter_by(
-                    id_structure=structure_mapping.local_structure_id,
-                    role='medecin',
-                    actif=True
-                ).first()
-                if premier_medecin:
-                    medecin_id = premier_medecin.id
-                    print(f"👨‍⚕️ Assignation par défaut: Dr {premier_medecin.nom} {premier_medecin.prenom}")
-                else:
-                    print("⚠️ Aucun médecin trouvé - patients non assignés")
-        except:
-            premier_medecin = Utilisateur.query.filter_by(
-                id_structure=structure_mapping.local_structure_id,
-                role='medecin',
-                actif=True
-            ).first()
-            if premier_medecin:
-                medecin_id = premier_medecin.id
-                print(f"👨‍⚕️ Assignation par défaut: Dr {premier_medecin.nom} {premier_medecin.prenom}")
+        # ⭐⭐⭐ AUCUN MÉDECIN RÉFÉRENT N'EST ASSIGNÉ ICI ⭐⭐⭐
+        # Le médecin référent sera assigné lors de la première consultation
+        print("ℹ️ Aucun médecin référent assigné automatiquement - assignation lors de la première consultation")
         
         for p_data in patients:
             try:
@@ -4548,16 +4541,13 @@ def sync_patients_from_ghp(structure_mapping):
                     print(f"❌ Patient sans ID ignoré")
                     continue
                 
-                # ⭐⭐⭐ NORMALISATION DES DONNÉES ⭐⭐⭐
-                
-                # -------- ASSURANCE PRINCIPALE --------
+                # NORMALISATION DES DONNÉES
                 raw_type = p_data.get('type_assurance') or p_data.get('TypeAssurance') or 'non_assure'
                 type_assurance = normalize_assurance_type(raw_type)
                 
                 taux_prise_charge = p_data.get('taux_assurance') or p_data.get('taux_prise_charge') or 0
                 numero_assure = p_data.get('numero_assure') or p_data.get('NumeroAssure') or p_data.get('num_assure') or ''
                 
-                # -------- ASSURANCE 2 --------
                 assurance2_nom = p_data.get('assurance2_nom') or p_data.get('Assurance2Nom') or ''
                 if assurance2_nom:
                     assurance2_nom = assurance2_nom.upper().strip()
@@ -4565,23 +4555,9 @@ def sync_patients_from_ghp(structure_mapping):
                 taux_assurance2 = p_data.get('taux_assurance2') or p_data.get('TauxAssurance2') or 0
                 numero_assure2 = p_data.get('numero_assure2') or p_data.get('NumeroAssure2') or ''
                 
-                # ⭐⭐⭐ PERSONNE À PRÉVENIR ⭐⭐⭐
                 personne_a_prevenir_nom = p_data.get('personne_a_prevenir_nom') or p_data.get('PersonneAPrevenirNom') or ''
                 personne_a_prevenir_telephone = p_data.get('personne_a_prevenir_telephone') or p_data.get('PersonneAPrevenirTelephone') or ''
                 personne_a_prevenir_relation = p_data.get('personne_a_prevenir_relation') or p_data.get('PersonneAPrevenirRelation') or ''
-                
-                # 🔍 LOG POUR DEBUG
-                print(f"📝 Patient {source_id} - {p_data.get('nom')} {p_data.get('prenom')}:")
-                print(f"   type_assurance: {type_assurance}")
-                print(f"   taux_prise_charge: {taux_prise_charge}")
-                print(f"   numero_assure: {numero_assure}")
-                print(f"   assurance2_nom: {assurance2_nom}")
-                print(f"   taux_assurance2: {taux_assurance2}")
-                print(f"   numero_assure2: {numero_assure2}")
-                print(f"   👤 Personne à prévenir:")
-                print(f"      nom: '{personne_a_prevenir_nom}'")
-                print(f"      téléphone: '{personne_a_prevenir_telephone}'")
-                print(f"      relation: '{personne_a_prevenir_relation}'")
                 
                 # Date de naissance
                 date_naissance = p_data.get('date_naissance')
@@ -4610,25 +4586,24 @@ def sync_patients_from_ghp(structure_mapping):
                     patient.adresse = p_data.get('adresse') or ''
                     patient.date_naissance = date_naissance
                     
-                    # ⭐ ASSURANCE PRINCIPALE
+                    # ASSURANCE PRINCIPALE
                     patient.type_assurance = type_assurance
                     patient.taux_prise_charge = str(taux_prise_charge) if taux_prise_charge else None
                     patient.numero_assure = str(numero_assure) if numero_assure else ''
                     
-                    # ⭐ ASSURANCE 2
+                    # ASSURANCE 2
                     patient.assurance2_nom = assurance2_nom if assurance2_nom else None
                     patient.taux_assurance2 = float(taux_assurance2) if taux_assurance2 else None
                     patient.numero_assure2 = str(numero_assure2) if numero_assure2 else ''
                     
-                    # ⭐⭐⭐ PERSONNE À PRÉVENIR ⭐⭐⭐
+                    # PERSONNE À PRÉVENIR
                     patient.personne_a_prevenir_nom = personne_a_prevenir_nom
                     patient.personne_a_prevenir_telephone = personne_a_prevenir_telephone
                     patient.personne_a_prevenir_relation = personne_a_prevenir_relation
                     
-                    # Assigner si pas de médecin référent
-                    if not patient.id_medecin_referent and medecin_id:
-                        patient.id_medecin_referent = medecin_id
-                        print(f"   👨‍⚕️ Assigné au médecin ID {medecin_id}")
+                    # ⭐⭐⭐ ON NE TOUCHE PAS AU MÉDECIN RÉFÉRENT ⭐⭐⭐
+                    # Le médecin référent reste celui qui a été assigné lors de la première consultation
+                    print(f"   👨‍⚕️ Médecin référent actuel: ID {patient.id_medecin_referent if patient.id_medecin_referent else 'Aucun'}")
                     
                     patient.synced_at = datetime.utcnow()
                     patient.synced_from = 'ghp'
@@ -4652,17 +4627,17 @@ def sync_patients_from_ghp(structure_mapping):
                         adresse=p_data.get('adresse') or '',
                         date_naissance=date_naissance,
                         
-                        # ⭐ ASSURANCE PRINCIPALE
+                        # ASSURANCE PRINCIPALE
                         type_assurance=type_assurance,
                         taux_prise_charge=str(taux_prise_charge) if taux_prise_charge else None,
                         numero_assure=str(numero_assure) if numero_assure else '',
                         
-                        # ⭐ ASSURANCE 2
+                        # ASSURANCE 2
                         assurance2_nom=assurance2_nom if assurance2_nom else None,
                         taux_assurance2=float(taux_assurance2) if taux_assurance2 else None,
                         numero_assure2=str(numero_assure2) if numero_assure2 else '',
                         
-                        # ⭐⭐⭐ PERSONNE À PRÉVENIR ⭐⭐⭐
+                        # PERSONNE À PRÉVENIR
                         personne_a_prevenir_nom=personne_a_prevenir_nom,
                         personne_a_prevenir_telephone=personne_a_prevenir_telephone,
                         personne_a_prevenir_relation=personne_a_prevenir_relation,
@@ -4673,8 +4648,8 @@ def sync_patients_from_ghp(structure_mapping):
                         email=p_data.get('email') or '',
                         profession=p_data.get('profession') or '',
                         
-                        # Assignation au médecin
-                        id_medecin_referent=medecin_id,
+                        # ⭐⭐⭐ PAS DE MÉDECIN RÉFÉRENT À LA CRÉATION ⭐⭐⭐
+                        id_medecin_referent=None,  # Sera assigné lors de la première consultation
                         
                         # Statut
                         statut_medical='PREMIERE_VISITE',
@@ -4688,10 +4663,7 @@ def sync_patients_from_ghp(structure_mapping):
                     db.session.add(patient)
                     compteur['cree'] += 1
                     
-                    if medecin_id:
-                        print(f"   👨‍⚕️ Assigné au médecin ID {medecin_id}")
-                    else:
-                        print(f"   ⚠️ Non assigné (aucun médecin disponible)")
+                    print(f"   ℹ️ Patient créé sans médecin référent - sera assigné lors de la première consultation")
                 
                 db.session.flush()
                 
@@ -4737,6 +4709,7 @@ def sync_patients_from_ghp(structure_mapping):
             'erreur': 1,
             'message': f'Erreur: {str(e)}'
         }
+
 
 @app.route('/api/sync/patients/<int:mapping_id>', methods=['POST'])
 @login_required
