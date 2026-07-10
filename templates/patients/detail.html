@@ -10,6 +10,14 @@
             <i class="fas fa-user me-2"></i>
             Dossier patient - {{ patient.prenom }} {{ patient.nom }}
         </h1>
+        <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('engagements.liste', patient_id=patient.id) }}">
+                <i class="fas fa-file-signature me-1"></i> Déontologie
+                <span class="badge bg-primary rounded-pill ms-1">{{ patient.engagements|length }}</span>
+            </a>
+        </li>
+    </ul>
+</div>
         <div>
             <button onclick="window.print()" class="btn btn-secondary me-2">
                 <i class="fas fa-print me-2"></i>Imprimer

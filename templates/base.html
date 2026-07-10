@@ -165,6 +165,13 @@
         </a>
         {% endif %}
 
+    <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('engagements.liste') }}">
+            <i class="fas fa-file-signature me-2"></i>Déontologie / Engagements
+        </a>
+    </li>
+
+
         <!-- ========== HOSPITALISATIONS ========== -->
         {% if current_user.role != 'laborantin' %}
         <a class="nav-link" href="{{ url_for('liste_hospitalisations') }}">

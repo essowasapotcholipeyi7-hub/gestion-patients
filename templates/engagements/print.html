@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engagement #{{ engagement.id }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            font-size: 10pt;
+            line-height: 1.5;
+            padding: 15px;
+            color: #000;
+            background: #fff;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #000;
+        }
+        .header h1 {
+            font-size: 14pt;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .header .subtitle {
+            font-size: 12pt;
+            font-weight: bold;
+        }
+        .info-block {
+            margin-bottom: 10px;
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            background: #f9f9f9;
+            font-size: 9pt;
+        }
+        .info-block table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .info-block td {
+            padding: 2px 8px;
+            vertical-align: top;
+        }
+        .info-block .label {
+            font-weight: bold;
+            width: 120px;
+        }
+        .section {
+            margin: 8px 0;
+        }
+        .section-title {
+            font-weight: bold;
+            font-size: 10pt;
+            text-transform: uppercase;
+            border-bottom: 1px solid #000;
+            padding-bottom: 3px;
+            margin-bottom: 5px;
+        }
+        .section-content {
+            padding: 4px 10px;
+            font-size: 9.5pt;
+        }
+        .signature-line {
+            margin-top: 8px;
+            border-top: 1px solid #000;
+            padding-top: 4px;
+            width: 200px;
+            display: inline-block;
+        }
+        .signature-block {
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .signature-block .signature-item {
+            width: 45%;
+            min-width: 200px;
+        }
+        .footer {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 8pt;
+            border-top: 1px solid #ccc;
+            padding-top: 8px;
+            color: #666;
+        }
+        .template-content {
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 10pt;
+            line-height: 1.5;
+        }
+        .template-content .separator {
+            color: #999;
+        }
+        
+        /* ⭐ STYLES POUR LES BOUTONS */
+        .no-print {
+            display: inline-block !important;
+        }
+        .btn-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            border: 1px solid #ddd;
+        }
+        .btn-bar .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-bar .btn-print {
+            background: #007bff;
+            color: white;
+        }
+        .btn-bar .btn-print:hover {
+            background: #0056b3;
+            transform: scale(1.02);
+        }
+        .btn-bar .btn-close {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-bar .btn-close:hover {
+            background: #c82333;
+            transform: scale(1.02);
+        }
+        .btn-bar .btn-back {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-bar .btn-back:hover {
+            background: #5a6268;
+            transform: scale(1.02);
+        }
+        
+        @media print {
+            body { 
+                padding: 10px; 
+                font-size: 9pt;
+            }
+            .no-print { 
+                display: none !important; 
+            }
+            .page-break { page-break-before: always; }
+            .header h1 { font-size: 12pt; }
+            .info-block { padding: 4px 8px; font-size: 8pt; }
+            .section-content { font-size: 8.5pt; }
+            .template-content { font-size: 9pt; }
+            .btn-bar { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <!-- ⭐ BARRE DE BOUTONS EN BAS -->
+    <div class="btn-bar no-print">
+        <button class="btn btn-print" onclick="window.print()">
+            🖨️ Imprimer / PDF
+        </button>
+        <a href="{{ url_for('engagements.detail', id=engagement.id) }}" class="btn btn-back">
+            ⬅️ Retour au détail
+        </a>
+        <a href="{{ url_for('engagements.liste', patient_id=engagement.patient_id) }}" class="btn btn-back">
+            📋 Retour à la liste
+        </a>
+        <button class="btn btn-close" onclick="window.close()">
+            ✖ Fermer
+        </button>
+    </div>
+
+    <div class="container">
+        <!-- Contenu -->
+        <div class="template-content">
+            {{ engagement.contenu|safe }}
+        </div>
+    </div>
+
+    <script>
+        // ⭐ Raccourci clavier : Ctrl+P pour imprimer
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                window.print();
+            }
+            // ⭐ Touche Escape pour fermer
+            if (e.key === 'Escape') {
+                window.close();
+            }
+        });
+
+         ⭐ Décommenter pour auto-impression au chargement
+         window.onload = function() {
+             setTimeout(function() { window.print(); }, 500);
+         };
+    </script>
+</body>
+</html>

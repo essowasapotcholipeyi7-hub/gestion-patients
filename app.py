@@ -13,6 +13,8 @@ from io import StringIO
 from decorators import has_permission
 import uuid
 import logging
+from models import db, Engagement, Patient
+
 load_dotenv()
 
 # Initialisation de l'application
@@ -23,6 +25,9 @@ logger = logging.getLogger(__name__)
 # Initialisation de la base de données
 from models import db
 db.init_app(app)
+
+from routes.engagements import engagements_bp
+app.register_blueprint(engagements_bp)
 
 def create_structure_sheets(structure_id):
     """Crée automatiquement les feuilles Google Sheets pour une nouvelle structure"""

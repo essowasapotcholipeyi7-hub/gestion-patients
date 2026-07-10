@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Engagements et déontologie{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-file-signature me-2 text-primary"></i>
+            Engagements et déontologie
+        </h1>
+        <div>
+            {% if patient %}
+            <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-user me-2"></i>Voir le dossier
+            </a>
+            {% endif %}
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <!-- Recherche patient -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <label class="form-label">Rechercher un patient</label>
+                    <div class="input-group">
+                        <input type="text" id="patientSearch" class="form-control" 
+                               placeholder="Rechercher par nom, prénom ou N° dossier..." 
+                               autocomplete="off"
+                               value="{{ patient.prenom }} {{ patient.nom }}" {% if patient %}disabled{% endif %}>
+                        <input type="hidden" id="patientId" value="{{ patient.id if patient else '' }}">
+                        {% if patient %}
+                            <a href="{{ url_for('engagements.liste') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i>
+                            </a>
+                        {% else %}
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearPatient()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        {% endif %}
+                    </div>
+                    <div id="patientResults" class="list-group mt-1" style="max-height: 250px; overflow-y: auto; display: none;"></div>
+                    <div id="patientSelected" class="mt-2" style="display: {% if patient %}block{% else %}none{% endif %};">
+                        <div class="alert alert-success py-1 px-2">
+                            <strong>✅ Patient sélectionné :</strong> 
+                            <span id="selectedPatientName">{{ patient.prenom }} {{ patient.nom }}</span>
+                            <a href="{{ url_for('engagements.liste') }}" class="btn btn-sm btn-outline-danger float-end">
+                                <i class="fas fa-times"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    {% if patient %}
+                        <a href="{{ url_for('engagements.ajouter', patient_id=patient.id) }}" class="btn btn-primary w-100">
+                            <i class="fas fa-plus me-2"></i>Nouvel engagement
+                        </a>
+                    {% else %}
+                        <button class="btn btn-primary w-100" disabled>
+                            <i class="fas fa-plus me-2"></i>Sélectionnez un patient
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Liste des engagements -->
+    {% if patient %}
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-list me-2"></i>
+                Engagements de {{ patient.prenom }} {{ patient.nom }}
+            </h5>
+            <span class="badge bg-primary">{{ engagements|length }}</span>
+        </div>
+        <div class="card-body">
+            {% if engagements %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Type</th>
+                                <th>Date</th>
+                                <th>Médecin</th>
+                                <th>Signatures</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for eng in engagements %}
+                            <tr>
+                                <td>{{ eng.id }}</td>
+                                <td>
+                                    <span class="badge bg-{{ eng.get_type_badge_color() }}">
+                                        {{ eng.get_type_label() }}
+                                    </span>
+                                </td>
+                                <td>{{ eng.date_creation.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>Dr {{ eng.medecin.prenom }} {{ eng.medecin.nom }}</td>
+                                <td>
+                                    {% if eng.signe_par_patient %}
+                                        <span class="badge bg-success" title="Signé par le patient">
+                                            <i class="fas fa-check"></i> Patient
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary" title="Non signé par le patient">
+                                            <i class="fas fa-times"></i> Patient
+                                        </span>
+                                    {% endif %}
+                                    {% if eng.signe_par_medecin %}
+                                        <span class="badge bg-success" title="Signé par le médecin">
+                                            <i class="fas fa-check"></i> Médecin
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary" title="Non signé par le médecin">
+                                            <i class="fas fa-times"></i> Médecin
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('engagements.detail', id=eng.id) }}" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('engagements.print_view', id=eng.id) }}" class="btn btn-sm btn-secondary" target="_blank">
+                                        <i class="fas fa-print"></i>
+                                    </a>
+                                    {% if eng.medecin_id == current_user.id or current_user.role == 'super_admin' %}
+                                        <form method="POST" action="{{ url_for('engagements.supprimer', id=eng.id) }}" 
+                                              style="display:inline;" 
+                                              onsubmit="return confirm('Supprimer définitivement cet engagement ?')">
+                                            <button type="submit" class="btn btn-sm btn-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-file-signature fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">Aucun engagement enregistré pour ce patient</p>
+                    <a href="{{ url_for('engagements.ajouter', patient_id=patient.id) }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i> Créer un engagement
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-search fa-4x text-muted mb-3"></i>
+            <h5>Recherchez un patient pour voir ses engagements</h5>
+            <p class="text-muted">Utilisez la barre de recherche ci-dessus</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const patientSearch = document.getElementById('patientSearch');
+    const patientResults = document.getElementById('patientResults');
+    const patientId = document.getElementById('patientId');
+    const patientSelected = document.getElementById('patientSelected');
+    const selectedPatientName = document.getElementById('selectedPatientName');
+    
+    // Si le patient est déjà sélectionné, on désactive la recherche
+    if (patientSearch.disabled) return;
+    
+    let searchTimeout = null;
+
+    // Recherche en temps réel
+    patientSearch.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        const term = this.value.trim();
+        
+        if (term.length < 2) {
+            patientResults.style.display = 'none';
+            patientResults.innerHTML = '';
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => {
+            fetch(`/engagements/api/patients/search?q=${encodeURIComponent(term)}`)
+                .then(response => response.json())
+                .then(data => {
+                    patientResults.innerHTML = '';
+                    if (data.length === 0) {
+                        patientResults.innerHTML = '<div class="list-group-item text-muted">Aucun patient trouvé</div>';
+                        patientResults.style.display = 'block';
+                        return;
+                    }
+                    
+                    data.forEach(patient => {
+                        const div = document.createElement('div');
+                        div.className = 'list-group-item list-group-item-action';
+                        div.innerHTML = `
+                            <strong>${patient.nom} ${patient.prenom}</strong>
+                            <span class="text-muted">(N° ${patient.numero_dossier})</span>
+                            ${patient.telephone ? `- ${patient.telephone}` : ''}
+                            <br>
+                            <small class="text-muted">Né le: ${patient.date_naissance} - Médecin: ${patient.medecin_referent}</small>
+                        `;
+                        div.onclick = function() {
+                            selectPatient(patient.id, patient.nom, patient.prenom);
+                        };
+                        patientResults.appendChild(div);
+                    });
+                    patientResults.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Erreur recherche:', error);
+                    patientResults.innerHTML = '<div class="list-group-item text-danger">Erreur de recherche</div>';
+                    patientResults.style.display = 'block';
+                });
+        }, 300);
+    });
+
+    function selectPatient(id, nom, prenom) {
+        window.location.href = `/engagements/?patient_id=${id}`;
+    }
+
+    window.clearPatient = function() {
+        window.location.href = '/engagements/';
+    };
+
+    // Fermer les résultats en cliquant ailleurs
+    document.addEventListener('click', function(e) {
+        if (patientResults && !e.target.closest('#patientSearch') && !e.target.closest('#patientResults')) {
+            patientResults.style.display = 'none';
+        }
+    });
+
+    patientSearch.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const firstResult = patientResults ? patientResults.querySelector('.list-group-item-action') : null;
+            if (firstResult) {
+                firstResult.click();
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

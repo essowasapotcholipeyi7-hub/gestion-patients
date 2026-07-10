@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Nouvel engagement{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-file-signature me-2 text-primary"></i>
+            Nouvel engagement
+            {% if patient %}
+                <small class="text-muted">- {{ patient.prenom }} {{ patient.nom }}</small>
+            {% endif %}
+        </h1>
+        <div>
+            <a href="{{ url_for('engagements.liste', patient_id=patient.id if patient else '') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {% if not patient %}
+            <!-- Sélection du patient -->
+            <div class="mb-4">
+                <label class="form-label">Rechercher un patient *</label>
+                <div class="input-group">
+                    <input type="text" id="patientSearch" class="form-control" 
+                           placeholder="Rechercher par nom, prénom ou N° dossier..." autocomplete="off">
+                    <input type="hidden" name="patient_id" id="patientId">
+                    <button class="btn btn-outline-secondary" type="button" onclick="clearPatient()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="patientResults" class="list-group mt-1" style="max-height: 250px; overflow-y: auto; display: none;"></div>
+                <div id="patientSelected" class="mt-2" style="display: none;">
+                    <div class="alert alert-success py-1 px-2">
+                        <strong>✅ Patient sélectionné :</strong> 
+                        <span id="selectedPatientName"></span>
+                        <button type="button" class="btn btn-sm btn-outline-danger float-end" onclick="clearPatient()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <input type="hidden" name="patient_id" id="patientId" value="{{ patient.id }}">
+            <div class="alert alert-info">
+                <strong>Patient :</strong> {{ patient.prenom }} {{ patient.nom }}
+                <span class="text-muted">(N° {{ patient.patient_source_id or 'P' + patient.id|string }})</span>
+                <a href="{{ url_for('engagements.liste') }}" class="btn btn-sm btn-outline-secondary float-end">
+                    <i class="fas fa-times"></i> Changer
+                </a>
+            </div>
+            {% endif %}
+
+            <form method="POST" id="engagementForm">
+                <input type="hidden" name="patient_id" id="formPatientId" value="{{ patient.id if patient else '' }}">
+
+                <!-- Type d'engagement -->
+                <div class="mb-3">
+                    <label class="form-label">Type d'engagement *</label>
+                    <select name="type_engagement" id="typeEngagement" class="form-select" required>
+                        <option value="">-- Sélectionner un type --</option>
+                        <option value="DNR">Ordre de Non-Réanimation (DNR)</option>
+                        <option value="REFUS_TRAITEMENT">Refus de traitement</option>
+                        <option value="SORTIE_AVIS">Sortie contre avis médical</option>
+                        <option value="AUTRE">Autre engagement</option>
+                    </select>
+                </div>
+
+                <!-- Champs spécifiques -->
+                <div id="champsRefus" style="display: none;">
+                    <div class="mb-3">
+                        <label class="form-label">Traitement(s) refusé(s)</label>
+                        <textarea name="traitement_refuse" class="form-control" rows="3" 
+                                  placeholder="Décrire le(s) traitement(s) refusé(s)..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motif du refus (facultatif)</label>
+                        <textarea name="motif_refus" class="form-control" rows="2" 
+                                  placeholder="Expliquer le motif du refus..."></textarea>
+                    </div>
+                </div>
+
+                <div id="champsAutre" style="display: none;">
+                    <div class="mb-3">
+                        <label class="form-label">Contenu de l'engagement *</label>
+                        <textarea name="observations" class="form-control" rows="6" 
+                                  placeholder="Décrire l'engagement spécifique..."></textarea>
+                    </div>
+                </div>
+
+                <div id="champsCommun" style="display: none;">
+<!-- Témoins -->
+<h5 class="mt-4"><i class="fas fa-users me-2"></i>Témoins (recommandé)</h5>
+<hr>
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Témoin 1 - Nom</label>
+        <input type="text" name="temoin1_nom" class="form-control" placeholder="Nom du témoin 1">
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Témoin 2 - Nom</label>
+        <input type="text" name="temoin2_nom" class="form-control" placeholder="Nom du témoin 2">
+    </div>
+</div>
+
+<!-- Représentant légal -->
+<h5 class="mt-4"><i class="fas fa-gavel me-2"></i>Représentant légal</h5>
+<hr>
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Nom et prénom</label>
+        <input type="text" name="representant_nom" class="form-control" placeholder="Nom du représentant légal">
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Lien avec le patient</label>
+        <input type="text" name="representant_lien" class="form-control" placeholder="Ex: Parent, Tuteur...">
+    </div>
+</div>
+
+                    <!-- Observations -->
+                    <div class="mb-3">
+                        <label class="form-label">Observations complémentaires</label>
+                        <textarea name="observations_global" class="form-control" rows="2" 
+                                  placeholder="Informations complémentaires..."></textarea>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Créer l'engagement
+                    </button>
+                    <a href="{{ url_for('engagements.liste', patient_id=patient.id if patient else '') }}" class="btn btn-secondary">
+                        <i class="fas fa-times me-2"></i>Annuler
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestion des champs selon le type
+    const typeSelect = document.getElementById('typeEngagement');
+    const champsRefus = document.getElementById('champsRefus');
+    const champsAutre = document.getElementById('champsAutre');
+    const champsCommun = document.getElementById('champsCommun');
+
+    function toggleChamps() {
+        const type = typeSelect.value;
+        champsRefus.style.display = 'none';
+        champsAutre.style.display = 'none';
+        champsCommun.style.display = 'none';
+
+        if (type === 'REFUS_TRAITEMENT') {
+            champsRefus.style.display = 'block';
+            champsCommun.style.display = 'block';
+        } else if (type === 'AUTRE') {
+            champsAutre.style.display = 'block';
+            champsCommun.style.display = 'block';
+        } else if (type === 'DNR' || type === 'SORTIE_AVIS') {
+            champsCommun.style.display = 'block';
+        }
+    }
+
+    typeSelect.addEventListener('change', toggleChamps);
+    toggleChamps();
+
+    // Recherche patient (seulement si pas de patient présélectionné)
+    const patientSearch = document.getElementById('patientSearch');
+    const patientResults = document.getElementById('patientResults');
+    const patientId = document.getElementById('patientId');
+    const patientSelected = document.getElementById('patientSelected');
+    const selectedPatientName = document.getElementById('selectedPatientName');
+    const formPatientId = document.getElementById('formPatientId');
+
+    // Si un patient est déjà sélectionné, on désactive la recherche
+    if (formPatientId.value) return;
+
+    if (patientSearch) {
+        let searchTimeout = null;
+
+        patientSearch.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const term = this.value.trim();
+            
+            if (term.length < 2) {
+                patientResults.style.display = 'none';
+                patientResults.innerHTML = '';
+                return;
+            }
+            
+            searchTimeout = setTimeout(() => {
+                fetch(`/engagements/api/patients/search?q=${encodeURIComponent(term)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        patientResults.innerHTML = '';
+                        if (data.length === 0) {
+                            patientResults.innerHTML = '<div class="list-group-item text-muted">Aucun patient trouvé</div>';
+                            patientResults.style.display = 'block';
+                            return;
+                        }
+                        
+                        data.forEach(patient => {
+                            const div = document.createElement('div');
+                            div.className = 'list-group-item list-group-item-action';
+                            div.innerHTML = `
+                                <strong>${patient.nom} ${patient.prenom}</strong>
+                                <span class="text-muted">(N° ${patient.numero_dossier})</span>
+                                ${patient.telephone ? `- ${patient.telephone}` : ''}
+                                <br>
+                                <small class="text-muted">Né le: ${patient.date_naissance} - Médecin: ${patient.medecin_referent}</small>
+                            `;
+                            div.onclick = function() {
+                                selectPatient(patient.id, patient.nom, patient.prenom);
+                            };
+                            patientResults.appendChild(div);
+                        });
+                        patientResults.style.display = 'block';
+                    })
+                    .catch(error => {
+                        console.error('Erreur recherche:', error);
+                        patientResults.innerHTML = '<div class="list-group-item text-danger">Erreur de recherche</div>';
+                        patientResults.style.display = 'block';
+                    });
+            }, 300);
+        });
+
+        function selectPatient(id, nom, prenom) {
+            // Rediriger vers la page avec le patient sélectionné
+            window.location.href = `/engagements/ajouter?patient_id=${id}`;
+        }
+
+        window.clearPatient = function() {
+            patientId.value = '';
+            formPatientId.value = '';
+            patientSearch.value = '';
+            patientSearch.placeholder = 'Rechercher par nom, prénom ou N° dossier...';
+            patientSelected.style.display = 'none';
+        };
+
+        document.addEventListener('click', function(e) {
+            if (patientResults && !e.target.closest('#patientSearch') && !e.target.closest('#patientResults')) {
+                patientResults.style.display = 'none';
+            }
+        });
+
+        patientSearch.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const firstResult = patientResults ? patientResults.querySelector('.list-group-item-action') : null;
+                if (firstResult) {
+                    firstResult.click();
+                }
+            }
+        });
+    }
+
+    // Validation du formulaire
+    document.getElementById('engagementForm').addEventListener('submit', function(e) {
+        const patientId = document.getElementById('formPatientId').value;
+        if (!patientId) {
+            e.preventDefault();
+            alert('Veuillez sélectionner un patient');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

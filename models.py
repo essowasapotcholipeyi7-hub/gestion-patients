@@ -712,3 +712,93 @@ class SectionExamenPhysique(db.Model):
     ordre = db.Column(db.Integer, default=0)
     actif = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Engagement(db.Model):
+    __tablename__ = 'engagements'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    medecin_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
+    structure_id = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False)
+    
+    # Type d'engagement
+    type_engagement = db.Column(db.String(50), nullable=False)
+    # 'DNR', 'REFUS_TRAITEMENT', 'SORTIE_AVIS', 'AUTRE'
+    
+    # Contenu généré
+    contenu = db.Column(db.Text, nullable=False)
+    
+    # Champs spécifiques
+    traitement_refuse = db.Column(db.Text, nullable=True)
+    motif_refus = db.Column(db.Text, nullable=True)
+    observations = db.Column(db.Text, nullable=True)
+    
+    # Témoins
+    temoin1_nom = db.Column(db.String(100), nullable=True)
+    temoin1_signature = db.Column(db.String(100), nullable=True)
+    temoin2_nom = db.Column(db.String(100), nullable=True)
+    temoin2_signature = db.Column(db.String(100), nullable=True)
+    
+    # Représentant légal
+    representant_nom = db.Column(db.String(100), nullable=True)
+    representant_lien = db.Column(db.String(50), nullable=True)
+    representant_signature = db.Column(db.String(100), nullable=True)
+    
+    # Signatures
+    signe_par_patient = db.Column(db.Boolean, default=False)
+    signe_par_medecin = db.Column(db.Boolean, default=False)
+    date_signature_patient = db.Column(db.DateTime, nullable=True)
+    date_signature_medecin = db.Column(db.DateTime, nullable=True)
+    
+    # Métadonnées
+    date_creation = db.Column(db.DateTime, default=datetime.utcnow)
+    date_impression = db.Column(db.DateTime, nullable=True)
+    numero_dossier = db.Column(db.String(50), nullable=True)
+    
+    # Relations
+    patient = db.relationship('Patient', backref='engagements')
+    medecin = db.relationship('Utilisateur', backref='engagements_crees')
+    
+    def __repr__(self):
+        return f'<Engagement {self.id} - {self.type_engagement} - Patient {self.patient_id}>'
+    
+    def get_type_label(self):
+        labels = {
+            'DNR': 'Ordre de Non-Réanimation',
+            'REFUS_TRAITEMENT': 'Refus de traitement',
+            'SORTIE_AVIS': 'Sortie contre avis médical',
+            'AUTRE': 'Autre engagement'
+        }
+        return labels.get(self.type_engagement, self.type_engagement)
+    
+    def get_type_badge_color(self):
+        colors = {
+            'DNR': 'danger',
+            'REFUS_TRAITEMENT': 'warning',
+            'SORTIE_AVIS': 'info',
+            'AUTRE': 'secondary'
+        }
+        return colors.get(self.type_engagement, 'secondary')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'patient_id': self.patient_id,
+            'medecin_id': self.medecin_id,
+            'type_engagement': self.type_engagement,
+            'type_label': self.get_type_label(),
+            'contenu': self.contenu,
+            'traitement_refuse': self.traitement_refuse,
+            'motif_refus': self.motif_refus,
+            'observations': self.observations,
+            'temoin1_nom': self.temoin1_nom,
+            'temoin2_nom': self.temoin2_nom,
+            'representant_nom': self.representant_nom,
+            'representant_lien': self.representant_lien,
+            'signe_par_patient': self.signe_par_patient,
+            'signe_par_medecin': self.signe_par_medecin,
+            'date_creation': self.date_creation.strftime('%d/%m/%Y %H:%M'),
+            'date_signature_patient': self.date_signature_patient.strftime('%d/%m/%Y %H:%M') if self.date_signature_patient else None,
+            'date_signature_medecin': self.date_signature_medecin.strftime('%d/%m/%Y %H:%M') if self.date_signature_medecin else None,
+            'numero_dossier': self.numero_dossier
+        }
