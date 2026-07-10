@@ -3739,23 +3739,20 @@ def api_lits_disponibles():
 @app.route('/patient/<int:patient_id>/antecedents')
 @login_required
 def patient_antecedents(patient_id):
-    """Voir tous les antécédents d'un patient"""
     from models import Patient, AntecedentPatient
     
     patient = Patient.query.get_or_404(patient_id)
+    antecedents = AntecedentPatient.query.filter_by(patient_id=patient_id).order_by(AntecedentPatient.date_recueil.desc()).all()
     
-    # Vérifier l'accès
-    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
-        flash('Accès non autorisé', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    antecedents = AntecedentPatient.query.filter_by(patient_id=patient_id).order_by(
-        AntecedentPatient.date_recueil.desc()
-    ).all()
+    # ⭐ Récupérer les paramètres avec des valeurs par défaut
+    return_to = request.args.get('return_to', '')
+    consultation_id = request.args.get('consultation_id', '')
     
     return render_template('patients/antecedents.html',
                          patient=patient,
-                         antecedents=antecedents)
+                         antecedents=antecedents,
+                         return_to=return_to,
+                         consultation_id=consultation_id)
 
 
 @app.route('/patient/<int:patient_id>/antecedent/ajouter', methods=['POST'])
@@ -3856,6 +3853,31 @@ def supprimer_antecedent(id):
     
     flash('✅ Antécédent supprimé avec succès', 'success')
     return redirect(url_for('patient_antecedents', patient_id=patient_id))
+@app.route('/patient/<int:patient_id>/habitudes_vie', methods=['POST'])
+@login_required
+def modifier_habitudes_vie(patient_id):
+    patient = Patient.query.get_or_404(patient_id)
+    
+    patient.tabac = request.form.get('tabac')
+    patient.alcool = request.form.get('alcool')
+    patient.groupe_sanguin = request.form.get('groupe_sanguin')
+    patient.medecin_traitant = request.form.get('medecin_traitant')
+    patient.mutuelle = request.form.get('mutuelle')
+    patient.allaitement = request.form.get('allaitement') == 'on'
+    patient.grossesse = request.form.get('grossesse') == 'on'
+    
+    db.session.commit()
+    
+    flash('Habitudes de vie mises à jour avec succès', 'success')
+    
+    # ⭐ Redirection dynamique
+    return_to = request.form.get('return_to') or request.args.get('return_to')
+    consultation_id = request.form.get('consultation_id') or request.args.get('consultation_id')
+    
+    if return_to == 'consultation' and consultation_id:
+        return redirect(url_for('consultation_detail', id=consultation_id))
+    else:
+        return redirect(url_for('patient_antecedents', patient_id=patient_id))
 
 @app.route('/api/patient/<int:patient_id>/antecedents')
 @login_required

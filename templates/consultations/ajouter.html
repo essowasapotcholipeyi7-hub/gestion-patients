@@ -90,18 +90,21 @@
                     </small>
                 </div>
 
-                <!-- Antécédents du patient -->
-                <div id="antecedentsContainer" style="display: none;" class="mt-3">
-                    <h6><i class="fas fa-history me-2 text-warning"></i>Antécédents du patient</h6>
-                    <div id="antecedentsList" class="list-group mt-2" style="max-height: 200px; overflow-y: auto;">
-                        <!-- Rempli par JavaScript -->
-                    </div>
-                    <small class="text-muted">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Les antécédents sont recueillis par l'infirmier et consultables/modifiables ici.
-                        <a href="#" onclick="ouvrirGestionAntecedents()" class="text-primary">Gérer les antécédents</a>
-                    </small>
-                </div>
+<!-- Antécédents du patient -->
+<div id="antecedentsContainer" style="display: none;" class="mt-3">
+    <h6><i class="fas fa-history me-2 text-warning"></i>Antécédents du patient</h6>
+    <div id="antecedentsList" class="list-group mt-2" style="max-height: 200px; overflow-y: auto;">
+        <!-- Rempli par JavaScript -->
+    </div>
+    <small class="text-muted">
+        <i class="fas fa-info-circle me-1"></i>
+        Les antécédents sont recueillis par l'infirmier et consultables/modifiables ici.
+        <!-- ✅ href="#" avec return false; pour éviter le scroll -->
+        <a href="#" onclick="ouvrirGestionAntecedents(); return false;" class="text-primary">
+            Gérer les antécédents
+        </a>
+    </small>
+</div>
 
 <!-- ==================== EXAMEN PHYSIQUE ==================== -->
 <div class="row">
@@ -730,14 +733,8 @@ function chargerAntecedents(patientId) {
                                 ${a.date_debut ? `<small class="text-muted">(depuis ${a.date_debut})</small>` : ''}
                                 ${a.severite ? `<span class="badge bg-${a.severite === 'SEVERE' ? 'danger' : a.severite === 'MODEREE' ? 'warning' : 'success'} ms-1">${a.severite}</span>` : ''}
                             </div>
-                            <div>
-                                <button class="btn btn-sm btn-outline-secondary me-1" onclick="modifierAntecedent(${a.id})">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="supprimerAntecedent(${a.id})">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
+
+                                <!-- ✅ AJOUT type="button" -->
                         `;
                         list.appendChild(item);
                     });
@@ -749,7 +746,6 @@ function chargerAntecedents(patientId) {
         })
         .catch(error => console.error('Erreur chargement antécédents:', error));
 }
-
 function ouvrirGestionAntecedents() {
     const patientId = document.getElementById('patientId').value;
     if (patientId) {
@@ -2025,7 +2021,14 @@ function viderPanierMedicaments() {
     }
 }
 
-
+function ouvrirGestionAntecedents() {
+    const patientId = document.getElementById('patientId').value;
+    if (patientId) {
+        window.open(`/patient/${patientId}/antecedents`, '_blank');
+    } else {
+        alert('Veuillez d\'abord sélectionner un patient');
+    }
+}
 </script>
 
 <style>

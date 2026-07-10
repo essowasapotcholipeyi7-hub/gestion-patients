@@ -639,57 +639,137 @@
                 </div>
             </div>
             
-            <!-- PRESCRIPTIONS -->
-            <div class="card">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-prescription me-2"></i>Prescriptions / Ordonnances</h5>
-                    <a href="{{ url_for('prescription_ajouter') }}" class="btn btn-sm btn-light" data-loading="true">
-                        <i class="fas fa-plus me-1"></i>Nouvelle prescription
-                    </a>
+<!-- PRESCRIPTIONS -->
+<div class="card">
+    <div class="card-header bg-success text-white">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#medicamentsTab">
+                    <i class="fas fa-pills me-1"></i> Médicaments
+                    {% set nb_medicaments = prescriptions|selectattr('type_prescription', 'in', ['medicament', None])|list|length %}
+                    <span class="badge bg-light text-dark rounded-pill ms-1">{{ nb_medicaments }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#actesTab">
+                    <i class="fas fa-flask me-1"></i> Actes
+                    {% set nb_actes = prescriptions|selectattr('type_prescription', 'equalto', 'acte')|list|length %}
+                    <span class="badge bg-light text-dark rounded-pill ms-1">{{ nb_actes }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        
+        <!-- ⭐ TAB MÉDICAMENTS -->
+        <div class="tab-pane fade show active" id="medicamentsTab">
+            {% set medicaments = prescriptions|selectattr('type_prescription', 'in', ['medicament', None])|list %}
+            
+            {% if medicaments %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Médicament</th>
+                                <th>Dosage</th>
+                                <th>Posologie</th>
+                                <th>Durée</th>
+                                <th>Instructions</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prescription in medicaments %}
+                            <tr>
+                                <td>{{ prescription.date_prescription.strftime('%d/%m/%Y') if prescription.date_prescription else '-' }}</td>
+                                <td><strong>{{ prescription.medicament or '-' }}</strong></td>
+                                <td>{{ prescription.dosage or '-' }}</td>
+                                <td>{{ prescription.frequence or '-' }}</td>
+                                <td>{{ prescription.duree_jours or '-' }} jours</td>
+                                <td>{{ prescription.instructions or '-' }}</td>
+                                <td>
+                                    {% if prescription.statut == 'active' %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Terminée</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-                <div class="card-body">
-                    {% if prescriptions %}
-                        <div class="table-responsive">
-                            <table class="table table-sm table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Médicament</th>
-                                        <th>Dosage</th>
-                                        <th>Posologie</th>  <!-- ⭐ NOUVEAU -->
-                                        <th>Durée</th>
-                                        <th>Instructions</th>
-                                        <th>Statut</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for prescription in prescriptions %}
-                                    <tr>
-                                        <td>{{ prescription.date_prescription.strftime('%d/%m/%Y') if prescription.date_prescription else '-' }}</td>
-                                        <td><strong>{{ prescription.medicament or '-' }}</strong></td>
-                                        <td>{{ prescription.dosage or '-' }}</td>
-                                        <td>{{ prescription.frequence or '-' }}</td>  <!-- ⭐ NOUVEAU -->
-                                        <td>{{ prescription.duree_jours or '-' }} jours</td>
-                                        <td>{{ prescription.instructions or '-' }}</td>
-                                        <td>
-                                            {% if prescription.statut == 'active' %}
-                                                <span class="badge bg-success">Active</span>
+            {% else %}
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-info-circle me-2"></i>Aucun médicament prescrit
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- ⭐ TAB ACTES -->
+        <div class="tab-pane fade" id="actesTab">
+            {% set actes = prescriptions|selectattr('type_prescription', 'equalto', 'acte')|list %}
+            
+            {% if actes %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Acte</th>
+                                <th>Type</th>
+                                <th>Prescripteur</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prescription in actes %}
+                            <tr>
+                                <td>{{ prescription.date_prescription.strftime('%d/%m/%Y') if prescription.date_prescription else '-' }}</td>
+                                <td><strong>{{ prescription.medicament or '-' }}</strong></td>
+                                <td>
+                                    {% if prescription.id_consultation %}
+                                        {% set consultation = prescription.consultation %}
+                                        {% if consultation %}
+                                            {% if consultation.examens_biologie and prescription.medicament in consultation.examens_biologie %}
+                                                <span class="badge bg-success">Biologie</span>
+                                            {% elif consultation.examens_imagerie and prescription.medicament in consultation.examens_imagerie %}
+                                                <span class="badge bg-warning text-dark">Imagerie</span>
                                             {% else %}
-                                                <span class="badge bg-secondary">Terminée</span>
+                                                <span class="badge bg-secondary">Acte</span>
                                             {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="alert alert-info text-center">
-                            <i class="fas fa-info-circle me-2"></i>Aucune prescription enregistrée
-                        </div>
-                    {% endif %}
+                                        {% else %}
+                                            <span class="badge bg-secondary">Acte</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">Acte</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ prescription.prescripteur or '-' }}</td>
+                                <td>
+                                    {% if prescription.statut == 'active' %}
+                                        <span class="badge bg-success">Actif</span>
+                                    {% elif prescription.statut == 'realise' %}
+                                        <span class="badge bg-info">Réalisé</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ prescription.statut or 'En attente' }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-            </div>
+            {% else %}
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-info-circle me-2"></i>Aucun acte prescrit
+                </div>
+            {% endif %}
+        </div>
+        
+    </div>
+</div>
             
             <!-- BOUTONS D'ACTION -->
             <div class="mt-4">
