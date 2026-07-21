@@ -231,6 +231,12 @@ class Patient(db.Model):
     imc = db.Column(db.Float)
     
     # ⚠️ ANTÉCÉDENTS SUPPRIMÉS (déplacés vers Consultation)
+
+    # ⭐ NOUVEAUX CHAMPS POUR LA PRÉ-CONSULTATION
+    motif_pre_consultation = db.Column(db.Text, nullable=True)
+    pre_consultation_faite = db.Column(db.Boolean, default=False)
+    pre_consultation_par = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
+    pre_consultation_date = db.Column(db.DateTime, nullable=True)
     
     # Autres informations
     mutuelle = db.Column(db.String(100))
@@ -263,6 +269,9 @@ class Patient(db.Model):
     # Relations
     consultations = db.relationship('Consultation', backref='patient', lazy=True, cascade='all, delete-orphan')
     medecin_referent = db.relationship('Utilisateur', foreign_keys=[id_medecin_referent], backref='patients_suivis')
+    # Relation avec l'infirmier qui a fait la pré-consultation
+    pre_consultation_infirmier = db.relationship('Utilisateur', foreign_keys=[pre_consultation_par])
+
 
 class StructureMapping(db.Model):
     __tablename__ = 'structure_mappings'

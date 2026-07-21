@@ -111,15 +111,30 @@ function afficherSections() {
     const container = document.getElementById('sectionsContainer');
     container.innerHTML = '';
     
+    let sectionsAffichees = 0;
+    
     sectionsData.forEach((section, index) => {
+        // ⭐ CACHER "AUTRE À PRÉCISER" PAR DÉFAUT
+        const estAutre = section.nom === 'Autre à préciser' || section.nom === 'Autre à préciser';
+        const isModified = sectionsModifiees[index] !== undefined;
+        
+        // Si c'est "Autre à préciser" et qu'elle n'est pas modifiée, on ne l'affiche pas
+        if (estAutre && !isModified) {
+            return;
+        }
+        
+        sectionsAffichees++;
         const div = document.createElement('div');
         div.className = 'card mb-3 section-card';
         div.id = `section-${index}`;
         
-        const isModified = sectionsModifiees[index] !== undefined;
         const texte = isModified ? sectionsModifiees[index] : section.texte;
+        const bgColor = isModified ? '#fff3cd' : '#fafafa';
+        const borderLeft = isModified ? '4px solid #ffc107' : '4px solid #28a745';
+        const badge = isModified ? 
+            '<span class="badge bg-warning ms-2">🔸 Modifié</span>' : 
+            '<span class="badge bg-success ms-2">✅ Normal</span>';
         
-        // Sauvegarder le texte original
         if (!sectionsOriginales[index]) {
             sectionsOriginales[index] = section.texte;
         }
@@ -129,7 +144,7 @@ function afficherSections() {
                 <div>
                     <i class="fas ${section.icone} me-2"></i>
                     <strong>${section.nom}</strong>
-                    ${isModified ? '<span class="badge bg-warning ms-2">Modifié</span>' : '<span class="badge bg-secondary ms-2">Normal</span>'}
+                    ${badge}
                 </div>
                 <div>
                     <button class="btn btn-sm btn-primary me-1" onclick="modifierSection(${index})">
@@ -140,12 +155,25 @@ function afficherSections() {
                     </button>
                 </div>
             </div>
-            <div class="card-body" id="section-body-${index}">
-                <p class="mb-0" style="white-space: pre-wrap; font-size: 14px;">${texte}</p>
+            <div class="card-body" id="section-body-${index}" style="background: ${bgColor}; border-left: ${borderLeft};">
+                <p class="mb-0" style="white-space: pre-wrap; font-size: 14px; line-height: 1.8;">${texte}</p>
             </div>
         `;
         container.appendChild(div);
     });
+    
+    // Si aucune section affichée, afficher un message
+    if (sectionsAffichees === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info text-center py-4">
+                <i class="fas fa-info-circle fa-2x mb-2"></i>
+                <p>Aucune section d'examen n'est disponible.</p>
+                <button class="btn btn-sm btn-primary" onclick="ajouterAppareil()">
+                    <i class="fas fa-plus me-1"></i>Ajouter un appareil
+                </button>
+            </div>
+        `;
+    }
     
     // Mettre à jour le résumé
     genererResume();
@@ -171,6 +199,8 @@ function modifierSection(index) {
     
     afficherSections();
 }
+
+
 
 // ==================== RÉINITIALISER UNE SECTION ====================
 function resetSection(index) {
@@ -220,12 +250,39 @@ function genererResume() {
     if (!examenComplet) return;
     
     let resume = '';
+    let nbModifications = 0;
+    let sectionsActives = 0;
+    
     sectionsData.forEach((section, index) => {
-        const texte = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : section.texte;
+        const estModifiee = sectionsModifiees[index] !== undefined;
+        const texte = estModifiee ? sectionsModifiees[index] : section.texte;
+        
+        // ⭐ IGNORER LA SECTION "AUTRE À PRÉCISER" SI ELLE N'EST PAS MODIFIÉE
+        const estAutre = section.nom === 'Autre à préciser' || section.nom === 'Autre à préciser';
+        if (estAutre && !estModifiee) {
+            return; // Skip cette section
+        }
+        
+        // ⭐ IGNORER LES SECTIONS AVEC TEXTE VIDE
+        if (!texte || texte.trim() === '' || texte.trim() === 'Section personnalisée à ajouter selon les besoins de l\'examen.') {
+            return;
+        }
+        
+        sectionsActives++;
+        
+        // Format avec séparateurs clairs
         resume += `--- ${section.nom.toUpperCase()} ---\n${texte}\n\n`;
+        
+        if (estModifiee) nbModifications++;
     });
     
-    examenComplet.value = resume.trim();
+    // Ajouter un en-tête
+    const header = `═══════════════════════════════════════════════════\n`;
+    const header2 = `EXAMEN PHYSIQUE COMPLET\n`;
+    const stats = `📊 ${sectionsActives} section(s) active(s) | ${nbModifications} modification(s)\n`;
+    const footer = `═══════════════════════════════════════════════════\n`;
+    
+    examenComplet.value = header + header2 + stats + footer + resume;
 }
 
 // ==================== SAUVEGARDE AVANT SOUMISSION ====================

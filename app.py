@@ -106,17 +106,24 @@ def login():
             user.derniere_connexion = datetime.utcnow()
             db.session.commit()
             
-            # Redirection selon le rôle
+            # ⭐ REDIRECTION SELON LE RÔLE (MODIFIÉ)
             if user.role == 'super_admin':
                 return redirect(url_for('admin_dashboard'))
             elif user.role == 'admin_structure':
                 return redirect(url_for('structure_dashboard'))
+            elif user.role == 'infirmier':
+                return redirect(url_for('infirmier_dashboard'))  # ⭐ NOUVEAU
+            elif user.role == 'medecin':
+                return redirect(url_for('medecin_dashboard'))  # ⭐ OPTIONNEL
+            elif user.role == 'laborantin':
+                return redirect(url_for('laborantin_dashboard'))  # ⭐ OPTIONNEL
             else:
                 return redirect(url_for('dashboard'))
         else:
             flash('Email ou mot de passe incorrect', 'danger')
     
     return render_template('login.html')
+
 
 @app.route('/logout')
 @login_required
@@ -277,6 +284,10 @@ def dashboard():
         return redirect(url_for('admin_dashboard'))
     elif current_user.role == 'admin_structure':
         return redirect(url_for('structure_dashboard'))
+    elif current_user.role == 'infirmier':
+        return redirect(url_for('infirmier_dashboard'))  # ⭐ NOUVEAU
+    elif current_user.role == 'laborantin':
+        return redirect(url_for('laborantin_dashboard'))  # ⭐ NOUVEAU (optionnel)
     else:
         # Dashboard médecin
         patients_actifs = Patient.query.filter_by(
@@ -321,6 +332,7 @@ def dashboard():
                              derniers_patients=derniers_patients,
                              prochains_rdv=prochains_rdv,
                              today=date.today())
+
 # Routes admin super admin
 @app.route('/admin')
 @login_required
@@ -339,6 +351,178 @@ def admin_dashboard():
                          structures_actives=structures_actives,
                          total_utilisateurs=total_utilisateurs)
 
+# ==================== DASHBOARD INFIRMIER ====================
+@app.route('/infirmier/dashboard')
+@login_required
+def infirmier_dashboard():
+    from models import Patient, Utilisateur
+    from datetime import datetime
+    
+    # Vérifier que l'utilisateur est un infirmier
+    if current_user.role != 'infirmier':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Patients en attente de pré-consultation
+    patients_attente = Patient.query.filter_by(
+        id_structure=current_user.id_structure,
+        archived=False
+    ).filter(
+        db.or_(
+            Patient.pre_consultation_faite == False,
+            Patient.pre_consultation_faite.is_(None)
+        )
+    ).order_by(Patient.date_derniere_consultation.desc()).all()
+    
+    # Patients déjà préparés
+    patients_prets = Patient.query.filter_by(
+        id_structure=current_user.id_structure,
+        archived=False,
+        pre_consultation_faite=True
+    ).order_by(Patient.pre_consultation_date.desc()).all()
+    
+    # Médecins actifs
+    medecins = Utilisateur.query.filter_by(
+        id_structure=current_user.id_structure,
+        role='medecin',
+        actif=True
+    ).all()
+    
+    # Total patients
+    total_patients = Patient.query.filter_by(
+        id_structure=current_user.id_structure,
+        archived=False
+    ).count()
+    
+    return render_template('infirmier/dashboard.html',
+                         patients_attente=patients_attente,
+                         patients_prets=patients_prets,
+                         medecins=medecins,
+                         total_patients=total_patients,
+                         now=datetime.now())
+
+@app.route('/infirmier/pre_consultation/<int:patient_id>', methods=['GET', 'POST'])
+@login_required
+def infirmier_pre_consultation(patient_id):
+    from models import Patient
+    from datetime import datetime, timezone
+    
+    patient = Patient.query.get_or_404(patient_id)
+    
+    if current_user.role != 'infirmier':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé à ce patient', 'danger')
+        return redirect(url_for('infirmier_dashboard'))
+    
+    if request.method == 'POST':
+        # Motif
+        patient.motif_pre_consultation = request.form.get('motif')
+        
+        # Constantes
+        patient.tension_arterielle = request.form.get('tension')
+        patient.temperature_c = request.form.get('temperature')
+        patient.pulse_bpm = request.form.get('pouls')
+        patient.oxygene_saturation = request.form.get('saturation')
+        patient.poids_kg = request.form.get('poids')
+        patient.taille_cm = request.form.get('taille')
+        patient.imc = request.form.get('imc')
+        
+        # ⭐ HABITUDES DE VIE ET GROUPE SANGUIN
+        patient.tabac = request.form.get('tabac')
+        patient.alcool = request.form.get('alcool')
+        patient.allaitement = request.form.get('allaitement') == 'Oui'
+        patient.grossesse = request.form.get('grossesse') == 'Oui'
+        patient.groupe_sanguin = request.form.get('groupe_sanguin')
+        patient.mutuelle = request.form.get('mutuelle')
+        patient.medecin_traitant = request.form.get('medecin_traitant')
+        
+        # Marquer que la pré-consultation est faite
+        patient.pre_consultation_faite = True
+        patient.pre_consultation_par = current_user.id
+        patient.pre_consultation_date = datetime.now(timezone.utc)
+        
+        db.session.commit()
+        
+        flash('✅ Pré-consultation enregistrée avec succès !', 'success')
+        return redirect(url_for('infirmier_pre_consultation', patient_id=patient_id))
+    
+    return render_template('infirmier/pre_consultation.html', patient=patient)
+
+@app.route('/medecin/dashboard')
+@login_required
+def medecin_dashboard():
+    from models import Patient, Consultation, Prescription
+    from datetime import date, datetime
+    
+    if current_user.role != 'medecin':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Statistiques pour le médecin
+    patients_actifs = Patient.query.filter_by(
+        id_structure=current_user.id_structure,
+        id_medecin_referent=current_user.id,
+        archived=False
+    ).count()
+    
+    consultations_aujourdhui = Consultation.query.filter(
+        Consultation.id_medecin == current_user.id,
+        Consultation.date_consultation >= datetime.now().replace(hour=0, minute=0, second=0)
+    ).count()
+    
+    prescriptions_actives = Prescription.query.filter_by(
+        id_medecin=current_user.id,
+        statut='active'
+    ).count()
+    
+    patients_gueris = Patient.query.filter_by(
+        id_structure=current_user.id_structure,
+        id_medecin_referent=current_user.id,
+        statut_medical='GUERI',
+        archived=False
+    ).count()
+    
+    derniers_patients = Patient.query.filter_by(
+        id_structure=current_user.id_structure,
+        id_medecin_referent=current_user.id,
+        archived=False
+    ).order_by(Patient.date_creation.desc()).limit(5).all()
+    
+    prochains_rdv = Consultation.query.filter(
+        Consultation.id_medecin == current_user.id,
+        Consultation.prochain_rdv >= datetime.now()
+    ).order_by(Consultation.prochain_rdv.asc()).limit(5).all()
+    
+    return render_template('medecin_dashboard.html',
+                         patients_actifs=patients_actifs,
+                         consultations_aujourdhui=consultations_aujourdhui,
+                         prescriptions_actives=prescriptions_actives,
+                         patients_gueris=patients_gueris,
+                         derniers_patients=derniers_patients,
+                         prochains_rdv=prochains_rdv,
+                         today=date.today())
+
+@app.route('/api/patient/<int:patient_id>/pre_consultation')
+@login_required
+def api_patient_pre_consultation(patient_id):
+    from models import Patient
+    
+    patient = Patient.query.get_or_404(patient_id)
+    
+    return jsonify({
+        'motif': patient.motif_pre_consultation or '',
+        'pre_consultation_faite': patient.pre_consultation_faite or False,
+        'tabac': patient.tabac or '',
+        'alcool': patient.alcool or '',
+        'allaitement': patient.allaitement or False,
+        'grossesse': patient.grossesse or False,
+        'groupe_sanguin': patient.groupe_sanguin or '',
+        'mutuelle': patient.mutuelle or '',
+        'medecin_traitant': patient.medecin_traitant or ''
+    })
 
 # ==================== GESTION DES UTILISATEURS PAR ADMIN STRUCTURE ====================
 
@@ -712,22 +896,40 @@ def patient_ajouter():
 @login_required
 @has_permission('PATIENTS')
 def patient_detail(id):
-    from models import Patient, Consultation, Prescription
+    from models import Patient, Consultation, Prescription, ExamenPhysique, SectionExamenPhysique
     from datetime import datetime
+    import json
     
     patient = Patient.query.get_or_404(id)
     
-    # ⭐⭐⭐ VÉRIFICATION POUR LE MÉDECIN ⭐⭐⭐
-    if current_user.role == 'medecin':
-        # Si le patient a un médecin référent différent du médecin connecté
-        if patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
-            flash('Accès non autorisé - Ce patient n\'est pas votre patient référent', 'danger')
-            return redirect(url_for('patients_list'))
-        # Si le patient n'a pas de médecin référent (cas des patients GHP non encore consultés)
-        # On autorise l'accès car le médecin va le consulter et devenir référent
+    # Vérification pour le médecin
+    if current_user.role == 'medecin' and patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
+        flash('Accès non autorisé - Ce patient n\'est pas votre patient référent', 'danger')
+        return redirect(url_for('patients_list'))
     
     consultations = Consultation.query.filter_by(id_patient=patient.id).order_by(Consultation.date_consultation.desc()).all()
     prescriptions = Prescription.query.filter_by(id_patient=patient.id).order_by(Prescription.date_prescription.desc()).all()
+    
+    # ⭐ Récupérer les sections standard pour référence
+    sections_standard = SectionExamenPhysique.query.filter_by(actif=True).order_by(SectionExamenPhysique.ordre).all()
+    sections_standard_dict = {s.nom: s.texte_fr for s in sections_standard}
+    
+    # ⭐ Pour chaque consultation, récupérer les sections modifiées
+    for consultation in consultations:
+        examen = ExamenPhysique.query.filter_by(consultation_id=consultation.id).first()
+        if examen and examen.sections_modifiees:
+            try:
+                consultation.sections_modifiees = json.loads(examen.sections_modifiees)
+                consultation.examen_complet = examen.examen_complet
+            except:
+                consultation.sections_modifiees = {}
+                consultation.examen_complet = None
+        else:
+            consultation.sections_modifiees = {}
+            consultation.examen_complet = None
+        
+        # ⭐ Ajouter les sections standard pour comparaison
+        consultation.sections_standard = sections_standard_dict
     
     return render_template('patients/detail.html', 
                          patient=patient, 
@@ -3744,60 +3946,65 @@ def patient_antecedents(patient_id):
     patient = Patient.query.get_or_404(patient_id)
     antecedents = AntecedentPatient.query.filter_by(patient_id=patient_id).order_by(AntecedentPatient.date_recueil.desc()).all()
     
-    # ⭐ Récupérer les paramètres avec des valeurs par défaut
-    return_to = request.args.get('return_to', '')
-    consultation_id = request.args.get('consultation_id', '')
+    # ⭐ Récupérer les paramètres de retour
+    return_to = request.args.get('return_to')
+    consultation_id = request.args.get('consultation_id')
     
     return render_template('patients/antecedents.html',
                          patient=patient,
                          antecedents=antecedents,
                          return_to=return_to,
-                         consultation_id=consultation_id)
-
+                         consultation_id=consultation_id,
+                         current_user=current_user)
 
 @app.route('/patient/<int:patient_id>/antecedent/ajouter', methods=['POST'])
 @login_required
 def ajouter_antecedent(patient_id):
-    """Ajouter un antécédent (infirmier ou médecin)"""
-    from models import Patient, AntecedentPatient
+    from models import AntecedentPatient
+    from datetime import datetime, timezone
+    
+    patient = Patient.query.get_or_404(patient_id)
     
     if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
     
-    patient = Patient.query.get_or_404(patient_id)
-    
     type_antecedent = request.form.get('type_antecedent')
+    type_precision = request.form.get('type_precision')
     description = request.form.get('description')
+    severite = request.form.get('severite')
     date_debut = request.form.get('date_debut')
     date_fin = request.form.get('date_fin')
-    actif = request.form.get('actif') == 'on'
-    severite = request.form.get('severite')
     traitement = request.form.get('traitement')
     notes = request.form.get('notes')
-    
-    if not type_antecedent or not description:
-        flash('Le type et la description sont obligatoires', 'danger')
-        return redirect(url_for('patient_antecedents', patient_id=patient_id))
+    actif = request.form.get('actif') == 'on'
     
     antecedent = AntecedentPatient(
         patient_id=patient_id,
         type_antecedent=type_antecedent,
+        type_precision=type_precision if type_antecedent == 'AUTRE' else None,
         description=description,
-        date_debut=datetime.strptime(date_debut, '%Y-%m-%d') if date_debut else None,
-        date_fin=datetime.strptime(date_fin, '%Y-%m-%d') if date_fin else None,
+        severite=severite if severite else None,
+        date_debut=datetime.strptime(date_debut, '%Y-%m-%d').date() if date_debut else None,
+        date_fin=datetime.strptime(date_fin, '%Y-%m-%d').date() if date_fin else None,
+        traitement=traitement if traitement else None,
+        notes=notes if notes else None,
         actif=actif,
-        severite=severite,
-        traitement=traitement,
-        notes=notes,
-        recueilli_par=current_user.id
+        recueilli_par=current_user.id,
+        date_recueil=datetime.now(timezone.utc)
     )
     
     db.session.add(antecedent)
     db.session.commit()
     
     flash('✅ Antécédent ajouté avec succès', 'success')
-    return redirect(url_for('patient_antecedents', patient_id=patient_id))
+    
+    # ⭐ REDIRECTION : Si on vient de la pré-consultation (infirmier)
+    return_to = request.form.get('return_to')
+    if return_to == 'pre_consultation' or current_user.role == 'infirmier':
+        return redirect(url_for('infirmier_pre_consultation', patient_id=patient_id))
+    else:
+        return redirect(url_for('patient_antecedents', patient_id=patient_id))
 
 
 @app.route('/antecedent/<int:id>/modifier', methods=['POST'])
@@ -3838,21 +4045,27 @@ def modifier_antecedent(id):
 @app.route('/antecedent/<int:id>/supprimer', methods=['POST'])
 @login_required
 def supprimer_antecedent(id):
-    """Supprimer un antécédent"""
     from models import AntecedentPatient
     
     antecedent = AntecedentPatient.query.get_or_404(id)
+    patient_id = antecedent.patient_id
     
     if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
     
-    patient_id = antecedent.patient_id
     db.session.delete(antecedent)
     db.session.commit()
     
     flash('✅ Antécédent supprimé avec succès', 'success')
-    return redirect(url_for('patient_antecedents', patient_id=patient_id))
+    
+    # ⭐ REDIRECTION : Si c'est un infirmier, retour à la pré-consultation
+    if current_user.role == 'infirmier':
+        return redirect(url_for('infirmier_pre_consultation', patient_id=patient_id))
+    else:
+        return redirect(url_for('patient_antecedents', patient_id=patient_id))
+
+
 @app.route('/patient/<int:patient_id>/habitudes_vie', methods=['POST'])
 @login_required
 def modifier_habitudes_vie(patient_id):
@@ -4215,80 +4428,80 @@ def get_sections_examen():
         {
             'nom': 'Général',
             'icone': 'fa-user',
-            'fr': 'Patient en bon état général, conscient, orienté dans le temps et dans l\'espace, afébrile (température normale).',
-            'en': 'Patient in good general condition, conscious, oriented in time and space, afebrile (normal temperature).'
+            'fr': 'Patient conscient, orienté, collaborant.\nBon état général.',
+            'en': 'Patient conscious, oriented, cooperative.\nGood general condition.'
         },
         {
             'nom': 'Neurologique',
             'icone': 'fa-brain',
-            'fr': 'Motricité et sensibilité conservées. Réflexes ostéotendineux présents et symétriques. Pas de déficit neurologique. Pas de trouble de la marche ou de l\'équilibre.',
-            'en': 'Motor and sensory functions preserved. Osteotendinous reflexes present and symmetrical. No neurological deficit. No gait or balance disorders.'
+            'fr': 'Motricité et sensibilité conservées.\nRéflexes ostéotendineux présents et symétriques.\nPas de déficit neurologique.\nPas de trouble de la marche ou de l\'équilibre.',
+            'en': 'Motor and sensory functions preserved.\nOsteotendinous reflexes present and symmetrical.\nNo neurological deficit.\nNo gait or balance disorders.'
         },
         {
             'nom': 'Cardiovasculaire',
             'icone': 'fa-heart',
-            'fr': 'Bruits du cœur réguliers, rythme sinusal régulier. Pas de souffle cardiaque. Pulsations périphériques présentes et symétriques. Pas d\'œdème des membres inférieurs.',
-            'en': 'Regular heart sounds, regular sinus rhythm. No heart murmur. Peripheral pulses present and symmetrical. No lower limb edema.'
+            'fr': 'Bruits du cœur réguliers, rythme sinusal régulier.\nPas de souffle cardiaque.\nPulsations périphériques présentes et symétriques.\nPas d\'œdème des membres inférieurs.',
+            'en': 'Regular heart sounds, regular sinus rhythm.\nNo heart murmur.\nPeripheral pulses present and symmetrical.\nNo lower limb edema.'
         },
         {
             'nom': 'Respiratoire',
             'icone': 'fa-lungs',
-            'fr': 'Auscultation pulmonaire normale, murmure vésiculaire bien perçu. Pas de bruits anormaux (crépitants, sibilants). Pas de douleur thoracique à la respiration.',
-            'en': 'Normal lung auscultation, vesicular breath sounds well heard. No abnormal sounds (crackles, wheezes). No chest pain on respiration.'
+            'fr': 'Auscultation pulmonaire normale, murmure vésiculaire bien perçu.\nPas de bruits anormaux (crépitants, sibilants).\nPas de douleur thoracique à la respiration.',
+            'en': 'Normal lung auscultation, vesicular breath sounds well heard.\nNo abnormal sounds (crackles, wheezes).\nNo chest pain on respiration.'
         },
         {
             'nom': 'Digestif',
             'icone': 'fa-stomach',
-            'fr': 'Abdomen souple, non douloureux à la palpation. Bruits hydro-aériques présents. Pas de masse, pas de défense. Pas de douleur à la décompression.',
-            'en': 'Soft abdomen, non-tender on palpation. Bowel sounds present. No mass, no guarding. No pain on decompression.'
+            'fr': 'Abdomen souple, non douloureux à la palpation.\nBruits hydro-aériques présents.\nPas de masse, pas de défense.\nPas de douleur à la décompression.',
+            'en': 'Soft abdomen, non-tender on palpation.\nBowel sounds present.\nNo mass, no guarding.\nNo pain on decompression.'
         },
         {
             'nom': 'Splénoganglionnaire',
             'icone': 'fa-blood',
-            'fr': 'Pas de splénomégalie palpable. Pas de polyadénopathie périphérique palpable. Aires ganglionnaires libres.',
-            'en': 'No palpable splenomegaly. No palpable peripheral lymphadenopathy. Lymph node areas clear.'
+            'fr': 'Pas de splénomégalie palpable.\nPas de polyadénopathie périphérique palpable.\nAires ganglionnaires libres.',
+            'en': 'No palpable splenomegaly.\nNo palpable peripheral lymphadenopathy.\nLymph node areas clear.'
         },
         {
             'nom': 'Urogénital',
             'icone': 'fa-kidney',
-            'fr': 'Examen urogénital normal. Pas de douleur à la palpation des fosses lombaires. Pas de globe vésical. Organes génitaux externes normaux.',
-            'en': 'Normal urogenital examination. No pain on palpation of the lumbar fossae. No urinary retention. Normal external genitalia.'
+            'fr': 'Examen urogénital normal.\nPas de douleur à la palpation des fosses lombaires.\nPas de globe vésical.\nOrganes génitaux externes normaux.',
+            'en': 'Normal urogenital examination.\nNo pain on palpation of the lumbar fossae.\nNo urinary retention.\nNormal external genitalia.'
         },
         {
             'nom': 'Odonto-stomatologique',
             'icone': 'fa-tooth',
-            'fr': 'Cavité buccale normale, muqueuse buccale saine. Pas de lésion, pas d\'infection. Dents en bon état. Pas de mobilité dentaire anormale.',
-            'en': 'Normal oral cavity, healthy oral mucosa. No lesions, no infection. Teeth in good condition. No abnormal tooth mobility.'
+            'fr': 'Cavité buccale normale, muqueuse buccale saine.\nPas de lésion, pas d\'infection.\nDents en bon état.\nPas de mobilité dentaire anormale.',
+            'en': 'Normal oral cavity, healthy oral mucosa.\nNo lesions, no infection.\nTeeth in good condition.\nNo abnormal tooth mobility.'
         },
         {
             'nom': 'Dermatologique',
             'icone': 'fa-hand',
-            'fr': 'Peau normale, pas de lésion, pas d\'éruption. Muqueuses sèches et normales. Pas de prurit. Ongles normaux.',
-            'en': 'Normal skin, no lesions, no rash. Mucous membranes dry and normal. No pruritus. Normal nails.'
+            'fr': 'Peau normale, pas de lésion, pas d\'éruption.\nMuqueuses sèches et normales.\nPas de prurit.\nOngles normaux.',
+            'en': 'Normal skin, no lesions, no rash.\nMucous membranes dry and normal.\nNo pruritus.\nNormal nails.'
         },
         {
             'nom': 'Locomoteur (Ostéo-articulaire)',
             'icone': 'fa-bone',
-            'fr': 'Amplitudes articulaires complètes. Pas de déformation, pas de douleur à la mobilisation. Pas de limitation de mouvement. Pas de raideur.',
-            'en': 'Complete joint ranges of motion. No deformity, no pain on mobilization. No limitation of movement. No stiffness.'
+            'fr': 'Amplitudes articulaires complètes.\nPas de déformation, pas de douleur à la mobilisation.\nPas de limitation de mouvement.\nPas de raideur.',
+            'en': 'Complete joint ranges of motion.\nNo deformity, no pain on mobilization.\nNo limitation of movement.\nNo stiffness.'
         },
         {
             'nom': 'Oto-rhino-laryngologique',
             'icone': 'fa-ear-deaf',
-            'fr': 'Conduits auditifs externes libres, tympans normaux. Fosses nasales libres, muqueuse normale. Pharynx normal. Pas de douleur à la mastication.',
-            'en': 'External auditory canals clear, normal tympanic membranes. Nasal passages clear, normal mucosa. Normal pharynx. No pain on mastication.'
+            'fr': 'Conduits auditifs externes libres, tympans normaux.\nFosses nasales libres, muqueuse normale.\nPharynx normal.\nPas de douleur à la mastication.',
+            'en': 'External auditory canals clear, normal tympanic membranes.\nNasal passages clear, normal mucosa.\nNormal pharynx.\nNo pain on mastication.'
         },
         {
             'nom': 'Endocrinien',
             'icone': 'fa-flask',
-            'fr': 'Pas de goitre palpable à la palpation cervicale. Pas de signe d\'hypo ou hyperthyroïdie. Pas de trouble de la croissance ou du développement.',
-            'en': 'No palpable goiter on cervical palpation. No signs of hypo or hyperthyroidism. No growth or developmental disorders.'
+            'fr': 'Pas de goitre palpable à la palpation cervicale.\nPas de signe d\'hypo ou hyperthyroïdie.\nPas de trouble de la croissance ou du développement.',
+            'en': 'No palpable goiter on cervical palpation.\nNo signs of hypo or hyperthyroidism.\nNo growth or developmental disorders.'
         },
         {
             'nom': 'Psychiatrique',
             'icone': 'fa-brain',
-            'fr': 'Humeur stable, contact facile et approprié. Pas de trouble du comportement, pas d\'idées délirantes. Pas de trouble de l\'humeur. Pas d\'anxiété ou de dépression.',
-            'en': 'Stable mood, easy and appropriate contact. No behavioral disorders, no delusional ideas. No mood disorders. No anxiety or depression.'
+            'fr': 'Humeur stable, contact facile et approprié.\nPas de trouble du comportement, pas d\'idées délirantes.\nPas de trouble de l\'humeur.\nPas d\'anxiété ou de dépression.',
+            'en': 'Stable mood, easy and appropriate contact.\nNo behavioral disorders, no delusional ideas.\nNo mood disorders.\nNo anxiety or depression.'
         },
         {
             'nom': 'Autre à préciser',
@@ -4299,7 +4512,6 @@ def get_sections_examen():
     ]
     
     return _SECTIONS_EXAMEN
-
 
 @app.route('/api/examen-physique/sections')
 @login_required
@@ -4344,7 +4556,6 @@ def examen_physique(id):
 @app.route('/consultation/<int:id>/examen-physique/enregistrer', methods=['POST'])
 @login_required
 def enregistrer_examen_physique(id):
-    """Enregistrer l'examen physique"""
     from models import Consultation, ExamenPhysique
     from datetime import datetime
     import json
@@ -4357,6 +4568,9 @@ def enregistrer_examen_physique(id):
     
     examen_complet = request.form.get('examen_complet', '')
     sections_modifiees = request.form.get('sections_modifiees', '{}')
+    
+    # ⭐ NETTOYER L'EXAMEN COMPLET : supprimer les sections vides
+    examen_complet = nettoyer_examen_complet(examen_complet)
     
     # Vérifier si un examen existe déjà
     examen = ExamenPhysique.query.filter_by(consultation_id=id).first()
@@ -4375,16 +4589,62 @@ def enregistrer_examen_physique(id):
         db.session.add(examen)
     
     # Mettre à jour les notes cliniques de la consultation
-    if consultation.notes_cliniques:
-        # Si des notes existent déjà, ajouter l'examen en dessous
-        consultation.notes_cliniques = consultation.notes_cliniques + f"\n\n--- EXAMEN PHYSIQUE ---\n{examen_complet}"
-    else:
-        consultation.notes_cliniques = f"--- EXAMEN PHYSIQUE ---\n{examen_complet}"
+    if examen_complet and examen_complet.strip():
+        if consultation.notes_cliniques:
+            consultation.notes_cliniques = consultation.notes_cliniques + f"\n\n--- EXAMEN PHYSIQUE ---\n{examen_complet}"
+        else:
+            consultation.notes_cliniques = f"--- EXAMEN PHYSIQUE ---\n{examen_complet}"
     
     db.session.commit()
     
     flash('✅ Examen physique enregistré avec succès', 'success')
     return redirect(url_for('consultation_detail', id=id))
+
+
+def nettoyer_examen_complet(examen_complet):
+    """Supprime les sections vides ou non modifiées de l'examen complet"""
+    if not examen_complet:
+        return ''
+    
+    lines = examen_complet.split('\n')
+    result = []
+    skip_next = False
+    
+    for line in lines:
+        # Si c'est une ligne de séparation, on la garde
+        if '═══════════════════════════════════════════════════' in line:
+            result.append(line)
+            continue
+        
+        # Si c'est une ligne de statistiques, on la garde
+        if 'section(s) active(s)' in line or 'modification(s)' in line:
+            result.append(line)
+            continue
+        
+        # Détecter le début d'une section "AUTRE À PRÉCISER"
+        if '--- AUTRE À PRÉCISER ---' in line:
+            skip_next = True
+            continue
+        
+        # Si on est en mode skip, on ignore les lignes jusqu'à la prochaine section
+        if skip_next:
+            # Vérifier si on est arrivé à la fin de la section
+            if not line.strip() or line.strip() == '':
+                skip_next = False
+            continue
+        
+        # Vérifier si c'est une section vide
+        if '---' in line and 'AUTRE À PRÉCISER' not in line:
+            # Garder les autres sections
+            result.append(line)
+            continue
+        
+        # Vérifier si c'est une ligne de contenu vide
+        if line.strip() and 'Section personnalisée' not in line:
+            result.append(line)
+    
+    return '\n'.join(result)
+
 
 # ==================== SYNCHRONISATION GHP ====================
 

@@ -154,9 +154,15 @@
     <nav class="nav flex-column px-3">
         
         <!-- ========== TABLEAU DE BORD ========== -->
-        <a class="nav-link" href="{{ url_for('dashboard') }}">
-            <i class="fas fa-tachometer-alt me-2"></i> Tableau de bord
-        </a>
+        {% if current_user.role == 'infirmier' %}
+            <a class="nav-link" href="{{ url_for('infirmier_dashboard') }}">
+                <i class="fas fa-user-nurse me-2"></i> Pré-consultation
+            </a>
+        {% else %}
+            <a class="nav-link" href="{{ url_for('dashboard') }}">
+                <i class="fas fa-tachometer-alt me-2"></i> Tableau de bord
+            </a>
+        {% endif %}
 
         <!-- ========== PATIENTS ========== -->
         {% if current_user.role != 'super_admin' and current_user.role != 'laborantin' %}
@@ -165,12 +171,12 @@
         </a>
         {% endif %}
 
-    <li class="nav-item">
+        <!-- ========== DÉONTOLOGIE / ENGAGEMENTS ========== -->
+        {% if current_user.role in ['medecin', 'super_admin'] %}
         <a class="nav-link" href="{{ url_for('engagements.liste') }}">
-            <i class="fas fa-file-signature me-2"></i>Déontologie / Engagements
+            <i class="fas fa-file-signature me-2"></i> Déontologie / Engagements
         </a>
-    </li>
-
+        {% endif %}
 
         <!-- ========== HOSPITALISATIONS ========== -->
         {% if current_user.role != 'laborantin' %}
@@ -234,12 +240,13 @@
             <i class="fas fa-user-shield me-2"></i> Mon profil
         </a>
         {% endif %}
-<!-- ========== SYNCHRONISATION GHP ========== -->
-{% if current_user.role == 'admin_structure' %}
-<a class="nav-link" href="{{ url_for('sync_ghp_config') }}">
-    <i class="fas fa-sync me-2"></i> Sync GHP
-</a>
-{% endif %}
+
+        <!-- ========== SYNCHRONISATION GHP ========== -->
+        {% if current_user.role == 'admin_structure' %}
+        <a class="nav-link" href="{{ url_for('sync_ghp_config') }}">
+            <i class="fas fa-sync me-2"></i> Sync GHP
+        </a>
+        {% endif %}
 
         <!-- ========== GESTION UTILISATEURS & PERMISSIONS ========== -->
         {% if current_user.role == 'admin_structure' %}
@@ -259,6 +266,7 @@
         </a>
     </nav>
 </div>
+
 
             <!-- Main content -->
             <div class="col-md-10 p-4">

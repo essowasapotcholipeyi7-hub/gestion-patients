@@ -547,12 +547,25 @@
                                 {% if consultation.examens_cliniques or consultation.examens_biologie or consultation.examens_imagerie %}
                                 <hr>
                                 <div class="row">
-                                    {% if consultation.examens_cliniques %}
-                                    <div class="col-md-12">
-                                        <strong>🔬 Examens cliniques :</strong>
-                                        <p class="small">{{ consultation.examens_cliniques }}</p>
-                                    </div>
-                                    {% endif %}
+{% if consultation.examens_cliniques %}
+    {# ⭐ Remplacer directement le texte de la section "AUTRE À PRÉCISER" par une chaîne vide #}
+    {% set examen_text = consultation.examens_cliniques|replace('--- AUTRE À PRÉCISER ---', '') %}
+    {% set examen_text = examen_text|replace('Section personnalisée à ajouter selon les besoins de l\'examen.', '') %}
+    {% set examen_text = examen_text|replace('Section personnalisée à ajouter selon les besoins de l examen.', '') %}
+    {% set examen_text = examen_text|trim %}
+    
+    {# ⭐ Si le texte est vide ou ne contient que des séparateurs, ne rien afficher #}
+    {% if examen_text and examen_text != '═══════════════════════════════════════════════════' %}
+    <div class="col-md-12">
+        <strong>🔬 Examen physique :</strong>
+        <div style="padding: 10px; background: #f8f9fa; border-radius: 4px; margin-top: 5px;">
+            <pre style="white-space: pre-wrap; font-family: inherit; font-size: 13px; margin: 0; line-height: 1.8;">{{ examen_text }}</pre>
+        </div>
+    </div>
+    {% endif %}
+{% endif %}
+
+
                                     {% if consultation.examens_biologie %}
                                     <div class="col-md-6">
                                         <strong>🧪 Examens biologie :</strong>
@@ -917,6 +930,25 @@ document.addEventListener('DOMContentLoaded', function() {
 .bg-pink {
     background-color: #d63384;
     color: white;
+}
+
+/* ⭐ STYLES POUR L'EXAMEN PHYSIQUE */
+.examen-physique-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.examen-section {
+    transition: all 0.2s ease;
+}
+
+.examen-section:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.examen-section .badge {
+    font-size: 11px;
+    padding: 3px 8px;
 }
 </style>
 {% endblock %}

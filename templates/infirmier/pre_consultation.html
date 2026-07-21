@@ -1,0 +1,672 @@
+{% extends "base.html" %}
+
+{% block title %}Pré-consultation - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3">
+                <i class="fas fa-user-md me-2 text-primary"></i>
+                Pré-consultation
+            </h1>
+            <p class="text-muted">
+                Patient : <strong>{{ patient.prenom }} {{ patient.nom }}</strong>
+                (N° dossier: P{{ "%05d" % patient.id }})
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('infirmier_dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- COLONNE GAUCHE : Motif + Constantes -->
+        <div class="col-md-7">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-edit me-2"></i>Saisie pré-consultation</h5>
+                    <small>Remplissez les informations pour préparer la consultation du médecin</small>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="preConsultationForm">
+                        <input type="hidden" name="patient_id" value="{{ patient.id }}">
+
+                        <!-- ⭐ MOTIF -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-comment me-1 text-primary"></i> Motif de la consultation *
+                            </label>
+                            <textarea name="motif" class="form-control" rows="2" 
+                                      placeholder="Ex: Douleur thoracique, Fièvre persistante..."
+                                      style="border: 2px solid #0d6efd; background: #f8f9ff;">{{ patient.motif_pre_consultation or '' }}</textarea>
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Décrivez brièvement le motif de la consultation
+                            </small>
+                        </div>
+
+                        <hr>
+
+                        <!-- ⭐ CONSTANTES -->
+                        <h6 class="fw-bold text-danger mb-3">
+                            <i class="fas fa-heartbeat me-2"></i>Constantes vitales
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Tension artérielle</label>
+                                <div class="input-group">
+                                    <input type="text" name="tension" class="form-control" 
+                                           value="{{ patient.tension_arterielle or '' }}" 
+                                           placeholder="120/80">
+                                    <span class="input-group-text">mmHg</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Température</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.1" name="temperature" class="form-control" 
+                                           value="{{ patient.temperature_c or '' }}" 
+                                           placeholder="37.5">
+                                    <span class="input-group-text">°C</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Pouls</label>
+                                <div class="input-group">
+                                    <input type="number" name="pouls" class="form-control" 
+                                           value="{{ patient.pulse_bpm or '' }}" 
+                                           placeholder="72">
+                                    <span class="input-group-text">bpm</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Saturation O₂</label>
+                                <div class="input-group">
+                                    <input type="number" name="saturation" class="form-control" 
+                                           value="{{ patient.oxygene_saturation or '' }}" 
+                                           placeholder="98">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Poids</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.1" name="poids" class="form-control" 
+                                           id="poidsInput"
+                                           value="{{ patient.poids_kg or '' }}" 
+                                           placeholder="75">
+                                    <span class="input-group-text">kg</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Taille</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.5" name="taille" class="form-control" 
+                                           id="tailleInput"
+                                           value="{{ patient.taille_cm or '' }}" 
+                                           placeholder="175">
+                                    <span class="input-group-text">cm</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">IMC</label>
+                                <input type="text" name="imc" id="imcField" class="form-control" 
+                                       value="{{ patient.imc or '' }}" 
+                                       readonly style="background-color: #e9ecef; font-weight: bold;">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Interprétation</label>
+                                <input type="text" id="interpretationImc" class="form-control" 
+                                       readonly style="background-color: #e9ecef;">
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info mt-2">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Info :</strong> Ces constantes seront pré-remplies dans la consultation du médecin.
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mt-2">
+                            <i class="fas fa-save me-2"></i>Enregistrer la pré-consultation
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- COLONNE DROITE : Antécédents -->
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Antécédents</h5>
+                    <!-- ⭐ BOUTON POUR OUVRIR LE MODAL -->
+                    <button type="button" class="btn btn-sm btn-dark" data-bs-toggle="modal" data-bs-target="#antecedentsModal">
+                        <i class="fas fa-edit me-1"></i>Gérer tous
+                    </button>
+                </div>
+                <div class="card-body">
+                    <!-- Liste rapide des antécédents -->
+                    <div id="antecedentsList" style="max-height: 350px; overflow-y: auto;">
+                        {% set antecedents = patient.antecedents|selectattr('actif', 'equalto', true)|list %}
+                        {% if antecedents %}
+                            {% for a in antecedents %}
+                            <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                                <div>
+                                    <span class="badge 
+                                        {% if a.type_antecedent == 'ALLERGIE' %}bg-danger
+                                        {% elif a.type_antecedent == 'CHIRURGICAL' %}bg-info
+                                        {% elif a.type_antecedent == 'PSYCHOLOGIQUE' %}bg-secondary
+                                        {% elif a.type_antecedent == 'OBSTETRIQUE' %}bg-pink text-dark
+                                        {% elif a.type_antecedent == 'MEDICAL' %}bg-primary
+                                        {% else %}bg-dark{% endif %}">
+                                        {{ a.type_antecedent }}
+                                    </span>
+                                    <span class="ms-1">{{ a.description }}</span>
+                                    {% if a.severite %}
+                                        <span class="badge bg-{% if a.severite == 'SEVERE' %}danger{% elif a.severite == 'MODEREE' %}warning{% else %}success{% endif %}">
+                                            {{ a.severite }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                            onclick="supprimerAntecedent({{ a.id }})">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted text-center py-3">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Aucun antécédent enregistré
+                            </p>
+                        {% endif %}
+                    </div>
+
+                    <!-- ⭐ LIEN POUR AJOUTER RAPIDEMENT -->
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#ajoutAntecedentModal">
+                            <i class="fas fa-plus me-1"></i>Ajouter un antécédent
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+    <!-- ==================== CARTE : HABITUDES DE VIE ==================== -->
+    <div class="card mb-3">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-heart me-2"></i>Habitudes de vie</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-2">
+                    <label class="form-label small">Tabac</label>
+                    <select name="tabac" class="form-select form-select-sm">
+                        <option value="Non" {% if patient.tabac == 'Non' %}selected{% endif %}>Non</option>
+                        <option value="Oui" {% if patient.tabac == 'Oui' %}selected{% endif %}>Oui</option>
+                        <option value="Ancien" {% if patient.tabac == 'Ancien' %}selected{% endif %}>Ancien fumeur</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-2">
+                    <label class="form-label small">Alcool</label>
+                    <select name="alcool" class="form-select form-select-sm">
+                        <option value="Non" {% if patient.alcool == 'Non' %}selected{% endif %}>Non</option>
+                        <option value="Oui" {% if patient.alcool == 'Oui' %}selected{% endif %}>Oui</option>
+                        <option value="Occasionnel" {% if patient.alcool == 'Occasionnel' %}selected{% endif %}>Occasionnel</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-2">
+                    <label class="form-label small">Allaitement</label>
+                    <select name="allaitement" class="form-select form-select-sm">
+                        <option value="Non" {% if not patient.allaitement %}selected{% endif %}>Non</option>
+                        <option value="Oui" {% if patient.allaitement %}selected{% endif %}>Oui</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-2">
+                    <label class="form-label small">Grossesse</label>
+                    <select name="grossesse" class="form-select form-select-sm">
+                        <option value="Non" {% if not patient.grossesse %}selected{% endif %}>Non</option>
+                        <option value="Oui" {% if patient.grossesse %}selected{% endif %}>Oui</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-2">
+                    <label class="form-label small">Groupe sanguin</label>
+                    <select name="groupe_sanguin" class="form-select form-select-sm">
+                        <option value="">-- Sélectionner --</option>
+                        <option value="A+" {% if patient.groupe_sanguin == 'A+' %}selected{% endif %}>A+</option>
+                        <option value="A-" {% if patient.groupe_sanguin == 'A-' %}selected{% endif %}>A-</option>
+                        <option value="B+" {% if patient.groupe_sanguin == 'B+' %}selected{% endif %}>B+</option>
+                        <option value="B-" {% if patient.groupe_sanguin == 'B-' %}selected{% endif %}>B-</option>
+                        <option value="AB+" {% if patient.groupe_sanguin == 'AB+' %}selected{% endif %}>AB+</option>
+                        <option value="AB-" {% if patient.groupe_sanguin == 'AB-' %}selected{% endif %}>AB-</option>
+                        <option value="O+" {% if patient.groupe_sanguin == 'O+' %}selected{% endif %}>O+</option>
+                        <option value="O-" {% if patient.groupe_sanguin == 'O-' %}selected{% endif %}>O-</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-2">
+                    <label class="form-label small">Mutuelle</label>
+                    <input type="text" name="mutuelle" class="form-control form-control-sm" 
+                           value="{{ patient.mutuelle or '' }}" placeholder="Nom de la mutuelle">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12 mb-2">
+                    <label class="form-label small">Médecin traitant</label>
+                    <input type="text" name="medecin_traitant" class="form-control form-control-sm" 
+                           value="{{ patient.medecin_traitant or '' }}" placeholder="Nom du médecin traitant">
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+            
+            <!-- Informations patient (résumé) -->
+            <div class="card mt-3">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-id-card me-2"></i>Informations patient</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <small class="text-muted">Âge</small><br>
+                            <strong>{{ patient.age }} ans</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Sexe</small><br>
+                            <strong>
+                                {% if patient.sexe == 'M' %}Masculin
+                                {% elif patient.sexe == 'F' %}Féminin
+                                {% else %}-{% endif %}
+                            </strong>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <small class="text-muted">Téléphone</small><br>
+                            <strong>{{ patient.telephone or '-' }}</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Statut</small><br>
+                            <span class="badge {% if patient.statut_medical == 'EN_TRAITEMENT' %}bg-warning{% elif patient.statut_medical == 'GUERI' %}bg-success{% else %}bg-info{% endif %}">
+                                {{ patient.statut_medical or 'Nouveau' }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">Médecin référent</small><br>
+                        <strong>
+                            {% if patient.medecin_referent %}
+                                Dr {{ patient.medecin_referent.prenom }} {{ patient.medecin_referent.nom }}
+                            {% else %}
+                                <span class="text-muted">Non assigné</span>
+                            {% endif %}
+                        </strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- ⭐ MODAL : GESTION COMPLÈTE DES ANTÉCÉDENTS -->
+<!-- ========================================================= -->
+<div class="modal fade" id="antecedentsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-history me-2"></i>
+                    Gestion complète des antécédents - {{ patient.prenom }} {{ patient.nom }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Formulaire d'ajout -->
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-plus me-2"></i>Ajouter un antécédent</h6>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('ajouter_antecedent', patient_id=patient.id) }}" id="formAjoutAntecedentModal">
+                            <input type="hidden" name="return_to" value="pre_consultation">
+                            <input type="hidden" name="patient_id" value="{{ patient.id }}">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Type *</label>
+                                    <select name="type_antecedent" id="typeAntecedentModal" class="form-select" required>
+                                        <option value="MEDICAL">ATCD Médicaux</option>
+                                        <option value="CHIRURGICAL">ATCD Chirurgicaux</option>
+                                        <option value="PSYCHOLOGIQUE">ATCD Psychologiques</option>
+                                        <option value="OBSTETRIQUE">ATCD Obstétriques</option>
+                                        <option value="ALLERGIE">⚠️ Allergie</option>
+                                        <option value="AUTRE">📌 Autre</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3" id="zonePrecisionModal" style="display: none;">
+                                    <label class="form-label">Précisez le type</label>
+                                    <input type="text" name="type_precision" class="form-control" placeholder="Ex: Allergie, Intolérance...">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Sévérité</label>
+                                    <select name="severite" class="form-select">
+                                        <option value="">Non spécifiée</option>
+                                        <option value="LEGERE">Légère</option>
+                                        <option value="MODEREE">Modérée</option>
+                                        <option value="SEVERE">Sévère</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Description *</label>
+                                    <textarea name="description" class="form-control" rows="2" required placeholder="Décrire l'antécédent..."></textarea>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Date début</label>
+                                    <input type="date" name="date_debut" class="form-control">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Date fin</label>
+                                    <input type="date" name="date_fin" class="form-control">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Traitement associé</label>
+                                    <input type="text" name="traitement" class="form-control" placeholder="Ex: Antihistaminique...">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Notes</label>
+                                    <textarea name="notes" class="form-control" rows="1" placeholder="Informations complémentaires..."></textarea>
+                                </div>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input type="checkbox" name="actif" class="form-check-input" id="actifModal" checked>
+                                <label class="form-check-label" for="actifModal">Antécédent actif</label>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Ajouter l'antécédent
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Liste complète des antécédents -->
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-list me-2"></i>
+                            Tous les antécédents
+                            <span class="badge bg-light text-dark ms-2">{{ patient.antecedents|length }}</span>
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                        <th>Début</th>
+                                        <th>Fin</th>
+                                        <th>Sévérité</th>
+                                        <th>Statut</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for a in patient.antecedents %}
+                                    <tr>
+                                        <td>
+                                            <span class="badge 
+                                                {% if a.type_antecedent == 'MEDICAL' %}bg-primary
+                                                {% elif a.type_antecedent == 'CHIRURGICAL' %}bg-info
+                                                {% elif a.type_antecedent == 'PSYCHOLOGIQUE' %}bg-secondary
+                                                {% elif a.type_antecedent == 'OBSTETRIQUE' %}bg-pink text-dark
+                                                {% elif a.type_antecedent == 'ALLERGIE' %}bg-danger
+                                                {% elif a.type_antecedent == 'AUTRE' %}bg-dark
+                                                {% endif %}">
+                                                {{ a.type_antecedent }}
+                                            </span>
+                                            {% if a.type_precision %}
+                                                <br><small class="text-muted">{{ a.type_precision }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ a.description }}</td>
+                                        <td>{{ a.date_debut.strftime('%d/%m/%Y') if a.date_debut else '-' }}</td>
+                                        <td>{{ a.date_fin.strftime('%d/%m/%Y') if a.date_fin else '-' }}</td>
+                                        <td>
+                                            {% if a.severite %}
+                                                <span class="badge 
+                                                    {% if a.severite == 'LEGERE' %}bg-success
+                                                    {% elif a.severite == 'MODEREE' %}bg-warning
+                                                    {% elif a.severite == 'SEVERE' %}bg-danger
+                                                    {% endif %}">
+                                                    {{ a.severite }}
+                                                </span>
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if a.actif %}
+                                                <span class="badge bg-success">Actif</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Inactif</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-danger" 
+                                                    onclick="supprimerAntecedentModal({{ a.id }})">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- ⭐ MODAL : AJOUT RAPIDE D'ANTÉCÉDENT -->
+<!-- ========================================================= -->
+<div class="modal fade" id="ajoutAntecedentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>
+                    Ajouter un antécédent
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{{ url_for('ajouter_antecedent', patient_id=patient.id) }}" id="formAjoutAntecedentRapide">
+                    <input type="hidden" name="return_to" value="pre_consultation">
+                    <input type="hidden" name="patient_id" value="{{ patient.id }}">
+                    <div class="mb-3">
+                        <label class="form-label">Type *</label>
+                        <select name="type_antecedent" class="form-select" required>
+                            <option value="MEDICAL">ATCD Médicaux</option>
+                            <option value="CHIRURGICAL">ATCD Chirurgicaux</option>
+                            <option value="PSYCHOLOGIQUE">ATCD Psychologiques</option>
+                            <option value="OBSTETRIQUE">ATCD Obstétriques</option>
+                            <option value="ALLERGIE">⚠️ Allergie</option>
+                            <option value="AUTRE">📌 Autre</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description *</label>
+                        <textarea name="description" class="form-control" rows="2" required placeholder="Décrire l'antécédent..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Sévérité</label>
+                        <select name="severite" class="form-select">
+                            <option value="">Non spécifiée</option>
+                            <option value="LEGERE">Légère</option>
+                            <option value="MODEREE">Modérée</option>
+                            <option value="SEVERE">Sévère</option>
+                        </select>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input type="checkbox" name="actif" class="form-check-input" id="actifRapide" checked>
+                        <label class="form-check-label" for="actifRapide">Antécédent actif</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-save me-2"></i>Ajouter
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== CALCUL IMC ====================
+document.addEventListener('DOMContentLoaded', function() {
+    const poidsInput = document.getElementById('poidsInput');
+    const tailleInput = document.getElementById('tailleInput');
+    const imcField = document.getElementById('imcField');
+    const interpretationField = document.getElementById('interpretationImc');
+
+    if (poidsInput && tailleInput && imcField) {
+        function calculerIMC() {
+            const poids = parseFloat(poidsInput.value);
+            const taille = parseFloat(tailleInput.value);
+            
+            if (poids && taille && taille > 0) {
+                const imc = poids / ((taille / 100) ** 2);
+                imcField.value = imc.toFixed(1);
+                
+                if (interpretationField) {
+                    if (imc < 18.5) interpretationField.value = 'Maigreur';
+                    else if (imc < 25) interpretationField.value = 'Normal';
+                    else if (imc < 30) interpretationField.value = 'Surpoids';
+                    else if (imc < 35) interpretationField.value = 'Obésité modérée';
+                    else if (imc < 40) interpretationField.value = 'Obésité sévère';
+                    else interpretationField.value = 'Obésité morbide';
+                }
+            } else {
+                imcField.value = '';
+                if (interpretationField) interpretationField.value = '';
+            }
+        }
+        
+        poidsInput.addEventListener('input', calculerIMC);
+        tailleInput.addEventListener('input', calculerIMC);
+        calculerIMC();
+    }
+
+    // ==================== TYPE "AUTRE" DANS LE MODAL ====================
+    const typeSelect = document.getElementById('typeAntecedentModal');
+    const zonePrecision = document.getElementById('zonePrecisionModal');
+    
+    if (typeSelect) {
+        typeSelect.addEventListener('change', function() {
+            if (this.value === 'AUTRE') {
+                zonePrecision.style.display = 'block';
+            } else {
+                zonePrecision.style.display = 'none';
+            }
+        });
+    }
+});
+
+// ==================== SUPPRIMER ANTÉCÉDENT ====================
+function supprimerAntecedent(id) {
+    if (confirm('Supprimer cet antécédent ?')) {
+        fetch(`/antecedent/${id}/supprimer`, { 
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erreur lors de la suppression');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('Erreur lors de la suppression');
+        });
+    }
+}
+
+function supprimerAntecedentModal(id) {
+    if (confirm('Supprimer cet antécédent ?')) {
+        fetch(`/antecedent/${id}/supprimer`, { 
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erreur lors de la suppression');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('Erreur lors de la suppression');
+        });
+    }
+}
+
+// ==================== GESTION DU FORMULAIRE ====================
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('preConsultationForm');
+    if (form) {
+        form.addEventListener('submit', function() {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enregistrement...';
+            }
+        });
+    }
+});
+</script>
+
+<style>
+.bg-pink {
+    background-color: #d63384;
+    color: white;
+}
+
+.modal-xl {
+    max-width: 1200px;
+}
+</style>
+{% endblock %}
