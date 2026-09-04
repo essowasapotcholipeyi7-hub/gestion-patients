@@ -87,13 +87,19 @@
                             <div class="list-group-item px-0 py-1 d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center">
                                     {% if analyse.type_analyse == 'BIOLOGIE' %}
-                                        <span class="text-success me-1">🧪</span>
+                                        <span class="text-success me-1"></span>
                                     {% elif analyse.type_analyse == 'IMAGERIE' %}
-                                        <span class="text-warning me-1">📷</span>
+                                        <span class="text-warning me-1"></span>
                                     {% else %}
-                                        <span class="text-secondary me-1">🔬</span>
+                                        <span class="text-secondary me-1"></span>
                                     {% endif %}
                                     <span class="small">{{ analyse.nom_analyse }}</span>
+                                    <!-- ⭐ INDICATEUR D'ORIGINE -->
+                                    {% if analyse.hospitalisation_id %}
+                                    <span class="badge bg-primary ms-1" style="font-size: 0.5rem;">H</span>
+                                    {% elif analyse.consultation_id %}
+                                    <span class="badge bg-info ms-1" style="font-size: 0.5rem;">C</span>
+                                    {% endif %}
                                 </div>
                                 <div>
                                     {% if analyse.statut == 'EN_ATTENTE' %}
@@ -101,10 +107,7 @@
                                     {% elif analyse.statut == 'EN_COURS' %}
                                         <span class="badge bg-primary" style="font-size: 0.65rem;">En cours</span>
                                     {% elif analyse.statut == 'TERMINE' %}
-                                        <span class="badge bg-success" style="font-size: 0.65rem;">✅ Terminé</span>
-                                    {% endif %}
-                                    {% if analyse.resultats %}
-                                        <span class="badge bg-info" style="font-size: 0.6rem;"></span>
+                                        <span class="badge bg-success" style="font-size: 0.65rem;">Terminé</span>
                                     {% endif %}
                                 </div>
                             </div>

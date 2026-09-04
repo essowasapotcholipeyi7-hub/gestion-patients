@@ -1,0 +1,576 @@
+{% extends "base.html" %}
+
+{% block title %}Nouvelle ordonnance - {{ consultation.patient.prenom }} {{ consultation.patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-prescription me-2"></i>
+                        Nouvelle ordonnance
+                    </h5>
+                    <small class="text-white-50">
+                        Patient : {{ consultation.patient.prenom }} {{ consultation.patient.nom }}
+                    </small>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="ordonnanceForm">
+                        <!-- Source de l'ordonnance -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Source de l'ordonnance</label>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input type="radio" class="form-check-input" name="source_type" id="sourceManuel" value="manuel" checked>
+                                        <label class="form-check-label" for="sourceManuel">
+                                            <i class="fas fa-edit"></i> Manuel
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input type="radio" class="form-check-input" name="source_type" id="sourceTemplate" value="template">
+                                        <label class="form-check-label" for="sourceTemplate">
+                                            <i class="fas fa-file-alt"></i> Template
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input type="radio" class="form-check-input" name="source_type" id="sourceProtocole" value="protocole">
+                                        <label class="form-check-label" for="sourceProtocole">
+                                            <i class="fas fa-notes-medical"></i> Protocole
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sélection template -->
+                        <div id="templateSelect" style="display: none;" class="mb-3">
+                            <label class="form-label fw-bold">Choisir une ordonnance type</label>
+                            <select name="source_id" class="form-select" id="templateSelectInput">
+                                <option value="">-- Selectionner --</option>
+                                {% for t in ordonnances_types %}
+                                <option value="{{ t.id }}">{{ t.nom }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">L'ordonnance sera pre-remplie avec les medicaments du template.</small>
+                        </div>
+
+                        <!-- Sélection protocole -->
+                        <div id="protocoleSelect" style="display: none;" class="mb-3">
+                            <label class="form-label fw-bold">Choisir un protocole</label>
+                            <select name="source_id" class="form-select" id="protocoleSelectInput">
+                                <option value="">-- Selectionner --</option>
+                                {% for p in protocoles %}
+                                <option value="{{ p.id }}">{{ p.nom }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Le protocole appliquera automatiquement son ordonnance et ses examens.</small>
+                        </div>
+
+                        <hr>
+
+                        <!-- Medicaments -->
+                        <h6 class="fw-bold">
+                            <i class="fas fa-pills me-2 text-success"></i>
+                            Medicaments
+                            <span class="badge bg-secondary ms-2" id="medicamentCount">0</span>
+                        </h6>
+
+                        <!-- Recherche dynamique de medicaments -->
+                        <div class="card mb-3 border-success">
+                            <div class="card-body py-2">
+                                <div class="row align-items-center">
+                                    <div class="col-md-7">
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-success text-white">
+                                                <i class="fas fa-search"></i>
+                                            </span>
+                                            <input type="text" id="medicamentSearch" class="form-control" 
+                                                   placeholder="Rechercher un medicament..." autocomplete="off">
+                                        </div>
+                                        <div id="medicamentResults" class="list-group mt-1" 
+                                             style="max-height: 200px; overflow-y: auto; display: none; border: 1px solid #ddd; border-radius: 4px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="text" id="medicamentManual" class="form-control" 
+                                               placeholder="Ou saisir manuellement...">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-outline-success w-100" onclick="ajouterMedicamentManuel()">
+                                            <i class="fas fa-plus me-1"></i>Ajouter
+                                        </button>
+                                    </div>
+                                </div>
+                                <small class="text-muted mt-1 d-block">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Recherchez un medicament existant ou ajoutez-en un manuellement
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Liste des medicaments -->
+                        <div id="medicaments-container">
+                            <div class="row mb-2 fw-bold text-muted">
+                                <div class="col-3">Medicament</div>
+                                <div class="col-2">Dosage</div>
+                                <div class="col-3">Posologie</div>
+                                <div class="col-2">Duree (jours)</div>
+                                <div class="col-1">Quantite</div>
+                                <div class="col-1">Action</div>
+                            </div>
+                            <div id="medicaments-list">
+                                <!-- Les medicaments seront charges ici -->
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="ajouterMedicamentLigne()">
+                                <i class="fas fa-plus me-2"></i>Ajouter une ligne vide
+                            </button>
+                        </div>
+
+                        <input type="hidden" name="medicaments_json" id="medicaments_json" value="[]">
+                        <input type="hidden" name="motif_modification" value="Creation">
+
+                        <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                            <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Annuler
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Creer l'ordonnance
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================ //
+// Systeme de recherche de medicaments                          //
+// ============================================================ //
+
+var medicamentsDisponibles = [];
+var medicamentTimeout = null;
+
+function chargerMedicamentsDisponibles() {
+    fetch('/api/medicamentos/disponibles')
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(data) {
+            medicamentsDisponibles = data;
+            console.log(data.length + ' medicaments disponibles charges');
+        })
+        .catch(function(error) {
+            console.error('Erreur chargement medicaments:', error);
+        });
+}
+
+function rechercherMedicaments(term) {
+    var resultsDiv = document.getElementById('medicamentResults');
+    
+    if (term.length < 2) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+        return;
+    }
+    
+    var results = medicamentsDisponibles.filter(function(m) {
+        return m.nom.toLowerCase().includes(term.toLowerCase());
+    });
+    
+    resultsDiv.innerHTML = '';
+    if (results.length === 0) {
+        resultsDiv.innerHTML = `
+            <div class="list-group-item text-muted">
+                Aucun medicament trouve. 
+                <span class="text-primary" style="cursor:pointer;" onclick="ajouterMedicamentManuel()">
+                    <i class="fas fa-plus"></i> Ajouter "${term}"
+                </span>
+            </div>
+        `;
+        resultsDiv.style.display = 'block';
+        return;
+    }
+    
+    results.forEach(function(m) {
+        var div = document.createElement('div');
+        div.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+        
+        var stockStatus = '';
+        if (m.quantite_stock === 0) {
+            stockStatus = '<span class="badge bg-danger">Rupture de stock</span>';
+        } else if (m.quantite_stock < 5) {
+            stockStatus = '<span class="badge bg-warning">Stock: ' + m.quantite_stock + '</span>';
+        } else {
+            stockStatus = '<span class="badge bg-success">Stock: ' + m.quantite_stock + '</span>';
+        }
+        
+        div.innerHTML = `
+            <div>
+                <strong>${m.nom}</strong>
+            </div>
+            <div>
+                ${stockStatus}
+                <button class="btn btn-sm btn-success ms-2" onclick="selectionnerMedicament('${m.nom}')">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        `;
+        div.onclick = function() {
+            selectionnerMedicament(m.nom);
+        };
+        resultsDiv.appendChild(div);
+    });
+    resultsDiv.style.display = 'block';
+}
+
+function selectionnerMedicament(nom) {
+    document.getElementById('medicamentSearch').value = '';
+    document.getElementById('medicamentResults').style.display = 'none';
+    
+    var rows = document.querySelectorAll('#medicaments-list .row');
+    var existe = false;
+    rows.forEach(function(row) {
+        var val = row.querySelector('.med-nom').value.trim();
+        if (val === nom) {
+            existe = true;
+        }
+    });
+    
+    if (existe) {
+        showToast('"' + nom + '" deja ajoute', 'warning');
+        return;
+    }
+    
+    ajouterMedicamentLigne(nom);
+    showToast('"' + nom + '" ajoute', 'success');
+}
+
+function ajouterMedicamentManuel() {
+    var input = document.getElementById('medicamentManual');
+    var nom = input.value.trim() || document.getElementById('medicamentSearch').value.trim();
+    
+    if (!nom) {
+        showToast('Veuillez saisir un nom de medicament', 'warning');
+        return;
+    }
+    
+    var rows = document.querySelectorAll('#medicaments-list .row');
+    var existe = false;
+    rows.forEach(function(row) {
+        var val = row.querySelector('.med-nom').value.trim();
+        if (val === nom) {
+            existe = true;
+        }
+    });
+    
+    if (existe) {
+        showToast('"' + nom + '" deja ajoute', 'warning');
+        input.value = '';
+        return;
+    }
+    
+    ajouterMedicamentLigne(nom);
+    input.value = '';
+    document.getElementById('medicamentSearch').value = '';
+    showToast('"' + nom + '" ajoute', 'success');
+}
+
+// ============================================================ //
+// Gestion des lignes de medicaments                            //
+// ============================================================ //
+
+function ajouterMedicamentLigne(medicament) {
+    if (typeof medicament === 'undefined') medicament = null;
+    
+    var list = document.getElementById('medicaments-list');
+    var row = document.createElement('div');
+    row.className = 'row mb-2 align-items-center';
+    row.dataset.index = list.children.length;
+
+    if (medicament) {
+        row.innerHTML = `
+            <div class="col-3">
+                <input type="text" class="form-control form-control-sm med-nom" value="${medicament}" placeholder="Nom">
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control form-control-sm med-dosage" placeholder="Dosage">
+            </div>
+            <div class="col-3">
+                <input type="text" class="form-control form-control-sm med-posologie" placeholder="Posologie">
+            </div>
+            <div class="col-2">
+                <input type="number" class="form-control form-control-sm med-duree" value="7" placeholder="Jours">
+            </div>
+            <div class="col-1">
+                <input type="text" class="form-control form-control-sm med-quantite" placeholder="Qte">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="supprimerMedicament(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    } else {
+        row.innerHTML = `
+            <div class="col-3">
+                <input type="text" class="form-control form-control-sm med-nom" placeholder="Nom">
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control form-control-sm med-dosage" placeholder="Dosage">
+            </div>
+            <div class="col-3">
+                <input type="text" class="form-control form-control-sm med-posologie" placeholder="Posologie">
+            </div>
+            <div class="col-2">
+                <input type="number" class="form-control form-control-sm med-duree" value="7" placeholder="Jours">
+            </div>
+            <div class="col-1">
+                <input type="text" class="form-control form-control-sm med-quantite" placeholder="Qte">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="supprimerMedicament(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    list.appendChild(row);
+    updateJson();
+}
+
+function supprimerMedicament(btn) {
+    var row = btn.closest('.row');
+    row.remove();
+    updateJson();
+}
+
+function updateJson() {
+    var rows = document.querySelectorAll('#medicaments-list .row');
+    var data = [];
+    rows.forEach(function(row) {
+        data.push({
+            'medicament': row.querySelector('.med-nom').value,
+            'dosage': row.querySelector('.med-dosage').value,
+            'posologie': row.querySelector('.med-posologie').value,
+            'duree': row.querySelector('.med-duree').value,
+            'quantite': row.querySelector('.med-quantite').value || '1 boite'
+        });
+    });
+    document.getElementById('medicaments_json').value = JSON.stringify(data);
+    
+    var count = document.getElementById('medicamentCount');
+    if (count) count.textContent = data.length;
+}
+
+document.addEventListener('input', function(e) {
+    if (e.target.closest('#medicaments-list')) {
+        updateJson();
+    }
+});
+
+// ============================================================ //
+// Gestion des sources                                          //
+// ============================================================ //
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Charger les medicaments disponibles
+    chargerMedicamentsDisponibles();
+    
+    // Une ligne vide par defaut
+    ajouterMedicamentLigne();
+
+    // Radio buttons
+    var sourceManuel = document.getElementById('sourceManuel');
+    var sourceTemplate = document.getElementById('sourceTemplate');
+    var sourceProtocole = document.getElementById('sourceProtocole');
+    var templateSelect = document.getElementById('templateSelect');
+    var protocoleSelect = document.getElementById('protocoleSelect');
+
+    if (sourceManuel) {
+        sourceManuel.addEventListener('change', function() {
+            templateSelect.style.display = 'none';
+            protocoleSelect.style.display = 'none';
+        });
+    }
+
+    if (sourceTemplate) {
+        sourceTemplate.addEventListener('change', function() {
+            templateSelect.style.display = 'block';
+            protocoleSelect.style.display = 'none';
+        });
+    }
+
+    if (sourceProtocole) {
+        sourceProtocole.addEventListener('change', function() {
+            templateSelect.style.display = 'none';
+            protocoleSelect.style.display = 'block';
+        });
+    }
+
+    // Chargement template
+    var templateInput = document.getElementById('templateSelectInput');
+    if (templateInput) {
+        templateInput.addEventListener('change', function() {
+            if (this.value) {
+                fetch('/api/ordonnance-type/' + this.value)
+                    .then(function(response) {
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        var list = document.getElementById('medicaments-list');
+                        list.innerHTML = '';
+                        data.medicaments.forEach(function(m) {
+                            ajouterMedicamentLigne(m.medicament || m.nom || '');
+                            // Remplir les autres champs
+                            var rows = document.querySelectorAll('#medicaments-list .row');
+                            var dernierRow = rows[rows.length - 1];
+                            if (dernierRow) {
+                                dernierRow.querySelector('.med-dosage').value = m.dosage || '';
+                                dernierRow.querySelector('.med-posologie').value = m.posologie || '';
+                                dernierRow.querySelector('.med-duree').value = m.duree || 7;
+                                dernierRow.querySelector('.med-quantite').value = m.quantite || '1 boite';
+                            }
+                        });
+                        if (data.medicaments.length === 0) {
+                            ajouterMedicamentLigne();
+                        }
+                    })
+                    .catch(function() {
+                        console.error('Erreur chargement template');
+                    });
+            }
+        });
+    }
+
+    // Chargement protocole
+    var protocoleInput = document.getElementById('protocoleSelectInput');
+    if (protocoleInput) {
+        protocoleInput.addEventListener('change', function() {
+            if (this.value) {
+                fetch('/api/protocole/' + this.value)
+                    .then(function(response) {
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        if (data.ordonnance_type_id) {
+                            fetch('/api/ordonnance-type/' + data.ordonnance_type_id)
+                                .then(function(res) {
+                                    return res.json();
+                                })
+                                .then(function(ordData) {
+                                    var list = document.getElementById('medicaments-list');
+                                    list.innerHTML = '';
+                                    ordData.medicaments.forEach(function(m) {
+                                        ajouterMedicamentLigne(m.medicament || m.nom || '');
+                                        var rows = document.querySelectorAll('#medicaments-list .row');
+                                        var dernierRow = rows[rows.length - 1];
+                                        if (dernierRow) {
+                                            dernierRow.querySelector('.med-dosage').value = m.dosage || '';
+                                            dernierRow.querySelector('.med-posologie').value = m.posologie || '';
+                                            dernierRow.querySelector('.med-duree').value = m.duree || 7;
+                                            dernierRow.querySelector('.med-quantite').value = m.quantite || '1 boite';
+                                        }
+                                    });
+                                    if (ordData.medicaments.length === 0) {
+                                        ajouterMedicamentLigne();
+                                    }
+                                });
+                        }
+                    })
+                    .catch(function() {
+                        console.error('Erreur chargement protocole');
+                    });
+            }
+        });
+    }
+
+    // Recherche en temps reel
+    var searchInput = document.getElementById('medicamentSearch');
+    var resultsDiv = document.getElementById('medicamentResults');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(medicamentTimeout);
+            var term = this.value.trim();
+            
+            if (term.length < 2) {
+                resultsDiv.style.display = 'none';
+                resultsDiv.innerHTML = '';
+                return;
+            }
+            
+            medicamentTimeout = setTimeout(function() {
+                rechercherMedicaments(term);
+            }, 300);
+        });
+        
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                var term = this.value.trim();
+                if (term) {
+                    ajouterMedicamentManuel();
+                }
+            }
+        });
+    }
+    
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#medicamentSearch') && !e.target.closest('#medicamentResults')) {
+            resultsDiv.style.display = 'none';
+        }
+    });
+});
+
+document.getElementById('ordonnanceForm').addEventListener('submit', function(e) {
+    var medicamentsData = JSON.parse(document.getElementById('medicaments_json').value);
+    if (medicamentsData.length === 0) {
+        e.preventDefault();
+        showToast('Veuillez ajouter au moins un medicament', 'warning');
+        return false;
+    }
+    return true;
+});
+
+// ============================================================ //
+// Toast                                                       //
+// ============================================================ //
+
+function showToast(message, type) {
+    if (typeof type === 'undefined') type = 'success';
+    var toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    var toast = document.createElement('div');
+    toast.className = 'toast show bg-' + type + ' text-white';
+    toast.innerHTML = `
+        <div class="toast-body d-flex justify-content-between align-items-center">
+            <span>${message}</span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" onclick="this.closest('.toast').remove()"></button>
+        </div>
+    `;
+    toastContainer.appendChild(toast);
+    setTimeout(function() {
+        toast.remove();
+    }, 4000);
+}
+</script>
+{% endblock %}

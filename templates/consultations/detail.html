@@ -6,13 +6,11 @@
 <div class="container-fluid">
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3">
-        <i class="fas fa-stethoscope me-2"></i>
         Détail de la consultation
     </h1>
     <div>
         <!-- ⭐ BOUTON RÉSULTATS -->
         <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#resultatsModal">
-            <i class="fas fa-file-medical-alt me-2"></i>
             {% if consultation.resultats_biologie or consultation.resultats_imagerie %}
                 Modifier les résultats
             {% else %}
@@ -20,17 +18,19 @@
             {% endif %}
         </button>
         
-        <!-- ⭐ BOUTON RÉFÉRENCE (NOUVEAU) -->
+        <!-- ⭐ BOUTON RÉFÉRENCE -->
         <a href="{{ url_for('ajouter_reference', id=consultation.id) }}" class="btn btn-warning me-2" data-loading="true">
-            <i class="fas fa-ambulance me-2"></i>Référencer
+            Référencer
         </a>
-<!-- BOUTON EXAMEN PHYSIQUE -->
-<a href="{{ url_for('examen_physique', id=consultation.id) }}" class="btn btn-info me-2" data-loading="true">
-    <i class="fas fa-stethoscope me-2"></i>Examen Physique
-    {% if consultation.examen_physique %}
-        <span class="badge bg-success ms-1">✅</span>
-    {% endif %}
-</a>
+        
+        <!-- ⭐ BOUTON EXAMEN PHYSIQUE -->
+        <a href="{{ url_for('examen_physique', id=consultation.id) }}" class="btn btn-info me-2" data-loading="true">
+            Examen Physique
+            {% if consultation.examen_physique %}
+                <span class="badge bg-success ms-1"></span>
+            {% endif %}
+        </a>
+        
         <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-secondary">
             <i class="fas fa-arrow-left me-2"></i>Retour au patient
         </a>
@@ -38,7 +38,9 @@
 </div>
 
     <div class="row">
-        <!-- Informations patient -->
+        <!-- ========================================================== -->
+        <!-- COLONNE GAUCHE : PATIENT                                    -->
+        <!-- ========================================================== -->
         <div class="col-md-4 mb-4">
             <div class="card">
                 <div class="card-header">
@@ -56,11 +58,13 @@
             </div>
         </div>
 
-        <!-- Détails consultation -->
+        <!-- ========================================================== -->
+        <!-- COLONNE DROITE : CONSULTATION                               -->
+        <!-- ========================================================== -->
         <div class="col-md-8 mb-4">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-notes-medical me-2"></i>Détails de la consultation</h5>
+                    <h5 class="mb-0">Détails de la consultation</h5>
                 </div>
                 <div class="card-body">
                     <!-- En-tête -->
@@ -100,9 +104,114 @@
                         <strong>Motif :</strong>
                         <p class="border rounded p-2 bg-light">{{ consultation.motif or '-' }}</p>
                     </div>
+
+<!-- ========================================================== -->
+<!-- HISTOIRE DE LA MALADIE (DÉTAILLÉE)                         -->
+<!-- ========================================================== -->
+{% if consultation.histoire_maladie %}
+<div class="card border-warning mt-3">
+    <div class="card-header bg-warning text-dark">
+        <strong>Détails de l'histoire de la maladie</strong>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <strong>Début :</strong>
+                <p class="border rounded p-2 bg-light">
+                    {% if consultation.hpi_date_debut %}
+                        {{ consultation.hpi_date_debut.strftime('%d/%m/%Y') }}
+                    {% endif %}
+                    {% if consultation.hpi_debut_type %}
+                        - {{ consultation.hpi_debut_type }}
+                    {% endif %}
+                    {% if not consultation.hpi_date_debut and not consultation.hpi_debut_type %}
+                        Non renseigné
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-md-6">
+                <strong>Circonstances :</strong>
+                <p class="border rounded p-2 bg-light">{{ consultation.hpi_circonstances or 'Non renseigné' }}</p>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <strong>Évolution :</strong>
+                <p class="border rounded p-2 bg-light">{{ consultation.hpi_evolution or 'Non renseigné' }}</p>
+            </div>
+            <div class="col-md-6">
+                <strong>Facteurs aggravants/soulageants :</strong>
+                <p class="border rounded p-2 bg-light">{{ consultation.hpi_facteurs or 'Non renseigné' }}</p>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <strong>Signes associés :</strong>
+                <p class="border rounded p-2 bg-light">
+                    {% if consultation.hpi_fievre or consultation.hpi_nausees or consultation.hpi_douleur or consultation.hpi_cephalées or consultation.hpi_vertiges or consultation.hpi_dyspnee or consultation.hpi_signes %}
+                        {% set signes_list = [] %}
+                        {% if consultation.hpi_fievre %}{% set _ = signes_list.append('Fièvre') %}{% endif %}
+                        {% if consultation.hpi_nausees %}{% set _ = signes_list.append('Nausées/Vomissements') %}{% endif %}
+                        {% if consultation.hpi_douleur %}{% set _ = signes_list.append('Douleur') %}{% endif %}
+                        {% if consultation.hpi_cephalées %}{% set _ = signes_list.append('Céphalées') %}{% endif %}
+                        {% if consultation.hpi_vertiges %}{% set _ = signes_list.append('Vertiges') %}{% endif %}
+                        {% if consultation.hpi_dyspnee %}{% set _ = signes_list.append('Dyspnée') %}{% endif %}
+                        {% if consultation.hpi_signes %}{% set _ = signes_list.append(consultation.hpi_signes) %}{% endif %}
+                        {{ signes_list | join(', ') }}
+                    {% else %}
+                        Non renseigné
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-md-6">
+                <strong>Traitements essayés :</strong>
+                <p class="border rounded p-2 bg-light">{{ consultation.hpi_traitements or 'Non renseigné' }}</p>
+            </div>
+        </div>
+        
+        <!-- ⭐ Informations spécifiques -->
+        {% if consultation.hpi_trauma_mecanisme %}
+        <div class="alert alert-danger mt-2">
+            <strong>Traumatisme :</strong><br>
+            Mécanisme : {{ consultation.hpi_trauma_mecanisme }}<br>
+            {% if consultation.hpi_trauma_heure %}Heure : {{ consultation.hpi_trauma_heure.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+            {% if consultation.hpi_trauma_pc %}Perte de connaissance : {{ consultation.hpi_trauma_pc }}{% endif %}
+            {% if consultation.hpi_trauma_description %}Description : {{ consultation.hpi_trauma_description }}{% endif %}
+        </div>
+        {% endif %}
+        
+        {% if consultation.hpi_morsure_type %}
+        <div class="alert alert-warning mt-2">
+            <strong>Morsure / Piqure :</strong><br>
+            Type : {{ consultation.hpi_morsure_type }}<br>
+            {% if consultation.hpi_morsure_espece %}Espèce : {{ consultation.hpi_morsure_espece }}{% endif %}
+            {% if consultation.hpi_morsure_siege %}Siège : {{ consultation.hpi_morsure_siege }}{% endif %}
+            {% if consultation.hpi_morsure_signes %}Signes locaux : {{ consultation.hpi_morsure_signes }}{% endif %}
+        </div>
+        {% endif %}
+        
+        {% if consultation.hpi_intox_substance %}
+        <div class="alert alert-info mt-2">
+            <strong>Intoxication :</strong><br>
+            Substance : {{ consultation.hpi_intox_substance }}<br>
+            {% if consultation.hpi_intox_heure %}Heure : {{ consultation.hpi_intox_heure.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+            {% if consultation.hpi_intox_circonstances %}Circonstances : {{ consultation.hpi_intox_circonstances }}{% endif %}
+        </div>
+        {% endif %}
+        
+        {% if consultation.hpi_complements_medecin %}
+        <div class="mt-2">
+            <strong>Compléments du médecin :</strong>
+            <p class="border rounded p-2 bg-light">{{ consultation.hpi_complements_medecin }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
                     
-                    <!-- ⭐ CONSTANTES VITALES -->
-                    <h5 class="mt-3 mb-3"><i class="fas fa-heartbeat me-2 text-danger"></i>Signes vitaux</h5>
+                    <!-- Constantes -->
+                    <h5 class="mt-3 mb-3">Signes vitaux</h5>
                     <hr>
                     <div class="row">
                         <div class="col-md-3">
@@ -120,7 +229,7 @@
                     </div>
                     
                     <!-- Anthropométrie -->
-                    <h5 class="mt-3 mb-3"><i class="fas fa-ruler me-2 text-primary"></i>Anthropométrie</h5>
+                    <h5 class="mt-3 mb-3">Anthropométrie</h5>
                     <hr>
                     <div class="row">
                         <div class="col-md-3">
@@ -148,195 +257,443 @@
                         </div>
                     </div>
                     
-                    <!-- ⭐ ANTÉCÉDENTS -->
-                    <h5 class="mt-3 mb-3"><i class="fas fa-history me-2 text-warning"></i>Antécédents du patient</h5>
-                    <hr>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Allergies :</strong></p>
-                            <p class="border rounded p-2 bg-light">{{ consultation.allergies or 'Aucune allergie signalée' }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Traitements en cours :</strong></p>
-                            <p class="border rounded p-2 bg-light">{{ consultation.traitements_en_cours or 'Aucun traitement signalé' }}</p>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Antécédents médicaux :</strong></p>
-                            <p class="border rounded p-2 bg-light">{{ consultation.antecedents_medicaux or 'Aucun antécédent signalé' }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Antécédents chirurgicaux :</strong></p>
-                            <p class="border rounded p-2 bg-light">{{ consultation.antecedents_chirurgicaux or 'Aucun antécédent signalé' }}</p>
-                        </div>
-                    </div>
-                    
-                    <!-- ⭐ EXAMENS PRESCRITS -->
-                    <h5 class="mt-3 mb-3"><i class="fas fa-stethoscope me-2 text-info"></i>Examens prescrits</h5>
-                    <hr>
-                    
-                    <div class="mb-3">
-                        <strong>🔬 Examens cliniques :</strong>
-                        <p class="border rounded p-2 bg-light">{{ consultation.examens_cliniques or 'Aucun examen clinique réalisé' }}</p>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <strong>🧪 Examens de biologie :</strong>
-                            <p class="border rounded p-2 bg-light">{{ consultation.examens_biologie or 'Aucune analyse prescrite' }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <strong>📷 Examens d'imagerie :</strong>
-                            <p class="border rounded p-2 bg-light">{{ consultation.examens_imagerie or 'Aucun examen prescrit' }}</p>
-                        </div>
-                    </div>
-                    
-                    <hr>
-                    
-                    <!-- ⭐ RÉSULTATS -->
-                    <h5 class="mt-3 mb-3"><i class="fas fa-file-medical-alt me-2 text-success"></i>Résultats</h5>
-                    <hr>
-                    
-                    {% if consultation.resultats_biologie or consultation.resultats_imagerie %}
-                    <div class="row">
-                        <div class="col-md-6">
-                            <strong>🧪 Résultats biologie :</strong>
-                            <p class="border rounded p-2 bg-light">{{ consultation.resultats_biologie or 'En attente' }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <strong>📷 Résultats imagerie :</strong>
-                            <p class="border rounded p-2 bg-light">{{ consultation.resultats_imagerie or 'En attente' }}</p>
-                        </div>
-                    </div>
-                    {% if consultation.date_resultats %}
-                    <p><strong>📅 Date de réception :</strong> {{ consultation.date_resultats.strftime('%d/%m/%Y %H:%M') }}</p>
-                    {% endif %}
-                    {% else %}
-                    <div class="alert alert-warning">
-                        <i class="fas fa-clock me-2"></i>
-                        <strong>En attente des résultats</strong>
-                        <p class="mb-0">Les résultats ne sont pas encore disponibles.</p>
-                    </div>
-                    {% endif %}
-<!-- ==================== ANALYSES ==================== -->
 
-<!-- Demander une analyse -->
-<div class="card mb-4">
-    <div class="card-header bg-info text-white">
-        <h5 class="mb-0"><i class="fas fa-flask me-2"></i>Demander une analyse</h5>
-    </div>
-    <div class="card-body">
-        <form method="POST" action="{{ url_for('ajouter_analyse_demande', id=consultation.id) }}">
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Type d'analyse</label>
-                    <select name="type_analyse" class="form-select" required>
-                        <option value="BIOLOGIE">Biologie</option>
-                        <option value="IMAGERIE">Imagerie</option>
-                        <option value="AUTRE">Autre</option>
-                    </select>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Nom de l'analyse</label>
-                    <input type="text" name="nom_analyse" class="form-control" required placeholder="Ex: NFS, Glycémie, Radio...">
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Description</label>
-                    <input type="text" name="description" class="form-control" placeholder="Informations complémentaires">
+<!-- ========================================================== -->
+<!-- ANTÉCÉDENTS DU PATIENT                                     -->
+<!-- ========================================================== -->
+<h5 class="mt-3 mb-3"><i class="fas fa-history me-2 text-warning"></i>Antécédents du patient</h5>
+<hr>
+
+{% if patient.antecedents %}
+    {% set antecedents_actifs = [] %}
+    {% for a in patient.antecedents %}
+        {% if a.actif %}
+            {% set _ = antecedents_actifs.append(a) %}
+        {% endif %}
+    {% endfor %}
+    
+    {% if antecedents_actifs %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    {% for antecedent in antecedents_actifs %}
+                    <div class="col-md-6 mb-2">
+                        <div class="border rounded p-2 {% if antecedent.severite == 'SEVERE' %}border-danger bg-danger bg-opacity-10{% elif antecedent.severite == 'MODEREE' %}border-warning bg-warning bg-opacity-10{% else %}border-secondary{% endif %}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <span class="badge 
+                                        {% if antecedent.type_antecedent == 'ALLERGIE' %}bg-danger
+                                        {% elif antecedent.type_antecedent == 'CHIRURGICAL' %}bg-info
+                                        {% elif antecedent.type_antecedent == 'MEDICAL' %}bg-primary
+                                        {% elif antecedent.type_antecedent == 'PSYCHOLOGIQUE' %}bg-secondary
+                                        {% elif antecedent.type_antecedent == 'OBSTETRIQUE' %}bg-pink
+                                        {% else %}bg-secondary{% endif %} mb-1">
+                                        {{ antecedent.type_antecedent }}
+                                    </span>
+                                    {% if antecedent.severite %}
+                                        <span class="badge 
+                                            {% if antecedent.severite == 'SEVERE' %}bg-danger
+                                            {% elif antecedent.severite == 'MODEREE' %}bg-warning
+                                            {% else %}bg-success{% endif %}">
+                                            {{ antecedent.severite }}
+                                        </span>
+                                    {% endif %}
+                                    <p class="mb-1 mt-1"><strong>{{ antecedent.description }}</strong></p>
+                                    {% if antecedent.date_debut %}
+                                        <small class="text-muted">Depuis le {{ antecedent.date_debut.strftime('%d/%m/%Y') }}</small>
+                                    {% endif %}
+                                    {% if antecedent.traitement %}
+                                        <br><small class="text-muted">Traitement : {{ antecedent.traitement }}</small>
+                                    {% endif %}
+                                    {% if antecedent.notes %}
+                                        <br><small class="text-muted">Notes : {{ antecedent.notes }}</small>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <small class="text-muted">
+                                        Recueilli par {{ antecedent.recueillant.prenom if antecedent.recueillant else '' }} 
+                                        {{ antecedent.recueillant.nom if antecedent.recueillant else '' }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-plus me-2"></i>Demander l'analyse
-            </button>
-        </form>
+        </div>
+    {% else %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="text-muted text-center my-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Aucun antécédent actif enregistré pour ce patient.
+                    <br>
+                    <a href="{{ url_for('patient_antecedents', patient_id=patient.id) }}" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
+                        <i class="fas fa-plus me-1"></i>Ajouter des antécédents
+                    </a>
+                </p>
+            </div>
+        </div>
+    {% endif %}
+{% else %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Aucun antécédent enregistré pour ce patient.
+                <br>
+                <a href="{{ url_for('patient_antecedents', patient_id=patient.id) }}" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
+                    <i class="fas fa-plus me-1"></i>Ajouter des antécédents
+                </a>
+            </p>
+        </div>
     </div>
-</div>
+{% endif %}
 
-<!-- Liste des analyses demandées pour cette consultation -->
-{% if consultation.analyses_demandees %}
-<div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Analyses demandées</h5>
-    </div>
+
+<!-- ========================================================== -->
+<!-- HABITUDES DE VIE (AVEC INDICATEURS)                        -->
+<!-- ========================================================== -->
+<h5 class="mt-3 mb-3"><i class="fas fa-heart me-2 text-success"></i>Habitudes de vie</h5>
+<hr>
+
+<div class="card mb-3">
     <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-sm">
-                <thead>
-                    <tr>
-                        <th>Analyse</th>
-                        <th>Date</th>
-                        <th>Statut</th>
-                        <th>Résultats</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for a in consultation.analyses_demandees %}
-                    <tr>
-                        <td>{{ a.nom_analyse }}</td>
-                        <td>{{ a.date_demande.strftime('%d/%m/%Y') }}</td>
-                        <td>
-                            {% if a.statut == 'EN_ATTENTE' %}
-                                <span class="badge bg-warning">En attente</span>
-                            {% elif a.statut == 'EN_COURS' %}
-                                <span class="badge bg-primary">En cours</span>
-                            {% elif a.statut == 'TERMINE' %}
-                                <span class="badge bg-success">Terminé ✅</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if a.statut == 'TERMINE' %}
-                                <span class="text-success">Disponibles</span>
-                            {% else %}
-                                <span class="text-muted">En attente</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="row text-center">
+            <div class="col-3">
+                <div class="p-3 border rounded {% if patient.tabac and patient.tabac != 'Non' %}border-danger bg-danger bg-opacity-10{% else %}border-success bg-success bg-opacity-10{% endif %}">
+                    <i class="fas fa-smoking {% if patient.tabac and patient.tabac != 'Non' %}text-danger{% else %}text-success{% endif %} fa-2x"></i>
+                    <div class="mt-2">
+                        <small class="text-muted">Tabac</small>
+                        <br><strong>{{ patient.tabac or 'Non' }}</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="p-3 border rounded {% if patient.alcool and patient.alcool != 'Non' %}border-warning bg-warning bg-opacity-10{% else %}border-success bg-success bg-opacity-10{% endif %}">
+                    <i class="fas fa-wine-bottle {% if patient.alcool and patient.alcool != 'Non' %}text-warning{% else %}text-success{% endif %} fa-2x"></i>
+                    <div class="mt-2">
+                        <small class="text-muted">Alcool</small>
+                        <br><strong>{{ patient.alcool or 'Non' }}</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="p-3 border rounded {% if patient.allaitement %}border-info bg-info bg-opacity-10{% else %}border-secondary bg-secondary bg-opacity-10{% endif %}">
+                    <i class="fas fa-baby {% if patient.allaitement %}text-info{% else %}text-secondary{% endif %} fa-2x"></i>
+                    <div class="mt-2">
+                        <small class="text-muted">Allaitement</small>
+                        <br><strong>{{ 'Oui' if patient.allaitement else 'Non' }}</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="p-3 border rounded {% if patient.grossesse %}border-pink bg-pink bg-opacity-10{% else %}border-secondary bg-secondary bg-opacity-10{% endif %}">
+                    <i class="fas fa-baby-carriage {% if patient.grossesse %}text-pink{% else %}text-secondary{% endif %} fa-2x"></i>
+                    <div class="mt-2">
+                        <small class="text-muted">Grossesse</small>
+                        <br><strong>{{ 'Oui' if patient.grossesse else 'Non' }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-md-4">
+                <div class="border rounded p-2">
+                    <strong>Groupe sanguin</strong>
+                    <p class="mb-0">{{ patient.groupe_sanguin or 'Non renseigné' }}</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-2">
+                    <strong>Mutuelle</strong>
+                    <p class="mb-0">{{ patient.mutuelle or 'Non renseigné' }}</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-2">
+                    <strong>Médecin traitant</strong>
+                    <p class="mb-0">{{ patient.medecin_traitant or 'Non renseigné' }}</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
-{% endif %}
 
-<!-- Diagnostic -->
-<div class="mb-3">
-    <strong>Diagnostic :</strong>
-    <p class="border rounded p-2 bg-light">{{ consultation.diagnostic or '-' }}</p>
-</div>
+                    <!-- Diagnostic -->
+                    <div class="mb-3">
+                        <strong>Diagnostic :</strong>
+                        <p class="border rounded p-2 bg-light">{{ consultation.diagnostic or '-' }}</p>
+                    </div>
 
-<!-- ⭐ CIM-10 - Affichage ligne par ligne -->
-{% if consultation.cim10 %}
-<div class="mb-3">
-    <strong>CIM-10 :</strong>
-    <div class="border rounded p-2 bg-light">
-        {# Séparer par virgule ou espace #}
-        {% if ',' in consultation.cim10 %}
-            {% set codes = consultation.cim10.split(',') %}
-        {% else %}
-            {% set codes = consultation.cim10.split() %}
-        {% endif %}
-        {% for code in codes %}
-            {% if code.strip() %}
-                <span class="badge bg-primary mb-1">{{ code.strip() }}</span><br>
+                    <!-- CIM-10 -->
+                    {% if consultation.cim10 %}
+                    <div class="mb-3">
+                        <strong>CIM-10 :</strong>
+                        <div class="border rounded p-2 bg-light">
+                            {% if ',' in consultation.cim10 %}
+                                {% set codes = consultation.cim10.split(',') %}
+                            {% else %}
+                                {% set codes = consultation.cim10.split() %}
+                            {% endif %}
+                            {% for code in codes %}
+                                {% if code.strip() %}
+                                    <span class="badge bg-primary mb-1">{{ code.strip() }}</span><br>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+
+                    
+<!-- ⭐ CARTE ORDONNANCE AVEC HISTORIQUE -->
+<h5 class="mt-4 mb-3">Ordonnance medicale</h5>
+<hr>
+
+<div class="card mb-3 border-success">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-prescription me-2"></i>
+            <strong>Ordonnance active</strong>
+            {% if consultation.ordonnance_active %}
+                <span class="badge bg-light text-success ms-2">
+                    v{{ consultation.ordonnance_active.version }}
+                </span>
+                <span class="badge bg-light text-info ms-1">
+                    {{ consultation.ordonnance_active.source_nom or consultation.ordonnance_active.source_type }}
+                </span>
+            {% else %}
+                <span class="badge bg-light text-warning ms-2">Aucune</span>
             {% endif %}
-        {% endfor %}
+        </div>
+        <div>
+            {% if consultation.ordonnance_active %}
+                <button class="btn btn-light btn-sm me-1" data-bs-toggle="modal" data-bs-target="#ordonnanceModal">
+                    <i class="fas fa-edit me-1"></i>Modifier
+                </button>
+                <a href="{{ url_for('imprimer_ordonnance_consultation', id=consultation.id) }}" target="_blank" class="btn btn-outline-light btn-sm me-1">
+                    <i class="fas fa-print me-1"></i>Imprimer
+                </a>
+                <a href="{{ url_for('historique_ordonnances_consultation', id=consultation.id) }}" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-history me-1"></i>Historique
+                </a>
+            {% else %}
+                <a href="{{ url_for('creer_ordonnance_consultation', id=consultation.id) }}" class="btn btn-light btn-sm">
+                    <i class="fas fa-plus me-1"></i>Nouvelle ordonnance
+                </a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        {% if consultation.ordonnance_active %}
+            {% set medicaments = consultation.ordonnance_active.get_medicaments_list() %}
+            {% if medicaments %}
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Medicament</th>
+                            <th>Dosage</th>
+                            <th>Posologie</th>
+                            <th>Quantite</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for med in medicaments %}
+                        <tr>
+                            <td><strong>{{ med.medicament }}</strong></td>
+                            <td>{{ med.dosage or '-' }}</td>
+                            <td>{{ med.posologie or '-' }} pendant {{ med.duree or '7' }} jours</td>
+                            <td>{{ med.quantite or '1 boite' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if consultation.ordonnance_active.source_nom %}
+            <small class="text-muted">
+                <i class="fas fa-info-circle me-1"></i>
+                Source : {{ consultation.ordonnance_active.source_nom }}
+                (Version {{ consultation.ordonnance_active.version }})
+            </small>
+            {% endif %}
+            {% else %}
+            <p class="text-muted text-center my-3">Aucun medicament dans l'ordonnance</p>
+            {% endif %}
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Aucune ordonnance active.
+                <br>
+                <a href="{{ url_for('creer_ordonnance_consultation', id=consultation.id) }}" class="btn btn-sm btn-success mt-2">
+                    <i class="fas fa-plus me-1"></i>Creer une ordonnance
+                </a>
+            </p>
+        {% endif %}
     </div>
 </div>
-{% endif %}
-                    <div class="mb-3">
-                        <strong>Traitement prescrit :</strong>
-                        <p class="border rounded p-2 bg-light">{{ consultation.traitement_prescrit or '-' }}</p>
+<!-- ⭐ COMPTEUR ORDONNANCES -->
+<div class="mb-3">
+    <span class="badge bg-secondary">
+        Total : {{ consultation.ordonnances.count() }} version(s)
+    </span>
+    <a href="{{ url_for('historique_ordonnances_consultation', id=consultation.id) }}" class="btn btn-sm btn-outline-secondary ms-2">
+        <i class="fas fa-list me-1"></i>Voir l'historique complet
+    </a>
+</div>
+
+<!-- ⭐ CARTE EXAMENS AVEC HISTORIQUE -->
+<h5 class="mt-4 mb-3">Examens prescrits</h5>
+<hr>
+
+<div class="card mb-3 border-info">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-flask me-2"></i>
+            <strong>Examens prescrits</strong>
+            <span class="badge bg-light text-info ms-2">
+                {{ consultation.examens_prescrits.filter_by(est_active=True).count() }} active(s)
+            </span>
+            <span class="badge bg-light text-secondary ms-1">
+                total : {{ consultation.examens_prescrits.count() }}
+            </span>
+        </div>
+        <div>
+            <a href="{{ url_for('creer_examen_consultation', id=consultation.id) }}" class="btn btn-light btn-sm">
+                <i class="fas fa-plus me-1"></i>Nouvelle demande
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        {% set examens_actifs = consultation.examens_prescrits.filter_by(est_active=True).all() %}
+        {% if examens_actifs %}
+            {% for examen in examens_actifs %}
+            <div class="card mb-2 border-{% if examen.statut == 'TERMINE' %}success{% elif examen.statut == 'EN_COURS' %}warning{% else %}secondary{% endif %}">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ examen.nature }}</strong>
+                            <span class="badge bg-{% if examen.statut == 'TERMINE' %}success{% elif examen.statut == 'EN_COURS' %}warning{% else %}secondary{% endif %} ms-2">
+                                {{ examen.statut }}
+                            </span>
+                            {% if examen.source_nom %}
+                            <span class="badge bg-info ms-1">Source: {{ examen.source_nom }}</span>
+                            {% endif %}
+                            <span class="badge bg-secondary ms-1">v{{ examen.version }}</span>
+                            <br>
+                            <small class="text-muted">
+                                {% if examen.motif %}{{ examen.motif }}{% endif %}
+                                {% if examen.description %} - {{ examen.description }}{% endif %}
+                            </small>
+                        </div>
+                        <div>
+                            <a href="{{ url_for('imprimer_examen_consultation', id=consultation.id, examen_id=examen.id) }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-print"></i>
+                            </a>
+                            <a href="{{ url_for('modifier_examen_consultation', id=consultation.id, examen_id=examen.id) }}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% if examen.statut != 'TERMINE' and current_user.role in ['admin_structure', 'medecin', 'laborantin'] %}
+                            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#resultatsExamenModal{{ examen.id }}">
+                                <i class="fas fa-flask"></i>
+                            </button>
+                            {% endif %}
+                        </div>
                     </div>
-                    
+                    <div class="mt-1">
+                        <strong>Examens :</strong>
+                        {% set examens_list = examen.get_examens_list() %}
+                        {% if examens_list %}
+                        <ul class="mb-0">
+                            {% for e in examens_list %}
+                            <li><small>{{ e }}</small></li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <span class="text-muted">Aucun</span>
+                        {% endif %}
+                    </div>
+                    {% if examen.resultats %}
+                    <div class="mt-1">
+                        <strong>Resultats :</strong>
+                        <div class="alert alert-light border-start border-3 border-success mt-1 mb-0">
+                            <div style="white-space: pre-line;">{{ examen.resultats }}</div>
+                            <small class="text-muted">
+                                <i class="fas fa-user-md me-1"></i>
+                                Saisi par : {{ examen.laborantin.prenom }} {{ examen.laborantin.nom if examen.laborantin else 'Inconnu' }}
+                                {% if examen.date_resultats %}
+                                - {{ examen.date_resultats.strftime('%d/%m/%Y %H:%M') }}
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Aucune demande d'examens active.
+                <br>
+                <a href="{{ url_for('creer_examen_consultation', id=consultation.id) }}" class="btn btn-sm btn-info mt-2 text-white">
+                    <i class="fas fa-plus me-1"></i>Creer une demande
+                </a>
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+                    <!-- Liste des analyses demandées -->
+                    {% if consultation.analyses_demandees %}
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h5 class="mb-0">Analyses demandées</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Analyse</th>
+                                            <th>Date</th>
+                                            <th>Statut</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for a in consultation.analyses_demandees %}
+                                        <tr>
+                                            <td>{{ a.nom_analyse }}</td>
+                                            <td>{{ a.date_demande.strftime('%d/%m/%Y') }}</td>
+                                            <td>
+                                                {% if a.statut == 'EN_ATTENTE' %}
+                                                    <span class="badge bg-warning">En attente</span>
+                                                {% elif a.statut == 'EN_COURS' %}
+                                                    <span class="badge bg-primary">En cours</span>
+                                                {% elif a.statut == 'TERMINE' %}
+                                                    <span class="badge bg-success">Terminé </span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                                                            
                     <div class="mb-3">
                         <strong>Notes cliniques :</strong>
                         <p class="border rounded p-2 bg-light">{{ consultation.notes_cliniques or '-' }}</p>
                     </div>
                     
-                    <!-- Prochain rendez-vous -->
-                    <h5 class="mt-3 mb-3"><i class="fas fa-calendar-alt me-2 text-primary"></i>Suivi</h5>
+                    <!-- Suivi -->
+                    <h5 class="mt-3 mb-3">Suivi</h5>
                     <hr>
                     <div class="row">
                         <div class="col-md-6">
@@ -368,7 +725,191 @@
     </div>
 </div>
 
-<!-- ========== MODAL RÉSULTATS ========== -->
+<!-- ============================================================ -->
+<!-- ⭐ MODAL ORDONNANCE                                            -->
+<!-- ============================================================ -->
+<div class="modal fade" id="ordonnanceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-prescription me-2"></i>
+                    {% if consultation.ordonnance_active %}Modifier{% else %}Créer{% endif %} l'ordonnance
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            
+            {% if consultation.ordonnance_active %}
+            <form method="POST" action="{{ url_for('modifier_ordonnance_consultation', id=consultation.id, ordonnance_id=consultation.ordonnance_active.id) }}">
+            {% else %}
+            <form method="POST" action="{{ url_for('creer_ordonnance_consultation', id=consultation.id) }}">
+            {% endif %}
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% if consultation.ordonnance_active %}Modifiez{% else %}Ajoutez{% endif %} des médicaments.
+                    </div>
+                    
+                    <div id="medicaments-container">
+                        <div class="row mb-2 fw-bold text-muted">
+                            <div class="col-3">Médicament</div>
+                            <div class="col-2">Dosage</div>
+                            <div class="col-3">Posologie</div>
+                            <div class="col-2">Durée (jours)</div>
+                            <div class="col-1">Quantité</div>
+                            <div class="col-1">Action</div>
+                        </div>
+                        <div id="medicaments-list">
+                            <!-- Les médicaments seront chargés ici -->
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="ajouterMedicamentOrdonnance()">
+                            <i class="fas fa-plus me-2"></i>Ajouter un médicament
+                        </button>
+                    </div>
+
+                    <input type="hidden" name="medicaments_json" id="medicaments_json_ordonnance" value="{{ consultation.ordonnance_active.medicaments if consultation.ordonnance_active else '[]' }}">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save me-2"></i>
+                        {% if consultation.ordonnance_active %}Enregistrer{% else %}Créer{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- ============================================================ -->
+<!-- ⭐ MODAL EXAMENS                                               -->
+<!-- ============================================================ -->
+<div class="modal fade" id="examenModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-flask me-2"></i>
+                    Prescrire des examens
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('ajouter_examen_prescrit_consultation', id=consultation.id) }}" id="examenForm">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Vous pouvez choisir un examen type ou créer une prescription personnalisée.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Examen type (optionnelle)</label>
+                        <select name="examen_type_id" id="examenTypeSelect" class="form-select">
+                            <option value="">-- Sélectionner un examen type --</option>
+                            {% for e in examens_types %}
+                            <option value="{{ e.id }}">{{ e.nom }} ({{ e.nature }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <hr>
+                    <h6 class="fw-bold">Prescription personnalisée</h6>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nature <span class="text-danger">*</span></label>
+                        <select name="nature" class="form-select" required>
+                            <option value="BIOLOGIE">Biologie</option>
+                            <option value="IMAGERIE">Imagerie</option>
+                            <option value="AUTRE">Autre</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Motif / Diagnostic</label>
+                        <textarea name="motif" class="form-control" rows="2" placeholder="Motif de la demande..."></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="Description..."></textarea>
+                    </div>
+
+                    <hr>
+                    <h6 class="fw-bold">
+                        <i class="fas fa-list me-2 text-info"></i>
+                        Liste des examens
+                    </h6>
+
+                    <div id="examens-container">
+                        <div class="row mb-2 fw-bold text-muted">
+                            <div class="col-11">Examen</div>
+                            <div class="col-1">Action</div>
+                        </div>
+                        <div id="examens-list-modal">
+                            <!-- Les examens seront ajoutés ici -->
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="ajouterExamenModal()">
+                            <i class="fas fa-plus me-2"></i>Ajouter un examen
+                        </button>
+                    </div>
+
+                    <input type="hidden" name="examens_json" id="examens_json_modal" value="[]">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-info text-white">
+                        <i class="fas fa-save me-2"></i>Prescrire
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- ⭐ MODALS RÉSULTATS EXAMENS (pour chaque examen)              -->
+<!-- ============================================================ -->
+{% for examen in consultation.examens_prescrits.all() if consultation.examens_prescrits %}
+<div class="modal fade" id="resultatsExamenModal{{ examen.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Saisir les résultats - {{ examen.nature }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('saisir_resultats_examen', id=consultation.id, examen_id=examen.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Résultats</label>
+                        <textarea name="resultats" class="form-control" rows="6" required placeholder="Saisir les résultats des examens..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Statut</label>
+                        <select name="statut" class="form-select">
+                            <option value="TERMINE">Terminé</option>
+                            <option value="EN_COURS">En cours</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save me-2"></i>Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- ============================================================ -->
+<!-- MODAL RÉSULTATS (global)                                     -->
+<!-- ============================================================ -->
 <div class="modal fade" id="resultatsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -390,42 +931,16 @@
                         Saisissez ou modifiez les résultats des examens et analyses.
                     </div>
                     
-                    <!-- ⭐ RÉSULTATS DES ANALYSES DEMANDÉES -->
-                    {% if consultation.analyses_demandees %}
-                    <div class="alert alert-secondary">
-                        <strong><i class="fas fa-flask me-2"></i>Analyses demandées :</strong>
-                        <ul class="mb-0 mt-1">
-                            {% for a in consultation.analyses_demandees %}
-                            <li>
-                                {{ a.nom_analyse }} 
-                                <span class="badge 
-                                    {% if a.statut == 'EN_ATTENTE' %}bg-warning
-                                    {% elif a.statut == 'EN_COURS' %}bg-primary
-                                    {% elif a.statut == 'TERMINE' %}bg-success
-                                    {% endif %}">
-                                    {{ a.statut }}
-                                </span>
-                                {% if a.resultats %}
-                                    <span class="badge bg-success">✅ Résultats saisis</span>
-                                {% endif %}
-                            </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-                    
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">🧪 Résultats biologie</label>
                             <textarea name="resultats_biologie" class="form-control" rows="6" 
                                       placeholder="NFS, Glycémie, Bilan hépatique...">{{ consultation.resultats_biologie or '' }}</textarea>
-                            <small class="text-muted">Une analyse par ligne ou texte libre</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">📷 Résultats imagerie</label>
                             <textarea name="resultats_imagerie" class="form-control" rows="6" 
                                       placeholder="Radio, Échographie, Scanner...">{{ consultation.resultats_imagerie or '' }}</textarea>
-                            <small class="text-muted">Une analyse par ligne ou texte libre</small>
                         </div>
                     </div>
                     
@@ -433,7 +948,6 @@
                         <label class="form-label fw-bold">📅 Date de réception</label>
                         <input type="datetime-local" name="date_resultats" class="form-control"
                                value="{{ consultation.date_resultats.strftime('%Y-%m-%dT%H:%M') if consultation.date_resultats else '' }}">
-                        <small class="text-muted">Laissez vide pour utiliser la date actuelle</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -446,12 +960,237 @@
         </div>
     </div>
 </div>
-<!-- ========== SCRIPT ========== -->
+
+<!-- ============================================================ -->
+<!-- SCRIPTS                                                      -->
+<!-- ============================================================ -->
+{% block extra_js %}
 <script>
-function ouvrirModalResultats() {
-    var modal = new bootstrap.Modal(document.getElementById('resultatsModal'));
-    modal.show();
+// ==================== ORDONNANCE ====================
+let medicamentsOrdonnance = [];
+
+function ajouterMedicamentOrdonnance(medicament = null) {
+    const list = document.getElementById('medicaments-list');
+    const row = document.createElement('div');
+    row.className = 'row mb-2 align-items-center';
+    row.dataset.index = list.children.length;
+
+    if (medicament) {
+        row.innerHTML = `
+            <div class="col-3">
+                <input type="text" class="form-control form-control-sm med-nom" value="${medicament.medicament || ''}" placeholder="Nom">
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control form-control-sm med-dosage" value="${medicament.dosage || ''}" placeholder="Dosage">
+            </div>
+            <div class="col-3">
+                <input type="text" class="form-control form-control-sm med-posologie" value="${medicament.posologie || ''}" placeholder="Posologie">
+            </div>
+            <div class="col-2">
+                <input type="number" class="form-control form-control-sm med-duree" value="${medicament.duree || 7}" placeholder="Jours">
+            </div>
+            <div class="col-1">
+                <input type="text" class="form-control form-control-sm med-quantite" value="${medicament.quantite || ''}" placeholder="Qte">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="supprimerMedicamentOrdonnance(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    } else {
+        row.innerHTML = `
+            <div class="col-3">
+                <input type="text" class="form-control form-control-sm med-nom" placeholder="Nom">
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control form-control-sm med-dosage" placeholder="Dosage">
+            </div>
+            <div class="col-3">
+                <input type="text" class="form-control form-control-sm med-posologie" placeholder="Posologie">
+            </div>
+            <div class="col-2">
+                <input type="number" class="form-control form-control-sm med-duree" value="7" placeholder="Jours">
+            </div>
+            <div class="col-1">
+                <input type="text" class="form-control form-control-sm med-quantite" placeholder="Qte">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="supprimerMedicamentOrdonnance(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    list.appendChild(row);
+    updateOrdonnanceJson();
+}
+
+function supprimerMedicamentOrdonnance(btn) {
+    const row = btn.closest('.row');
+    row.remove();
+    updateOrdonnanceJson();
+}
+
+function updateOrdonnanceJson() {
+    const rows = document.querySelectorAll('#medicaments-list .row');
+    const data = [];
+    rows.forEach(row => {
+        data.push({
+            'medicament': row.querySelector('.med-nom').value,
+            'dosage': row.querySelector('.med-dosage').value,
+            'posologie': row.querySelector('.med-posologie').value,
+            'duree': row.querySelector('.med-duree').value,
+            'quantite': row.querySelector('.med-quantite').value || '1 boite'
+        });
+    });
+    document.getElementById('medicaments_json_ordonnance').value = JSON.stringify(data);
+}
+
+document.addEventListener('input', function(e) {
+    if (e.target.closest('#medicaments-list')) {
+        updateOrdonnanceJson();
+    }
+});
+
+// ==================== EXAMENS ====================
+let examensModal = [];
+
+function ajouterExamenModal(examen = null) {
+    const list = document.getElementById('examens-list-modal');
+    const row = document.createElement('div');
+    row.className = 'row mb-2 align-items-center';
+    row.dataset.index = list.children.length;
+
+    if (examen) {
+        row.innerHTML = `
+            <div class="col-11">
+                <input type="text" class="form-control form-control-sm examen-nom-modal" value="${examen}" placeholder="Nom de l'examen">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="supprimerExamenModal(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    } else {
+        row.innerHTML = `
+            <div class="col-11">
+                <input type="text" class="form-control form-control-sm examen-nom-modal" placeholder="Nom de l'examen">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="supprimerExamenModal(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    list.appendChild(row);
+    updateExamenJson();
+}
+
+function supprimerExamenModal(btn) {
+    const row = btn.closest('.row');
+    row.remove();
+    updateExamenJson();
+}
+
+function updateExamenJson() {
+    const rows = document.querySelectorAll('#examens-list-modal .row');
+    const data = [];
+    rows.forEach(row => {
+        const val = row.querySelector('.examen-nom-modal').value.trim();
+        if (val) {
+            data.push(val);
+        }
+    });
+    document.getElementById('examens_json_modal').value = JSON.stringify(data);
+}
+
+document.addEventListener('input', function(e) {
+    if (e.target.closest('#examens-list-modal')) {
+        updateExamenJson();
+    }
+});
+
+// ==================== CHARGEMENT ====================
+document.addEventListener('DOMContentLoaded', function() {
+    // Charger l'ordonnance existante
+    const ordonnanceJson = document.getElementById('medicaments_json_ordonnance');
+    if (ordonnanceJson && ordonnanceJson.value) {
+        try {
+            const data = JSON.parse(ordonnanceJson.value);
+            data.forEach(m => {
+                ajouterMedicamentOrdonnance(m);
+            });
+        } catch(e) {
+            console.error('Erreur chargement ordonnance:', e);
+        }
+    }
+    if (document.querySelectorAll('#medicaments-list .row').length === 0) {
+        ajouterMedicamentOrdonnance();
+    }
+
+    // Examens
+    if (document.querySelectorAll('#examens-list-modal .row').length === 0) {
+        ajouterExamenModal();
+    }
+});
+
+// ==================== AUTOCOMPLÉTION EXAMEN TYPE ====================
+document.addEventListener('DOMContentLoaded', function() {
+    const select = document.getElementById('examenTypeSelect');
+    if (select) {
+        select.addEventListener('change', function() {
+            if (this.value) {
+                fetch(`/api/examen-type/${this.value}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.querySelector('[name="nature"]').value = data.nature;
+                        document.querySelector('[name="motif"]').value = data.motif || '';
+                        document.querySelector('[name="description"]').value = data.description || '';
+                        
+                        const list = document.getElementById('examens-list-modal');
+                        list.innerHTML = '';
+                        data.examens.forEach(e => {
+                            ajouterExamenModal(e);
+                        });
+                        if (data.examens.length === 0) {
+                            ajouterExamenModal();
+                        }
+                    })
+                    .catch(() => {
+                        console.error('Erreur chargement examen type');
+                    });
+            }
+        });
+    }
+});
+
+// ==================== TOAST ====================
+function showToast(message, type = 'success') {
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `toast show bg-${type} text-white`;
+    toast.innerHTML = `
+        <div class="toast-body d-flex justify-content-between align-items-center">
+            <span>${message}</span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" onclick="this.closest('.toast').remove()"></button>
+        </div>
+    `;
+    toastContainer.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
 }
 </script>
+{% endblock %}
 
 {% endblock %}

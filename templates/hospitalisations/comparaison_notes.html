@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+
+{% block title %}Comparaison des Notes - {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3">
+                <i class="fas fa-chart-simple me-2 text-primary"></i>
+                Comparaison des Notes d'Admission
+            </h1>
+            <p class="text-muted mb-0">
+                Patient : <strong>{{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}</strong>
+                - {{ nb_notes }} version(s) disponibles
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+            <button class="btn btn-primary" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Imprimer
+            </button>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- RÉSUMÉ DES CHANGEMENTS                                        -->
+    <!-- ============================================================ -->
+    {% if changements %}
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">
+                <i class="fas fa-arrow-right me-2"></i>
+                Résumé des changements majeurs
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="timeline">
+                {% for change in changements %}
+                <div class="border-start border-3 border-warning ps-3 mb-3">
+                    <div class="d-flex justify-content-between">
+                        <strong>Version {{ change.version }}</strong>
+                        <span class="badge bg-warning text-dark">{{ change.changements|length }} modification(s)</span>
+                    </div>
+                    {% for c in change.changements %}
+                    <div class="alert alert-light border-start border-3 
+                        {% if c.champ == 'Diagnostic' %}border-danger
+                        {% elif c.champ == 'Traitement' %}border-success
+                        {% elif c.champ == 'Examen clinique' %}border-info
+                        {% else %}border-secondary{% endif %}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <strong>{{ c.champ }}</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-danger">✖ Ancien :</span><br>
+                                <small class="text-muted">{{ c.ancien }}</small>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-success">✔ Nouveau :</span><br>
+                                <small class="text-muted">{{ c.nouveau }}</small>
+                            </div>
+                            <div class="col-md-1">
+                                <span class="badge bg-primary">→</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================ -->
+    <!-- TABLEAU COMPARATIF                                            -->
+    <!-- ============================================================ -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-table me-2"></i>
+                Tableau comparatif des notes
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped table-hover">
+                    <thead class="table-primary">
+                        <tr>
+                            <th style="width: 15%;">Champ</th>
+                            {% for note in notes_data %}
+                            <th style="width: {{ (85 / notes_data|length)|round(2) }}%;" 
+                                class="text-center 
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}">
+                                <div>
+                                    <strong>v{{ note.version }}</strong>
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ note.date_redaction.strftime('%d/%m %H:%M') }}
+                                    </small>
+                                    <br>
+                                    {% if note.est_initial %}
+                                    <span class="badge bg-success">Initiale</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Rééval.</span>
+                                    {% endif %}
+                                    <br>
+                                    <small class="text-muted">{{ note.redacteur }}</small>
+                                </div>
+                            </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Motif -->
+                        <tr>
+                            <td><strong>Motif</strong></td>
+                            {% for note in notes_data %}
+                            <td class="
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}">
+                                {{ note.motif }}
+                            </td>
+                            {% endfor %}
+                        </tr>
+
+                        <!-- Contexte -->
+                        <tr>
+                            <td><strong>Contexte</strong></td>
+                            {% for note in notes_data %}
+                            <td class="
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}">
+                                {{ note.contexte }}
+                            </td>
+                            {% endfor %}
+                        </tr>
+
+                        <!-- Examen clinique -->
+                        <tr>
+                            <td><strong>Examen clinique</strong></td>
+                            {% for note in notes_data %}
+                            <td class="
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}">
+                                {{ note.examen_clinique }}
+                            </td>
+                            {% endfor %}
+                        </tr>
+
+                        <!-- Diagnostic -->
+                        <tr>
+                            <td><strong>Diagnostic</strong></td>
+                            {% for note in notes_data %}
+                            <td class="
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}
+                                {% if note.diagnostic != notes_data[0].diagnostic %}bg-warning-subtle{% endif %}">
+                                {{ note.diagnostic }}
+                            </td>
+                            {% endfor %}
+                        </tr>
+
+                        <!-- Examens -->
+                        <tr>
+                            <td><strong>Examens</strong></td>
+                            {% for note in notes_data %}
+                            <td class="
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}">
+                                {{ note.examens }}
+                            </td>
+                            {% endfor %}
+                        </tr>
+
+                        <!-- Traitement -->
+                        <tr>
+                            <td><strong>Traitement</strong></td>
+                            {% for note in notes_data %}
+                            <td class="
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}
+                                {% if note.traitement != notes_data[0].traitement %}bg-warning-subtle{% endif %}">
+                                {{ note.traitement }}
+                            </td>
+                            {% endfor %}
+                        </tr>
+
+                        <!-- Évolution prévue -->
+                        <tr>
+                            <td><strong>Évolution prévue</strong></td>
+                            {% for note in notes_data %}
+                            <td class="
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}">
+                                {{ note.evolution_prevue }}
+                            </td>
+                            {% endfor %}
+                        </tr>
+
+                        <!-- Conclusion -->
+                        <tr>
+                            <td><strong>Conclusion</strong></td>
+                            {% for note in notes_data %}
+                            <td class="
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}
+                                {% if note.conclusion != notes_data[0].conclusion %}bg-warning-subtle{% endif %}">
+                                {{ note.conclusion }}
+                            </td>
+                            {% endfor %}
+                        </tr>
+
+                        <!-- Constantes -->
+                        {% if notes_data[0].constantes != '-' %}
+                        <tr>
+                            <td><strong>Constantes</strong></td>
+                            {% for note in notes_data %}
+                            <td class="
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}">
+                                {{ note.constantes }}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+
+                        <!-- Statut -->
+                        <tr>
+                            <td><strong>Statut</strong></td>
+                            {% for note in notes_data %}
+                            <td class="text-center
+                                {% if note.est_initial %}table-success
+                                {% elif loop.last %}table-info{% endif %}">
+                                {% if note.est_verrouillee %}
+                                    <span class="badge bg-success">Validée</span>
+                                {% else %}
+                                    <span class="badge bg-warning">En attente</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- LÉGENDE                                                       -->
+            <!-- ============================================================ -->
+            <div class="mt-4">
+                <h6><i class="fas fa-info-circle me-2"></i>Légende</h6>
+                <div class="row">
+                    <div class="col-md-4">
+                        <span class="badge bg-success">Fond vert</span> = Note initiale (version 1)
+                    </div>
+                    <div class="col-md-4">
+                        <span class="badge bg-info">Fond bleu</span> = Dernière version active
+                    </div>
+                    <div class="col-md-4">
+                        <span class="badge bg-warning-subtle text-dark">Fond jaune</span> = Champ modifié
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- ACTIONS                                                       -->
+            <!-- ============================================================ -->
+            <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                <div>
+                    <span class="badge bg-primary">Total : {{ nb_notes }} version(s)</span>
+                </div>
+                <div>
+                    <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary me-2">
+                        <i class="fas fa-arrow-left me-2"></i>Retour
+                    </a>
+                    <button class="btn btn-primary" onclick="window.print()">
+                        <i class="fas fa-print me-2"></i>Imprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- STYLES D'IMPRESSION                                           -->
+<!-- ============================================================ -->
+<style>
+    @media print {
+        .btn {
+            display: none !important;
+        }
+        .card {
+            border: 1px solid #ddd !important;
+            box-shadow: none !important;
+        }
+        .card-header {
+            background-color: #f8f9fa !important;
+            color: #000 !important;
+        }
+        .table-bordered {
+            border: 1px solid #000 !important;
+        }
+        .table-bordered th,
+        .table-bordered td {
+            border: 1px solid #000 !important;
+        }
+        .table-success {
+            background-color: #d4edda !important;
+        }
+        .table-info {
+            background-color: #d1ecf1 !important;
+        }
+        .bg-warning-subtle {
+            background-color: #fff3cd !important;
+        }
+        .badge {
+            border: 1px solid #000 !important;
+            background-color: #f8f9fa !important;
+            color: #000 !important;
+        }
+        .timeline .alert {
+            border: 1px solid #ddd !important;
+        }
+    }
+</style>
+
+<!-- ============================================================ -->
+<!-- JAVASCRIPT POUR L'IMPRESSION                                  -->
+<!-- ============================================================ -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Ajouter un bouton d'impression dans la barre d'outils du navigateur
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+            // Laisse le navigateur gérer l'impression
+        }
+    });
+});
+
+// Fonction pour imprimer avec mise en page optimisée
+function imprimerComparaison() {
+    window.print();
+}
+</script>
+{% endblock %}

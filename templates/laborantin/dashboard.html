@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Laborantin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-flask me-2 text-primary"></i>
+            Dashboard Laborantin
+        </h1>
+        <div>
+            <span class="badge bg-success fs-6">
+                <i class="fas fa-user-nurse me-1"></i> 
+                {{ current_user.prenom }} {{ current_user.nom }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Statistiques -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <h6 class="card-title">En attente</h6>
+                    <h2 class="mb-0">{{ en_attente }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h6 class="card-title">En cours</h6>
+                    <h2 class="mb-0">{{ en_cours }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h6 class="card-title">Terminées</h6>
+                    <h2 class="mb-0">{{ termine }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h6 class="card-title">Total</h6>
+                    <h2 class="mb-0">{{ total }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions rapides -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Actions rapides</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('liste_analyses') }}" class="btn btn-primary w-100 mb-2">
+                        <i class="fas fa-flask me-2"></i>Voir toutes les analyses
+                    </a>
+                    {% if en_attente > 0 %}
+                    <a href="{{ url_for('liste_analyses') }}?statut=EN_ATTENTE" class="btn btn-warning w-100">
+                        <i class="fas fa-clock me-2"></i>{{ en_attente }} analyse(s) en attente
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informations</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Laborantin :</strong> {{ current_user.prenom }} {{ current_user.nom }}</p>
+                    <p><strong>Email :</strong> {{ current_user.email }}</p>
+                    <p><strong>Dernière connexion :</strong> 
+                        {% if current_user.derniere_connexion %}
+                            {{ current_user.derniere_connexion.strftime('%d/%m/%Y %H:%M') }}
+                        {% else %}
+                            Première connexion
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

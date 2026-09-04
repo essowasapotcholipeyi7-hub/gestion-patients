@@ -7,61 +7,315 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* ============================================================
+           PALETTE "HOPITAL" - variables centrales
+        ============================================================ */
+        :root {
+            --hp-primary: #0e7490;         /* bleu-sarcelle principal */
+            --hp-primary-dark: #0a5a70;
+            --hp-primary-light: #e3f2f5;
+            --hp-sidebar-bg: #123a4d;       /* bleu-nuit doux */
+            --hp-sidebar-bg-active: rgba(255,255,255,0.14);
+            --hp-sidebar-bg-hover: rgba(255,255,255,0.07);
+            --hp-sidebar-text: rgba(255,255,255,0.82);
+            --hp-bg: #f4f7f9;
+            --hp-card-border: #e6ecf0;
+            --hp-text: #2c3e46;
+            --hp-text-muted: #66798a;
+            --hp-success: #2f9e5b;
+            --hp-success-light: #e7f6ed;
+            --hp-warning: #c8811f;
+            --hp-warning-light: #fbf1e2;
+            --hp-danger: #c94b4b;
+            --hp-danger-light: #fbeaea;
+            --hp-info: #3b7fa6;
+            --hp-info-light: #e6f0f6;
+            --hp-radius: 12px;
+            --hp-shadow: 0 2px 12px rgba(18, 58, 77, 0.06);
+            --hp-shadow-hover: 0 8px 22px rgba(18, 58, 77, 0.10);
+            --sidebar-width: 264px;
+            --sidebar-width-collapsed: 78px;
+        }
+
+        * { box-sizing: border-box; }
+
         body {
-            background-color: #f0f2f5;
+            background-color: var(--hp-bg);
+            color: var(--hp-text);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
         }
-        .navbar-brand {
-            font-weight: bold;
-        }
+
+        a { text-decoration: none; }
+
+        /* ============================================================
+           SIDEBAR - fixe, scroll indépendant, toggle + off-canvas mobile
+        ============================================================ */
         .sidebar {
-            min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: var(--sidebar-width);
+            background: var(--hp-sidebar-bg);
+            overflow-y: auto;
+            overflow-x: hidden;
+            z-index: 1030;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.25s ease, transform 0.25s ease;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.25) transparent;
         }
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.22); border-radius: 3px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+
+        .sidebar-header {
+            text-align: center;
+            padding: 1.75rem 1rem 1.25rem;
+            flex-shrink: 0;
+        }
+        .sidebar-header img {
+            width: 64px;
+            height: 64px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.25);
+        }
+        .sidebar-header i.brand-icon {
+            font-size: 2rem;
+            color: #fff;
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.12);
+            border-radius: 50%;
+        }
+        .sidebar-header h5 {
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.98rem;
+            margin: 0.75rem 0 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar nav.nav {
+            flex: 1;
+            padding: 0 0.75rem 1.25rem;
+        }
+
         .sidebar .nav-link {
-            color: white;
-            padding: 10px 20px;
-            margin: 5px 0;
-            border-radius: 10px;
-            transition: all 0.3s;
+            color: var(--hp-sidebar-text);
+            padding: 0.62rem 0.9rem;
+            margin: 0.15rem 0;
+            border-radius: 9px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+            overflow: hidden;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+            font-size: 0.92rem;
+        }
+        .sidebar .nav-link .nav-text {
+            margin-left: 0.65rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .sidebar .nav-link:hover {
-            background: rgba(255,255,255,0.2);
-            transform: translateX(5px);
+            background: var(--hp-sidebar-bg-hover);
+            color: #fff;
         }
         .sidebar .nav-link.active {
-            background: rgba(255,255,255,0.3);
+            background: var(--hp-sidebar-bg-active);
+            color: #fff;
         }
+        .sidebar .nav-link .badge {
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+        .sidebar hr {
+            border-color: rgba(255,255,255,0.14);
+            margin: 0.75rem 0.4rem;
+        }
+
+        /* Etat reduit (desktop) : icones seules */
+        body.sidebar-collapsed .sidebar { width: var(--sidebar-width-collapsed); }
+        body.sidebar-collapsed .sidebar-header h5,
+        body.sidebar-collapsed .sidebar .nav-text,
+        body.sidebar-collapsed .sidebar .nav-link .badge {
+            display: none;
+        }
+        body.sidebar-collapsed .sidebar .nav-link {
+            justify-content: center;
+            padding: 0.62rem;
+        }
+        body.sidebar-collapsed .main-content {
+            margin-left: var(--sidebar-width-collapsed);
+        }
+
+        /* ============================================================
+           CONTENU PRINCIPAL - scroll independant de la sidebar
+        ============================================================ */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            transition: margin-left 0.25s ease;
+        }
+
+        .topbar {
+            position: sticky;
+            top: 0;
+            background: #ffffff;
+            border-bottom: 1px solid var(--hp-card-border);
+            padding: 0.7rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            z-index: 1020;
+        }
+        .sidebar-toggle-btn {
+            border: none;
+            background: var(--hp-primary-light);
+            color: var(--hp-primary);
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease;
+            flex-shrink: 0;
+        }
+        .sidebar-toggle-btn:hover {
+            background: var(--hp-primary);
+            color: #fff;
+        }
+        .topbar-title {
+            font-weight: 600;
+            color: var(--hp-text);
+            font-size: 0.98rem;
+        }
+
+        .content-inner {
+            padding: 1.5rem;
+        }
+
+        /* Overlay mobile (off-canvas) */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 30, 40, 0.45);
+            z-index: 1025;
+        }
+
+        @media (max-width: 991.98px) {
+            .sidebar {
+                transform: translateX(-100%);
+                width: var(--sidebar-width);
+                box-shadow: 6px 0 24px rgba(0,0,0,0.18);
+            }
+            .main-content,
+            body.sidebar-collapsed .main-content {
+                margin-left: 0;
+            }
+            body.sidebar-mobile-open .sidebar {
+                transform: translateX(0);
+            }
+            body.sidebar-mobile-open .sidebar-overlay {
+                display: block;
+            }
+            body.sidebar-mobile-open {
+                overflow: hidden;
+            }
+        }
+
+        /* ============================================================
+           COMPOSANTS - cartes, boutons, badges, tableaux
+        ============================================================ */
         .card {
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: transform 0.3s;
+            border: 1px solid var(--hp-card-border);
+            border-radius: var(--hp-radius);
+            box-shadow: var(--hp-shadow);
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
         }
         .card:hover {
-            transform: translateY(-5px);
+            box-shadow: var(--hp-shadow-hover);
         }
+        .card-header {
+            background: transparent;
+            border-bottom: 1px solid var(--hp-card-border);
+            font-weight: 600;
+        }
+
         .table-responsive {
-            border-radius: 15px;
+            border-radius: var(--hp-radius);
             overflow: hidden;
         }
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
+
+        .btn {
+            border-radius: 9px;
+            font-weight: 500;
         }
+        .btn-primary {
+            background: var(--hp-primary);
+            border-color: var(--hp-primary);
+        }
+        .btn-primary:hover,
+        .btn-primary:focus {
+            background: var(--hp-primary-dark);
+            border-color: var(--hp-primary-dark);
+        }
+        .btn-outline-primary {
+            color: var(--hp-primary);
+            border-color: var(--hp-primary);
+        }
+        .btn-outline-primary:hover {
+            background: var(--hp-primary);
+            border-color: var(--hp-primary);
+        }
+        .btn-success { background: var(--hp-success); border-color: var(--hp-success); }
+        .btn-info { background: var(--hp-info); border-color: var(--hp-info); }
+        .btn-warning { background: var(--hp-warning); border-color: var(--hp-warning); color: #fff; }
+        .btn-danger { background: var(--hp-danger); border-color: var(--hp-danger); }
+
+        .bg-primary { background-color: var(--hp-primary) !important; }
+        .bg-success { background-color: var(--hp-success) !important; }
+        .bg-info { background-color: var(--hp-info) !important; }
+        .bg-warning { background-color: var(--hp-warning) !important; }
+        .bg-danger { background-color: var(--hp-danger) !important; }
+        .text-primary { color: var(--hp-primary) !important; }
+        .text-success { color: var(--hp-success) !important; }
+        .text-info { color: var(--hp-info) !important; }
+        .text-warning { color: var(--hp-warning) !important; }
+        .text-danger { color: var(--hp-danger) !important; }
+
         .toast-container {
             position: fixed;
             top: 20px;
             right: 20px;
-            z-index: 1050;
+            z-index: 1080;
         }
 
-        /* ⭐ SPINNER POUR LES BOUTONS */
         .btn-loading {
             position: relative;
             pointer-events: none;
             opacity: 0.85;
         }
-
         .btn-loading .spinner {
             display: inline-block;
             width: 1rem;
@@ -73,15 +327,8 @@
             margin-right: 8px;
             vertical-align: middle;
         }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .btn-loading .btn-text {
-            visibility: hidden;
-        }
-
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn-loading .btn-text { visibility: hidden; }
         .btn-loading::after {
             content: "Chargement...";
             position: absolute;
@@ -91,13 +338,11 @@
             white-space: nowrap;
         }
 
-        /* Spinner pour les téléchargements */
         .btn-downloading {
             position: relative;
             pointer-events: none;
             opacity: 0.85;
         }
-
         .btn-downloading .spinner-download {
             display: inline-block;
             width: 1rem;
@@ -109,11 +354,7 @@
             margin-right: 8px;
             vertical-align: middle;
         }
-
-        .btn-downloading .download-text {
-            visibility: hidden;
-        }
-
+        .btn-downloading .download-text { visibility: hidden; }
         .btn-downloading::after {
             content: "Téléchargement...";
             position: absolute;
@@ -122,182 +363,205 @@
             transform: translate(-50%, -50%);
             white-space: nowrap;
         }
-
-        /* Animation de pulsation pour les boutons */
-        .btn-pulse {
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
     {% if current_user.is_authenticated %}
-    <div class="container-fluid">
-        <div class="row">
 
-<!-- Sidebar -->
-<div class="col-md-2 p-0 sidebar">
-    <div class="text-center py-4">
-        {% if current_user.structure and current_user.structure.logo_url %}
-            <img src="{{ current_user.structure.logo_url }}" alt="Logo" style="width: 80px; border-radius: 50%;">
-        {% else %}
-            <i class="fas fa-hospital-user fa-3x text-white"></i>
-        {% endif %}
-        <h5 class="text-white mt-2">{{ current_user.structure.nom if current_user.structure else 'MediLogic' }}</h5>
+    <!-- Sidebar -->
+    <div class="sidebar" id="appSidebar">
+        <div class="sidebar-header">
+            {% if current_user.structure and current_user.structure.logo_url %}
+                <img src="{{ current_user.structure.logo_url }}" alt="Logo">
+            {% else %}
+                <i class="fas fa-hospital-user brand-icon"></i>
+            {% endif %}
+            <h5>{{ current_user.structure.nom if current_user.structure else 'MediLogic' }}</h5>
+        </div>
+        <nav class="nav flex-column">
+
+            <!-- ========== TABLEAU DE BORD ========== -->
+            {% if current_user.role == 'infirmier' %}
+                <a class="nav-link" href="{{ url_for('infirmier_dashboard') }}" title="Pré-consultation">
+                    <span class="nav-text">Pré-consultation</span>
+                </a>
+            {% elif current_user.role == 'laborantin' %}
+                <a class="nav-link" href="{{ url_for('laborantin_dashboard') }}" title="Tableau de bord">
+                    <span class="nav-text">Tableau de bord</span>
+                </a>
+            {% elif current_user.role == 'radiologue' %}
+                <a class="nav-link" href="{{ url_for('radiologue_dashboard') }}" title="Tableau de bord">
+                    <span class="nav-text">Tableau de bord</span>
+                </a>
+            {% else %}
+                <a class="nav-link" href="{{ url_for('dashboard') }}" title="Tableau de bord">
+                    <span class="nav-text"> Consultation Tableau de bord</span>
+                </a>
+            {% endif %}
+
+            <!-- ========== PATIENTS ========== -->
+            {% if current_user.role not in ['super_admin', 'laborantin', 'radiologue'] %}
+            <a class="nav-link" href="{{ url_for('patients_list') }}" title="Patients">
+                <span class="nav-text">Liste Patients</span>
+            </a>
+            {% endif %}
+
+            <!-- ========== TEMPLATES ========== -->
+            {% if current_user.role not in ['laborantin', 'radiologue', 'infirmier'] %}
+            <a class="nav-link" href="{{ url_for('templates_dashboard') }}" title="Templates">
+                <span class="nav-text">Créer protocole/ordonnance/bulletin d'examen</span>
+            </a>
+            {% endif %}
+
+            <!-- ========== DEONTOLOGIE ========== -->
+            {% if current_user.role in ['medecin', 'super_admin'] %}
+            <a class="nav-link" href="{{ url_for('engagements.liste') }}" title="Déontologie">
+                <span class="nav-text">Déontologie (engagement du patient)</span>
+            </a>
+            {% endif %}
+
+            <!-- ========== HOSPITALISATIONS ========== -->
+            {% if current_user.role not in ['laborantin', 'radiologue'] %}
+            <a class="nav-link" href="{{ url_for('liste_hospitalisations') }}" title="Hospitalisations">
+                <span class="nav-text">Hospitalisations</span>
+            </a>
+            {% endif %}
+
+            <!-- ========== SALLES ========== -->
+            {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
+            <a class="nav-link" href="{{ url_for('liste_salles') }}" title="Salles">
+                <span class="nav-text">Salles d'hospitalisation</span>
+            </a>
+            {% endif %}
+
+            <!-- ========== ANALYSES ========== -->
+            {% if current_user.role in ['laborantin', 'medecin', 'admin_structure'] %}
+            <a class="nav-link" href="{{ url_for('liste_analyses') }}" title="Analyses">
+                <span class="nav-text">Laboratoire Analyses</span>
+                {% if current_user.role == 'laborantin' %}
+                    <span class="badge bg-warning">En attente</span>
+                {% endif %}
+            </a>
+            {% endif %}
+
+            <!-- ========== RADIOLOGIE ========== -->
+            {% if current_user.role in ['radiologue', 'medecin', 'admin_structure'] %}
+            <a class="nav-link" href="{{ url_for('liste_radiologie') }}" title="Radiologie">
+                <span class="nav-text">Radiologie</span>
+                {% if current_user.role == 'radiologue' %}
+                    <span class="badge bg-warning">En attente</span>
+                {% endif %}
+            </a>
+            {% endif %}
+
+            <!-- ========== REFERENCES ========== -->
+            {% if current_user.role in ['medecin', 'admin_structure'] %}
+            <a class="nav-link" href="{{ url_for('liste_references') }}" title="Références">
+                <span class="nav-text">Créer fiche de Références </span>
+            </a>
+            {% endif %}
+
+            <!-- ========== STATISTIQUES ========== -->
+            {% if current_user.role in ['admin_structure', 'medecin'] %}
+            <a class="nav-link" href="{{ url_for('statistiques') }}" title="Statistiques">
+                <span class="nav-text">Statistiques</span>
+            </a>
+            {% endif %}
+
+            <!-- ========== MESSAGERIE ========== -->
+            <a class="nav-link" href="{{ url_for('messages_liste') }}" title="Messagerie">
+                <span class="nav-text">Messagerie interne</span>
+                {% if non_lus > 0 %}
+                    <span class="badge bg-danger rounded-pill">{{ non_lus }}</span>
+                {% endif %}
+            </a>
+
+            <!-- ========== SUPER ADMIN ========== -->
+            {% if current_user.role == 'super_admin' %}
+            <hr>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}" title="Administration">
+                <i class="fas fa-crown"></i><span class="nav-text">Administration</span>
+            </a>
+            <a class="nav-link" href="{{ url_for('admin_structures') }}" title="Structures">
+                <i class="fas fa-building"></i><span class="nav-text">Structures</span>
+            </a>
+            <a class="nav-link" href="{{ url_for('admin_nouveau_super_admin') }}" title="Nouveau Super Admin">
+                <i class="fas fa-user-plus"></i><span class="nav-text">Nouveau Super Admin</span>
+            </a>
+            <a class="nav-link" href="{{ url_for('admin_profil') }}" title="Mon profil">
+                <i class="fas fa-user-shield"></i><span class="nav-text">Mon profil</span>
+            </a>
+            <a class="nav-link" href="{{ url_for('sync_ghp_config') }}" title="Sync GHP">
+                <span class="nav-text">Sync GHP</span>
+            </a>
+
+
+
+            {% endif %}
+
+            <!-- ========== SYNCHRONISATION GHP ========== -->
+            {% if current_user.role == 'admin_structure' %}
+            <a class="nav-link" href="{{ url_for('sync_ghp_config') }}" title="Sync GHP">
+                <span class="nav-text">Sync GHP</span>
+            </a>
+            {% endif %}
+
+            <!-- ========== GESTION UTILISATEURS ========== -->
+            {% if current_user.role == 'admin_structure' %}
+            <hr>
+            <a class="nav-link" href="{{ url_for('structure_utilisateurs') }}" title="Utilisateurs">
+                <span class="nav-text">Utilisateurs</span>
+            </a>
+            <a class="nav-link" href="{{ url_for('gestion_permissions') }}" title="Permissions">
+                <span class="nav-text">Permissions</span>
+            </a>
+            {% endif %}
+
+            <!-- ========== DECONNEXION ========== -->
+            <hr>
+            <a class="nav-link" href="{{ url_for('logout') }}" title="Déconnexion">
+                <span class="nav-text">Déconnexion</span>
+            </a>
+        </nav>
     </div>
-    <nav class="nav flex-column px-3">
-        
-        <!-- ========== TABLEAU DE BORD ========== -->
-        {% if current_user.role == 'infirmier' %}
-            <a class="nav-link" href="{{ url_for('infirmier_dashboard') }}">
-                <i class="fas fa-user-nurse me-2"></i> Pré-consultation
-            </a>
-        {% else %}
-            <a class="nav-link" href="{{ url_for('dashboard') }}">
-                <i class="fas fa-tachometer-alt me-2"></i> Tableau de bord
-            </a>
-        {% endif %}
 
-        <!-- ========== PATIENTS ========== -->
-        {% if current_user.role != 'super_admin' and current_user.role != 'laborantin' %}
-        <a class="nav-link" href="{{ url_for('patients_list') }}">
-            <i class="fas fa-users me-2"></i> Patients
-        </a>
-        {% endif %}
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <!-- ========== DÉONTOLOGIE / ENGAGEMENTS ========== -->
-        {% if current_user.role in ['medecin', 'super_admin'] %}
-        <a class="nav-link" href="{{ url_for('engagements.liste') }}">
-            <i class="fas fa-file-signature me-2"></i> Déontologie / Engagements
-        </a>
-        {% endif %}
+    <!-- Contenu principal -->
+    <div class="main-content" id="mainContent">
+        <div class="topbar">
+            <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="Afficher ou masquer le menu">
+                <i class="fas fa-bars"></i>
+            </button>
+            <span class="topbar-title">{{ current_user.structure.nom if current_user.structure else 'MediLogic' }}</span>
+        </div>
+        <div class="content-inner">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
 
-        <!-- ========== HOSPITALISATIONS ========== -->
-        {% if current_user.role != 'laborantin' %}
-        <a class="nav-link" href="{{ url_for('liste_hospitalisations') }}">
-            <i class="fas fa-hospital me-2"></i> Hospitalisations
-        </a>
-        {% endif %}
-
-        <!-- ========== SALLES ========== -->
-        {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
-        <a class="nav-link" href="{{ url_for('liste_salles') }}">
-            <i class="fas fa-bed me-2"></i> Salles
-        </a>
-        {% endif %}
-
-        <!-- ========== ANALYSES ========== -->
-        {% if current_user.role in ['laborantin', 'medecin', 'admin_structure'] %}
-        <a class="nav-link" href="{{ url_for('liste_analyses') }}">
-            <i class="fas fa-flask me-2"></i> Analyses
-            {% if current_user.role == 'laborantin' %}
-                <span class="badge bg-warning ms-2">En attente</span>
-            {% endif %}
-        </a>
-        {% endif %}
-
-        <!-- ========== RÉFÉRENCES ========== -->
-        {% if current_user.role in ['medecin', 'admin_structure'] %}
-        <a class="nav-link" href="{{ url_for('liste_references') }}">
-            <i class="fas fa-ambulance me-2"></i> Références
-        </a>
-        {% endif %}
-
-        <!-- ========== STATISTIQUES ========== -->
-        {% if current_user.role in ['admin_structure', 'medecin'] %}
-        <a class="nav-link" href="{{ url_for('statistiques') }}">
-            <i class="fas fa-chart-bar me-2"></i> Statistiques
-        </a>
-        {% endif %}
-
-        <!-- ========== MESSAGERIE ========== -->
-        <a class="nav-link" href="{{ url_for('messages_liste') }}">
-            <i class="fas fa-envelope me-2"></i> Messagerie
-            {% if non_lus > 0 %}
-                <span class="badge bg-danger rounded-pill ms-2">{{ non_lus }}</span>
-            {% endif %}
-        </a>
-
-        <!-- ========== SUPER ADMIN ========== -->
-        {% if current_user.role == 'super_admin' %}
-        <hr class="bg-light">
-        <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
-            <i class="fas fa-crown me-2"></i> Administration
-        </a>
-        <a class="nav-link" href="{{ url_for('admin_structures') }}">
-            <i class="fas fa-building me-2"></i> Structures
-        </a>
-        <a class="nav-link" href="{{ url_for('admin_nouveau_super_admin') }}">
-            <i class="fas fa-user-plus me-2"></i> Nouveau Super Admin
-        </a>
-        <a class="nav-link" href="{{ url_for('admin_profil') }}">
-            <i class="fas fa-user-shield me-2"></i> Mon profil
-        </a>
-        {% endif %}
-
-        <!-- ========== SYNCHRONISATION GHP ========== -->
-        {% if current_user.role == 'admin_structure' %}
-        <a class="nav-link" href="{{ url_for('sync_ghp_config') }}">
-            <i class="fas fa-sync me-2"></i> Sync GHP
-        </a>
-        {% endif %}
-
-        <!-- ========== GESTION UTILISATEURS & PERMISSIONS ========== -->
-        {% if current_user.role == 'admin_structure' %}
-        <hr class="bg-light">
-        <a class="nav-link" href="{{ url_for('structure_utilisateurs') }}">
-            <i class="fas fa-users-cog me-2"></i> Utilisateurs
-        </a>
-        <a class="nav-link" href="{{ url_for('gestion_permissions') }}">
-            <i class="fas fa-user-shield me-2"></i> Permissions
-        </a>
-        {% endif %}
-
-        <!-- ========== DÉCONNEXION ========== -->
-        <hr class="bg-light">
-        <a class="nav-link" href="{{ url_for('logout') }}">
-            <i class="fas fa-sign-out-alt me-2"></i> Déconnexion
-        </a>
-    </nav>
-</div>
-
-
-            <!-- Main content -->
-            <div class="col-md-10 p-4">
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
-                
-                {% block content %}{% endblock %}
-            </div>
+            {% block content %}{% endblock %}
         </div>
     </div>
+
     {% else %}
         {% block content_public %}{% endblock %}
     {% endif %}
-    
-    <!-- Toast container pour notifications -->
+
+    <!-- Toast container -->
     <div class="toast-container"></div>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        // ============================================================
-        // 1. TOAST NOTIFICATIONS
-        // ============================================================
         function showToast(message, type = 'success') {
             const toastContainer = document.querySelector('.toast-container');
             const toast = document.createElement('div');
@@ -313,55 +577,25 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
-        // ============================================================
-        // 2. SPINNER SUR LES BOUTONS DE FORMULAIRES
-        // ============================================================
         document.querySelectorAll('form').forEach(form => {
             form.addEventListener('submit', function(e) {
                 const submitBtn = this.querySelector('button[type="submit"], input[type="submit"]');
                 if (submitBtn && !submitBtn.disabled) {
-                    // Désactiver le bouton
                     submitBtn.disabled = true;
                     submitBtn.classList.add('btn-loading');
-                    
-                    // Sauvegarder le texte original
                     const originalText = submitBtn.innerHTML;
                     submitBtn.dataset.originalText = originalText;
-                    
-                    // Ajouter le spinner
                     submitBtn.innerHTML = '<span class="spinner"></span><span class="btn-text">Chargement...</span>';
                 }
             });
         });
 
-        // ============================================================
-        // 3. SPINNER SUR LES LIENS DE TÉLÉCHARGEMENT
-        // ============================================================
-        document.querySelectorAll('[data-download]').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                const originalText = this.innerHTML;
-                this.innerHTML = '<span class="spinner-download"></span><span class="download-text">Téléchargement...</span>';
-                this.classList.add('btn-downloading');
-                
-                // Restaurer après 3 secondes (sécurité)
-                setTimeout(() => {
-                    this.innerHTML = originalText;
-                    this.classList.remove('btn-downloading');
-                }, 3000);
-            });
-        });
-
-        // ============================================================
-        // 4. SPINNER SUR LES LIENS AVEC DATA-LOADING
-        // ============================================================
         document.querySelectorAll('[data-loading]').forEach(link => {
             link.addEventListener('click', function(e) {
                 const originalText = this.innerHTML;
                 this.innerHTML = '<span class="spinner"></span> Chargement...';
                 this.classList.add('btn-loading');
                 this.style.pointerEvents = 'none';
-                
-                // Restaurer après 5 secondes (sécurité)
                 setTimeout(() => {
                     this.innerHTML = originalText;
                     this.classList.remove('btn-loading');
@@ -370,9 +604,6 @@
             });
         });
 
-        // ============================================================
-        // 5. FONCTION POUR RÉACTIVER UN BOUTON
-        // ============================================================
         function resetButton(btn) {
             btn.disabled = false;
             btn.classList.remove('btn-loading');
@@ -382,20 +613,6 @@
             }
         }
 
-        // ============================================================
-        // 6. GESTION DES ERREURS AJAX
-        // ============================================================
-        function handleAjaxError(xhr, status, error) {
-            showToast('Une erreur est survenue. Veuillez réessayer.', 'danger');
-            // Réactiver tous les boutons
-            document.querySelectorAll('.btn-loading, .btn-downloading').forEach(btn => {
-                resetButton(btn);
-            });
-        }
-
-        // ============================================================
-        // 7. CONFIRMATION AVANT SUPPRESSION
-        // ============================================================
         document.querySelectorAll('[data-confirm]').forEach(el => {
             el.addEventListener('click', function(e) {
                 const message = this.dataset.confirm || 'Êtes-vous sûr ?';
@@ -405,30 +622,68 @@
             });
         });
 
-        // ============================================================
-        // 8. INITIALISATION DES TOOLTIPS BOOTSTRAP
-        // ============================================================
         document.addEventListener('DOMContentLoaded', function() {
-            // Activer les tooltips Bootstrap
             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
             tooltipTriggerList.map(function(tooltipTriggerEl) {
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
         });
 
-        // ============================================================
-        // 9. GESTION DES MODALS AVEC SPINNER
-        // ============================================================
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('hidden.bs.modal', function() {
-                // Réactiver les boutons dans le modal
                 this.querySelectorAll('.btn-loading, .btn-downloading').forEach(btn => {
                     resetButton(btn);
                 });
             });
         });
 
-        console.log('✅ MediLogic - Tous les systèmes de feedback sont actifs !');
+        /* ============================================================
+           TOGGLE DU MENU PRINCIPAL
+           - Desktop (>=992px) : reduit/etend la sidebar, etat memorise
+           - Mobile (<992px)   : menu off-canvas avec overlay
+        ============================================================ */
+        (function () {
+            const body = document.body;
+            const toggleBtn = document.getElementById('sidebarToggleBtn');
+            const overlay = document.getElementById('sidebarOverlay');
+            const STORAGE_KEY = 'medilogic-sidebar-collapsed';
+
+            function isDesktop() {
+                return window.innerWidth >= 992;
+            }
+
+            function applyStoredState() {
+                if (isDesktop()) {
+                    const collapsed = localStorage.getItem(STORAGE_KEY) === '1';
+                    body.classList.toggle('sidebar-collapsed', collapsed);
+                    body.classList.remove('sidebar-mobile-open');
+                }
+            }
+
+            function toggleSidebar() {
+                if (isDesktop()) {
+                    const collapsed = !body.classList.contains('sidebar-collapsed');
+                    body.classList.toggle('sidebar-collapsed', collapsed);
+                    localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0');
+                } else {
+                    body.classList.toggle('sidebar-mobile-open');
+                }
+            }
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', toggleSidebar);
+            }
+            if (overlay) {
+                overlay.addEventListener('click', function () {
+                    body.classList.remove('sidebar-mobile-open');
+                });
+            }
+
+            window.addEventListener('resize', applyStoredState);
+            applyStoredState();
+        })();
+
+        console.log('MediLogic - systemes de feedback actifs');
     </script>
     {% block extra_js %}{% endblock %}
 </body>

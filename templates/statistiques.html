@@ -3,17 +3,16 @@
 {% block title %}Statistiques{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">
-            <i class="fas fa-chart-bar me-2"></i>
-            Statistiques
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <h1 class="h4 mb-0">
+            <i class="fas fa-chart-bar me-2 text-primary"></i>Statistiques
         </h1>
         <div>
             <button onclick="exportCSV()" class="btn btn-success" data-loading="true">
                 <i class="fas fa-file-excel me-2"></i>Export CSV
             </button>
-            <button onclick="window.print()" class="btn btn-secondary">
+            <button onclick="window.print()" class="btn btn-outline-secondary">
                 <i class="fas fa-print me-2"></i>Imprimer
             </button>
         </div>
@@ -21,9 +20,7 @@
 
     <!-- FILTRES -->
     <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtres</h5>
-        </div>
+        <div class="card-header"><i class="fas fa-filter me-2"></i>Filtres</div>
         <div class="card-body">
             <form method="GET" class="row g-3">
                 <div class="col-md-3">
@@ -65,7 +62,7 @@
                     <button type="submit" class="btn btn-primary" data-loading="true">
                         <i class="fas fa-search me-2"></i>Appliquer les filtres
                     </button>
-                    <a href="{{ url_for('statistiques') }}" class="btn btn-secondary" data-loading="true">
+                    <a href="{{ url_for('statistiques') }}" class="btn btn-outline-secondary" data-loading="true">
                         <i class="fas fa-undo me-2"></i>Réinitialiser
                     </a>
                 </div>
@@ -74,28 +71,28 @@
     </div>
 
     <!-- KPI -->
-    <div class="row mb-4">
+    <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card bg-primary text-white">
+            <div class="card kpi-soft kpi-soft-primary">
                 <div class="card-body">
-                    <h6 class="card-title">Total consultations</h6>
-                    <h2 class="display-6">{{ total_consultations }}</h2>
+                    <h6 class="kpi-soft-label">Total consultations</h6>
+                    <h2 class="kpi-soft-value">{{ total_consultations }}</h2>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success text-white">
+            <div class="card kpi-soft kpi-soft-success">
                 <div class="card-body">
-                    <h6 class="card-title">Patients uniques</h6>
-                    <h2 class="display-6">{{ total_patients }}</h2>
+                    <h6 class="kpi-soft-label">Patients uniques</h6>
+                    <h2 class="kpi-soft-value">{{ total_patients }}</h2>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info text-white">
+            <div class="card kpi-soft kpi-soft-info">
                 <div class="card-body">
-                    <h6 class="card-title">Moyenne par période</h6>
-                    <h2 class="display-6">
+                    <h6 class="kpi-soft-label">Moyenne par période</h6>
+                    <h2 class="kpi-soft-value">
                         {% if patients_par_periode %}
                             {{ (patients_par_periode|sum(attribute='nb') / patients_par_periode|length)|round(1) }}
                         {% else %}0{% endif %}
@@ -104,10 +101,10 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning text-white">
+            <div class="card kpi-soft kpi-soft-warning">
                 <div class="card-body">
-                    <h6 class="card-title">Taux de guérison</h6>
-                    <h2 class="display-6">
+                    <h6 class="kpi-soft-label">Taux de guérison</h6>
+                    <h2 class="kpi-soft-value">
                         {% set nb_gueris = namespace(value=0) %}
                         {% for p in top_pathologies if 'guéri' in p.diagnostic.lower() or 'guerison' in p.diagnostic.lower() %}
                             {% set nb_gueris.value = nb_gueris.value + p.total %}
@@ -123,9 +120,7 @@
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Évolution des consultations</h5>
-                </div>
+                <div class="card-header"><i class="fas fa-chart-line me-2"></i>Évolution des consultations</div>
                 <div class="card-body">
                     <div style="height: 200px;">
                         <canvas id="evolutionChart"></canvas>
@@ -135,18 +130,18 @@
         </div>
     </div>
 
-    <div class="row">
+    <div class="row g-4">
         <!-- Top pathologies -->
-        <div class="col-md-6 mb-4">
+        <div class="col-md-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-notes-medical me-2"></i>Pathologies les plus fréquentes</h5>
+                    <span><i class="fas fa-notes-medical me-2"></i>Pathologies les plus fréquentes</span>
                     <span class="badge bg-primary">{{ top_pathologies|length }}</span>
                 </div>
                 <div class="card-body">
                     {% if top_pathologies %}
                         <div class="table-responsive">
-                            <table class="table table-sm table-striped table-hover">
+                            <table class="table table-sm table-hover align-middle">
                                 <thead>
                                     <tr>
                                         <th>#</th>
@@ -159,14 +154,14 @@
                                     {% set total = top_pathologies|sum(attribute='total') %}
                                     {% for pathologie in top_pathologies %}
                                     <tr>
-                                        <td><span class="badge bg-secondary">{{ loop.index }}</span></td>
+                                        <td><span class="badge bg-light text-dark border">{{ loop.index }}</span></td>
                                         <td><strong>{{ pathologie.diagnostic|truncate(40) }}</strong></td>
                                         <td class="text-center"><span class="badge bg-primary">{{ pathologie.total }}</span></td>
                                         <td class="text-center">
                                             {% if total > 0 %}
                                                 <span class="badge bg-success">{{ ((pathologie.total / total) * 100)|round(1) }}%</span>
                                             {% else %}
-                                                <span class="badge bg-secondary">0%</span>
+                                                <span class="badge bg-light text-dark border">0%</span>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -178,7 +173,7 @@
                             <small><i class="fas fa-info-circle me-1"></i>Total : <strong>{{ total }}</strong> pathologies enregistrées</small>
                         </div>
                     {% else %}
-                        <div class="alert alert-info text-center py-3">
+                        <div class="alert alert-info text-center py-3 mb-0">
                             <i class="fas fa-info-circle me-2"></i>Aucune pathologie enregistrée
                         </div>
                     {% endif %}
@@ -187,23 +182,17 @@
         </div>
 
         <!-- Répartition assurances -->
-        <div class="col-md-6 mb-4">
+        <div class="col-md-6">
             <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Répartition par assurance</h5>
-                </div>
+                <div class="card-header"><i class="fas fa-chart-pie me-2"></i>Répartition par assurance</div>
                 <div class="card-body">
                     <div style="height: 150px;">
                         <canvas id="assurancesChart"></canvas>
                     </div>
                     <div class="table-responsive mt-2">
-                        <table class="table table-sm table-striped">
+                        <table class="table table-sm">
                             <thead>
-                                <tr>
-                                    <th>Assurance</th>
-                                    <th class="text-center">Nb</th>
-                                    <th class="text-center">%</th>
-                                </tr>
+                                <tr><th>Assurance</th><th class="text-center">Nb</th><th class="text-center">%</th></tr>
                             </thead>
                             <tbody>
                                 {% for a in assurances %}
@@ -215,7 +204,7 @@
                                     </td>
                                 </tr>
                                 {% else %}
-                                <tr><td colspan="3" class="text-center">Aucune donnée</td></tr>
+                                <tr><td colspan="3" class="text-center text-muted">Aucune donnée</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -226,25 +215,17 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- NOUVELLES SECTIONS STATISTIQUES                               -->
+    <!-- FREQUENTATION PAR PERIODE                                    -->
     <!-- ============================================================ -->
-
-    <!-- Fréquentation par période -->
-    <div class="row mb-4">
+    <div class="row mt-4">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-calendar-week me-2"></i>Fréquentation par période</h5>
-                </div>
+                <div class="card-header"><i class="fas fa-calendar-week me-2"></i>Fréquentation par période</div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-sm table-striped">
+                        <table class="table table-sm">
                             <thead>
-                                <tr>
-                                    <th>Période</th>
-                                    <th class="text-center">Patients</th>
-                                    <th>Tendance</th>
-                                </tr>
+                                <tr><th>Période</th><th class="text-center">Patients</th><th>Tendance</th></tr>
                             </thead>
                             <tbody>
                                 {% set max_nb = patients_par_periode|map(attribute='nb')|max|default(1) %}
@@ -253,8 +234,8 @@
                                     <td><strong>{{ p.periode }}</strong></td>
                                     <td class="text-center"><span class="badge bg-primary">{{ p.nb }}</span></td>
                                     <td>
-                                        <div class="progress" style="height: 20px;">
-                                            <div class="progress-bar bg-{% if p.nb == max_nb %}success{% elif p.nb > max_nb|int * 0.5 %}info{% elif p.nb > max_nb|int * 0.25 %}warning{% else %}danger{% endif %}" 
+                                        <div class="progress" style="height: 18px;">
+                                            <div class="progress-bar bg-{% if p.nb == max_nb %}success{% elif p.nb > max_nb|int * 0.5 %}info{% elif p.nb > max_nb|int * 0.25 %}warning{% else %}danger{% endif %}"
                                                  style="width: {{ (p.nb / max_nb * 100)|round(1) }}%;">
                                                 {{ (p.nb / max_nb * 100)|round(1) }}%
                                             </div>
@@ -262,7 +243,7 @@
                                     </td>
                                 </tr>
                                 {% else %}
-                                <tr><td colspan="3" class="text-center">Aucune donnée</td></tr>
+                                <tr><td colspan="3" class="text-center text-muted">Aucune donnée</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -274,15 +255,13 @@
 
     <!-- Performance des médecins -->
     {% if stats_medecins %}
-    <div class="row mb-4">
+    <div class="row mt-4">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Performance par médecin</h5>
-                </div>
+                <div class="card-header"><i class="fas fa-user-md me-2"></i>Performance par médecin</div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-sm table-striped">
+                        <table class="table table-sm">
                             <thead>
                                 <tr>
                                     <th>Médecin</th>
@@ -315,15 +294,13 @@
 
     <!-- Performance des infirmiers -->
     {% if stats_infirmiers %}
-    <div class="row mb-4">
+    <div class="row mt-4">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-user-nurse me-2 text-success"></i>Performance des infirmiers</h5>
-                </div>
+                <div class="card-header"><i class="fas fa-user-nurse me-2 text-success"></i>Performance des infirmiers</div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-sm table-striped">
+                        <table class="table table-sm">
                             <thead>
                                 <tr>
                                     <th>Infirmier</th>
@@ -348,13 +325,13 @@
                                     </td>
                                     <td class="text-center">
                                         {% if inf.nb_constantes > 50 %}
-                                            <span class="badge bg-success">⭐⭐⭐ Excellent</span>
+                                            <span class="badge bg-success">Excellent</span>
                                         {% elif inf.nb_constantes > 20 %}
-                                            <span class="badge bg-warning">⭐⭐ Bon</span>
+                                            <span class="badge bg-warning">Bon</span>
                                         {% elif inf.nb_constantes > 5 %}
-                                            <span class="badge bg-info">⭐ Moyen</span>
+                                            <span class="badge bg-info">Moyen</span>
                                         {% else %}
-                                            <span class="badge bg-secondary">À renforcer</span>
+                                            <span class="badge bg-light text-dark border">À renforcer</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -368,22 +345,20 @@
     </div>
     {% endif %}
 
-    <!-- Statistiques hospitalisations -->
+    <!-- Statistiques hospitalisations / analyses -->
     {% if stats_hospitalisations %}
-    <div class="row mb-4">
+    <div class="row g-4 mt-1">
         <div class="col-md-6">
             <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-hospital me-2 text-danger"></i>Hospitalisations</h5>
-                </div>
+                <div class="card-header"><i class="fas fa-hospital me-2 text-danger"></i>Hospitalisations</div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-6 text-center">
-                            <h3 class="text-primary">{{ stats_hospitalisations.total }}</h3>
+                            <h3 class="text-primary mb-0">{{ stats_hospitalisations.total }}</h3>
                             <small class="text-muted">Total</small>
                         </div>
                         <div class="col-6 text-center">
-                            <h3 class="text-success">{{ stats_hospitalisations.actives }}</h3>
+                            <h3 class="text-success mb-0">{{ stats_hospitalisations.actives }}</h3>
                             <small class="text-muted">Actives</small>
                         </div>
                     </div>
@@ -391,9 +366,7 @@
                     <h6 class="mt-2">Par service</h6>
                     <div class="table-responsive">
                         <table class="table table-sm">
-                            <thead>
-                                <tr><th>Service</th><th class="text-center">Nb</th></tr>
-                            </thead>
+                            <thead><tr><th>Service</th><th class="text-center">Nb</th></tr></thead>
                             <tbody>
                                 {% for s in stats_hospitalisations.par_service %}
                                 <tr>
@@ -408,22 +381,19 @@
             </div>
         </div>
 
-        <!-- Statistiques analyses -->
         {% if stats_analyses %}
         <div class="col-md-6">
             <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-flask me-2 text-warning"></i>Analyses</h5>
-                </div>
+                <div class="card-header"><i class="fas fa-flask me-2 text-warning"></i>Analyses</div>
                 <div class="card-body">
                     <div class="text-center mb-3">
-                        <h3 class="text-primary">{{ stats_analyses.total }}</h3>
+                        <h3 class="text-primary mb-0">{{ stats_analyses.total }}</h3>
                         <small class="text-muted">Total des analyses demandées</small>
                     </div>
                     <div class="row">
                         {% for s in stats_analyses.par_statut %}
                         <div class="col-4 text-center">
-                            <span class="badge 
+                            <span class="badge
                                 {% if s.statut == 'EN_ATTENTE' %}bg-warning
                                 {% elif s.statut == 'EN_COURS' %}bg-primary
                                 {% elif s.statut == 'TERMINE' %}bg-success
@@ -438,9 +408,7 @@
                     <h6 class="mt-2">Par type</h6>
                     <div class="table-responsive">
                         <table class="table table-sm">
-                            <thead>
-                                <tr><th>Type</th><th class="text-center">Nb</th></tr>
-                            </thead>
+                            <thead><tr><th>Type</th><th class="text-center">Nb</th></tr></thead>
                             <tbody>
                                 {% for t in stats_analyses.par_type %}
                                 <tr>
@@ -457,13 +425,41 @@
         {% endif %}
     </div>
     {% endif %}
-
 </div>
+
+<style>
+.kpi-soft {
+    border: none;
+    color: var(--hp-text);
+}
+.kpi-soft-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-weight: 600;
+    opacity: 0.75;
+    margin-bottom: 0.4rem;
+}
+.kpi-soft-value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin: 0;
+}
+.kpi-soft-primary { background: var(--hp-primary-light); }
+.kpi-soft-primary .kpi-soft-value { color: var(--hp-primary); }
+.kpi-soft-success { background: var(--hp-success-light); }
+.kpi-soft-success .kpi-soft-value { color: var(--hp-success); }
+.kpi-soft-info { background: var(--hp-info-light); }
+.kpi-soft-info .kpi-soft-value { color: var(--hp-info); }
+.kpi-soft-warning { background: var(--hp-warning-light); }
+.kpi-soft-warning .kpi-soft-value { color: var(--hp-warning); }
+</style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Graphique évolution
+    const hpPrimary = getComputedStyle(document.documentElement).getPropertyValue('--hp-primary').trim() || '#0e7490';
+
     const ctx1 = document.getElementById('evolutionChart');
     if (ctx1) {
         new Chart(ctx1, {
@@ -473,8 +469,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     label: 'Consultations',
                     data: {{ evolution_data|tojson }},
-                    borderColor: '#0d6efd',
-                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    borderColor: hpPrimary,
+                    backgroundColor: 'rgba(14, 116, 144, 0.10)',
                     tension: 0.3,
                     fill: true
                 }]
@@ -482,14 +478,11 @@ document.addEventListener('DOMContentLoaded', function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
-                }
+                plugins: { legend: { display: false } }
             }
         });
     }
 
-    // Graphique assurances
     const ctx2 = document.getElementById('assurancesChart');
     if (ctx2) {
         new Chart(ctx2, {
@@ -498,7 +491,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 labels: {{ assurances|map(attribute=0)|list|tojson }},
                 datasets: [{
                     data: {{ assurances|map(attribute=1)|list|tojson }},
-                    backgroundColor: ['#0d6efd', '#0dcaf0', '#ffc107', '#6c757d', '#198754', '#dc3545']
+                    backgroundColor: ['#0e7490', '#3b7fa6', '#c8811f', '#8a97a3', '#2f9e5b', '#c94b4b']
                 }]
             },
             options: {
@@ -512,7 +505,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Export CSV
 function exportCSV() {
     window.location.href = "{{ url_for('export_statistiques_csv', **request.args) }}";
 }

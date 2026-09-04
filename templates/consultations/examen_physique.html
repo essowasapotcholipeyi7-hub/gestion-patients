@@ -13,23 +13,22 @@
             <p class="text-muted">
                 Consultation du {{ consultation.date_consultation.strftime('%d/%m/%Y %H:%M') if consultation.date_consultation else '-' }}
                 {% if examen %}
-                    <span class="badge bg-success ms-2">✅ Examen enregistré</span>
+                    <span class="badge bg-success ms-2">Examen enregistré</span>
                 {% endif %}
             </p>
         </div>
         <div>
-            <!-- ⭐ BOUTON CHANGER DE LANGUE -->
             <button class="btn btn-outline-primary me-2" onclick="changerLangue()">
                 <i class="fas fa-globe me-1"></i>
                 <span id="langBtnText">🇫🇷 Français</span>
             </button>
-            <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left me-2"></i>Retour
-            </a>
+
+<button onclick="fermerRetour()" class="btn btn-secondary">
+    <i class="fas fa-arrow-left me-2"></i>Retour
+</button>
         </div>
     </div>
 
-    <!-- ⭐ BOUTON AJOUTER UN APPAREIL -->
     <div class="mb-3">
         <button class="btn btn-success" onclick="ajouterAppareil()">
             <i class="fas fa-plus me-2"></i>Ajouter un appareil non cité
@@ -39,9 +38,8 @@
         </button>
     </div>
 
-    <form method="POST" action="{{ url_for('enregistrer_examen_physique', id=consultation.id) }}" id="examenForm">
+    <form method="POST" action="/consultation/{{ consultation.id }}/examen-physique/enregistrer" id="examenForm">
         <div id="sectionsContainer">
-            <!-- Les sections seront chargées dynamiquement -->
             <div class="text-center py-5">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Chargement...</span>
@@ -70,11 +68,50 @@
             <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Annuler
             </a>
-            <button type="submit" class="btn btn-primary" id="btnEnregistrer">
-                <i class="fas fa-save me-2"></i>Enregistrer l'examen
-            </button>
+            <div>
+                <button type="button" class="btn btn-success" id="btnEnregistrerEtFermer" onclick="enregistrerEtFermer()">
+                    <i class="fas fa-save me-2"></i>Enregistrer et fermer
+                </button>
+            </div>
         </div>
     </form>
+</div>
+
+<!-- ⭐ MODAL DE MODIFICATION (BOOTSTRAP) -->
+<div class="modal fade" id="editSectionModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editSectionModalLabel">
+                    <i class="fas fa-edit me-2"></i>
+                    Modifier la section : <span id="editSectionName"></span>
+                </h5>
+                <!-- ⭐ SUPPRIMER data-bs-dismiss="modal" -->
+                <button type="button" class="btn-close" id="btnCloseModal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Texte de la section</label>
+                    <textarea id="editSectionText" class="form-control" rows="8" 
+                              style="font-family: 'Courier New', monospace; font-size: 14px;"></textarea>
+                    <small class="text-muted">Modifiez le texte ci-dessus. Laissez vide pour revenir au texte original.</small>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Section :</strong> <span id="editSectionDesc"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <!-- ⭐ SUPPRIMER data-bs-dismiss="modal" -->
+                <button type="button" class="btn btn-secondary" id="btnAnnulerModal">
+                    <i class="fas fa-times me-1"></i>Annuler
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSaveSection">
+                    <i class="fas fa-save me-1"></i>Enregistrer les modifications
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -83,6 +120,7 @@ let sectionsModifiees = {};
 let currentLang = 'fr';
 let sectionsData = [];
 let sectionsOriginales = {};
+let currentEditIndex = null;
 
 // ==================== CHARGEMENT DES SECTIONS ====================
 async function chargerSections() {
@@ -94,7 +132,6 @@ async function chargerSections() {
         const data = await response.json();
         sectionsData = data;
         
-        // Charger les modifications existantes si présentes
         {% if examen and examen.sections_modifiees %}
             sectionsModifiees = JSON.parse('{{ examen.sections_modifiees|safe }}');
         {% endif %}
@@ -106,34 +143,17 @@ async function chargerSections() {
     }
 }
 
-// ==================== AFFICHER LES SECTIONS ====================
 function afficherSections() {
     const container = document.getElementById('sectionsContainer');
     container.innerHTML = '';
     
-    let sectionsAffichees = 0;
-    
     sectionsData.forEach((section, index) => {
-        // ⭐ CACHER "AUTRE À PRÉCISER" PAR DÉFAUT
-        const estAutre = section.nom === 'Autre à préciser' || section.nom === 'Autre à préciser';
-        const isModified = sectionsModifiees[index] !== undefined;
-        
-        // Si c'est "Autre à préciser" et qu'elle n'est pas modifiée, on ne l'affiche pas
-        if (estAutre && !isModified) {
-            return;
-        }
-        
-        sectionsAffichees++;
         const div = document.createElement('div');
         div.className = 'card mb-3 section-card';
         div.id = `section-${index}`;
         
+        const isModified = sectionsModifiees[index] !== undefined;
         const texte = isModified ? sectionsModifiees[index] : section.texte;
-        const bgColor = isModified ? '#fff3cd' : '#fafafa';
-        const borderLeft = isModified ? '4px solid #ffc107' : '4px solid #28a745';
-        const badge = isModified ? 
-            '<span class="badge bg-warning ms-2">🔸 Modifié</span>' : 
-            '<span class="badge bg-success ms-2">✅ Normal</span>';
         
         if (!sectionsOriginales[index]) {
             sectionsOriginales[index] = section.texte;
@@ -144,69 +164,34 @@ function afficherSections() {
                 <div>
                     <i class="fas ${section.icone} me-2"></i>
                     <strong>${section.nom}</strong>
-                    ${badge}
+                    ${isModified ? '<span class="badge bg-warning ms-2">Modifié</span>' : '<span class="badge bg-secondary ms-2">Original</span>'}
                 </div>
                 <div>
-                    <button class="btn btn-sm btn-primary me-1" onclick="modifierSection(${index})">
+                    <!-- ⭐ AJOUTER type="button" POUR EMPÊCHER LA SOUMISSION -->
+                    <button type="button" class="btn btn-sm btn-primary me-1" onclick="ouvrirModalModification(${index})">
                         <i class="fas fa-edit me-1"></i>Modifier
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="resetSection(${index})" ${!isModified ? 'disabled' : ''}>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="resetSection(${index})" ${!isModified ? 'disabled' : ''}>
                         <i class="fas fa-undo me-1"></i>Réinitialiser
                     </button>
                 </div>
             </div>
-            <div class="card-body" id="section-body-${index}" style="background: ${bgColor}; border-left: ${borderLeft};">
-                <p class="mb-0" style="white-space: pre-wrap; font-size: 14px; line-height: 1.8;">${texte}</p>
+            <div class="card-body" id="section-body-${index}">
+                <p class="mb-0" style="white-space: pre-wrap; font-size: 15px; line-height: 1.8;">${texte}</p>
             </div>
         `;
         container.appendChild(div);
     });
     
-    // Si aucune section affichée, afficher un message
-    if (sectionsAffichees === 0) {
-        container.innerHTML = `
-            <div class="alert alert-info text-center py-4">
-                <i class="fas fa-info-circle fa-2x mb-2"></i>
-                <p>Aucune section d'examen n'est disponible.</p>
-                <button class="btn btn-sm btn-primary" onclick="ajouterAppareil()">
-                    <i class="fas fa-plus me-1"></i>Ajouter un appareil
-                </button>
-            </div>
-        `;
-    }
-    
-    // Mettre à jour le résumé
     genererResume();
 }
-
-// ==================== MODIFIER UNE SECTION ====================
-function modifierSection(index) {
-    const section = sectionsData[index];
-    const texteActuel = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : section.texte;
-    
-    const nouveauTexte = prompt(
-        `Modifier la section "${section.nom}" :\n\nLaisser vide pour conserver le texte original.\n\nTexte actuel :\n${texteActuel}`,
-        texteActuel
-    );
-    
-    if (nouveauTexte === null) return;
-    
-    if (nouveauTexte.trim() === '') {
-        delete sectionsModifiees[index];
-    } else {
-        sectionsModifiees[index] = nouveauTexte.trim();
-    }
-    
-    afficherSections();
-}
-
-
 
 // ==================== RÉINITIALISER UNE SECTION ====================
 function resetSection(index) {
     if (confirm(`Revenir au texte original pour la section "${sectionsData[index].nom}" ?`)) {
         delete sectionsModifiees[index];
         afficherSections();
+        showToast('✅ Section réinitialisée', 'info');
     }
 }
 
@@ -215,6 +200,7 @@ function toutReinitialiser() {
     if (confirm('Réinitialiser toutes les sections ?')) {
         sectionsModifiees = {};
         afficherSections();
+        showToast('✅ Tout a été réinitialisé', 'info');
     }
 }
 
@@ -235,6 +221,7 @@ function ajouterAppareil() {
     
     sectionsModifiees[index] = texte;
     afficherSections();
+    showToast(`✅ "${nom}" ajouté`, 'success');
 }
 
 // ==================== CHANGER DE LANGUE ====================
@@ -250,62 +237,198 @@ function genererResume() {
     if (!examenComplet) return;
     
     let resume = '';
-    let nbModifications = 0;
-    let sectionsActives = 0;
-    
     sectionsData.forEach((section, index) => {
-        const estModifiee = sectionsModifiees[index] !== undefined;
-        const texte = estModifiee ? sectionsModifiees[index] : section.texte;
-        
-        // ⭐ IGNORER LA SECTION "AUTRE À PRÉCISER" SI ELLE N'EST PAS MODIFIÉE
-        const estAutre = section.nom === 'Autre à préciser' || section.nom === 'Autre à préciser';
-        if (estAutre && !estModifiee) {
-            return; // Skip cette section
-        }
-        
-        // ⭐ IGNORER LES SECTIONS AVEC TEXTE VIDE
-        if (!texte || texte.trim() === '' || texte.trim() === 'Section personnalisée à ajouter selon les besoins de l\'examen.') {
-            return;
-        }
-        
-        sectionsActives++;
-        
-        // Format avec séparateurs clairs
+        const texte = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : section.texte;
         resume += `--- ${section.nom.toUpperCase()} ---\n${texte}\n\n`;
-        
-        if (estModifiee) nbModifications++;
     });
     
-    // Ajouter un en-tête
-    const header = `═══════════════════════════════════════════════════\n`;
-    const header2 = `EXAMEN PHYSIQUE COMPLET\n`;
-    const stats = `📊 ${sectionsActives} section(s) active(s) | ${nbModifications} modification(s)\n`;
-    const footer = `═══════════════════════════════════════════════════\n`;
-    
-    examenComplet.value = header + header2 + stats + footer + resume;
+    examenComplet.value = resume.trim();
 }
 
-// ==================== SAUVEGARDE AVANT SOUMISSION ====================
-document.getElementById('examenForm').addEventListener('submit', function(e) {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'sections_modifiees';
-    input.value = JSON.stringify(sectionsModifiees);
-    this.appendChild(input);
+// ==================== ENREGISTRER ET FERMER ====================
+function enregistrerEtFermer() {
+    genererResume();
+    const form = document.getElementById('examenForm');
+    const formData = new FormData(form);
+    formData.append('sections_modifiees', JSON.stringify(sectionsModifiees));
     
-    // Désactiver le bouton pour éviter double soumission
-    document.getElementById('btnEnregistrer').disabled = true;
-    document.getElementById('btnEnregistrer').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enregistrement...';
-});
+    const btn = document.getElementById('btnEnregistrerEtFermer');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enregistrement...';
+    
+    const consultationId = {{ consultation.id }};
+    
+    fetch(`/consultation/${consultationId}/examen-physique/enregistrer`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('✅ Examen enregistré avec succès !', 'success');
+            
+            // Transmettre l'examen à la page parente
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({
+                    type: 'EXAMEN_PHYSIQUE_ENREGISTRE',
+                    examen_complet: data.examen_complet || document.getElementById('examenComplet').value,
+                    consultation_id: consultationId,
+                    examen_id: data.examen_id
+                }, '*');
+            }
+            
+            setTimeout(() => {
+                window.close();
+            }, 1000);
+        } else {
+            showToast('❌ Erreur : ' + (data.message || 'Inconnue'), 'danger');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save me-2"></i>Enregistrer et fermer';
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        showToast('❌ Erreur lors de l\'enregistrement', 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-2"></i>Enregistrer et fermer';
+    });
+}
 
-// ==================== INITIALISATION ====================
+// ==================== TOAST ====================
+function showToast(message, type = 'success') {
+    document.querySelectorAll('.toast-custom').forEach(el => el.remove());
+    
+    const toastContainer = document.querySelector('.toast-container') || (() => {
+        const container = document.createElement('div');
+        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        document.body.appendChild(container);
+        return container;
+    })();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast-custom toast show bg-${type} text-white`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="toast-body d-flex justify-content-between align-items-center">
+            <span>${message}</span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" onclick="this.closest('.toast-custom').remove()"></button>
+        </div>
+    `;
+    toastContainer.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+
+// ================================================================ //
+// ⭐ GESTION DES BOUTONS DU MODAL                                  //
+// ================================================================ //
+
+// Stocker la valeur originale
+let valeurOriginaleModal = '';
+
+// Ouvrir le modal
+function ouvrirModalModification(index) {
+    const section = sectionsData[index];
+    if (!section) return;
+    
+    currentEditIndex = index;
+    const texteActuel = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : section.texte;
+    
+    document.getElementById('editSectionName').textContent = section.nom;
+    document.getElementById('editSectionDesc').textContent = section.texte.substring(0, 100) + (section.texte.length > 100 ? '...' : '');
+    document.getElementById('editSectionText').value = texteActuel;
+    
+    // ⭐ STOCKER LA VALEUR ORIGINALE
+    valeurOriginaleModal = texteActuel;
+    
+    const modalElement = document.getElementById('editSectionModal');
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
+}
+
+// ⭐ BOUTON ENREGISTRER
+function sauvegarderModification() {
+    if (currentEditIndex === null) return;
+    
+    const nouveauTexte = document.getElementById('editSectionText').value;
+    const index = currentEditIndex;
+    
+    if (nouveauTexte.trim() === '') {
+        delete sectionsModifiees[index];
+        showToast('Section réinitialisée', 'info');
+    } else {
+        sectionsModifiees[index] = nouveauTexte.trim();
+        showToast('Section modifiée avec succès', 'success');
+    }
+    
+    // Fermer le modal
+    fermerModal();
+    
+    // Rafraîchir l'affichage
+    afficherSections();
+}
+
+// ⭐ BOUTON ANNULER (restaure la valeur originale)
+function annulerModification() {
+    // Restaurer la valeur originale
+    document.getElementById('editSectionText').value = valeurOriginaleModal;
+    showToast('Modifications annulées', 'info');
+    fermerModal();
+}
+
+// ⭐ FERMER LE MODAL
+function fermerModal() {
+    currentEditIndex = null;
+    const modalElement = document.getElementById('editSectionModal');
+    if (modalElement) {
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+    }
+}
+
+// ==================== FERMER ET RETOURNER ====================
+function fermerRetour() {
+    // Si la page a été ouverte par window.open()
+    if (window.opener && !window.opener.closed) {
+        window.close();
+    } else {
+        // Fallback: utiliser history.back()
+        window.history.back();
+    }
+}
+
+// ================================================================ //
+// ⭐ INITIALISATION                                                //
+// ================================================================ //
 document.addEventListener('DOMContentLoaded', function() {
+    // Bouton Enregistrer
+    document.getElementById('btnSaveSection').addEventListener('click', sauvegarderModification);
+    
+    // Bouton Annuler
+    document.getElementById('btnAnnulerModal').addEventListener('click', annulerModification);
+    
+    // Bouton Croix (fermer)
+    document.getElementById('btnCloseModal').addEventListener('click', annulerModification);
+    
+    // Quand le modal est fermé (par la croix ou clic en dehors)
+    document.getElementById('editSectionModal').addEventListener('hidden.bs.modal', function() {
+        currentEditIndex = null;
+    });
+    
     chargerSections();
 });
 
+
+
 // ==================== RACCOURCI CLAVIER ====================
 document.addEventListener('keydown', function(e) {
-    // Ctrl+Shift+L pour changer de langue
     if (e.ctrlKey && e.shiftKey && (e.key === 'l' || e.key === 'L')) {
         e.preventDefault();
         changerLangue();
@@ -326,6 +449,13 @@ document.addEventListener('keydown', function(e) {
 .section-card .badge-warning {
     background: #ffc107;
     color: #000;
+}
+.modal-dialog {
+    max-width: 800px;
+}
+.modal-body textarea {
+    resize: vertical;
+    min-height: 200px;
 }
 </style>
 {% endblock %}

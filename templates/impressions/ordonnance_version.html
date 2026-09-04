@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ordonnance Médicale</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
+
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            font-size: 14px;
+            color: #000;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 0;
+            margin: 0 auto;
+            background: #fff;
+            position: relative;
+        }
+
+        .header {
+            background: #1a3a5c !important;
+            color: white;
+            padding: 20px 40px 15px 40px;
+            position: relative;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo-placeholder {
+            width: 70px;
+            height: 70px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .logo-placeholder img {
+            max-width: 70px;
+            max-height: 70px;
+            object-fit: contain;
+        }
+
+        .header-title h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: white;
+        }
+
+        .header-title p {
+            margin: 3px 0 0 0;
+            font-size: 12px;
+            opacity: 0.85;
+            color: white;
+        }
+
+        .header-right {
+            text-align: right;
+            font-size: 12px;
+            opacity: 0.85;
+            color: white;
+        }
+
+        .header-right p {
+            margin: 2px 0;
+        }
+
+        .header-right strong {
+            color: white;
+        }
+
+        .bande-deco {
+            height: 6px;
+            background: linear-gradient(to right, #2a5f8f, #4a8fc9) !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .body {
+            padding: 30px 40px 20px 40px;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #1a3a5c;
+            border-bottom: 2px solid #1a3a5c;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: #1a3a5c;
+            color: white;
+            padding: 2px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        .patient-info {
+            display: flex;
+            justify-content: space-between;
+            background: #f5f7fa;
+            padding: 12px 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #1a3a5c;
+        }
+
+        .patient-info .label {
+            font-weight: bold;
+            color: #000;
+        }
+
+        .patient-info .value {
+            color: #000;
+        }
+
+        .medicaments-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #000;
+            margin: 20px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed #ccc;
+        }
+
+        .medicament-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 6px 0;
+            border-bottom: 1px dotted #eee;
+        }
+
+        .medicament-item .nom {
+            font-weight: bold;
+            font-size: 15px;
+            color: #000;
+            min-width: 150px;
+        }
+
+        .medicament-item .posologie {
+            color: #000;
+            font-size: 13px;
+            flex: 1;
+            text-align: center;
+        }
+
+        .medicament-item .quantite {
+            font-weight: bold;
+            color: #000;
+            font-size: 14px;
+            min-width: 80px;
+            text-align: right;
+        }
+
+        .medicament-item .ligne-points {
+            flex: 1;
+            border-bottom: 1px dotted #aaa;
+            margin: 0 10px;
+            height: 0.5em;
+        }
+
+        .notes-medicales {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px dashed #ccc;
+        }
+
+        .notes-medicales .label {
+            font-weight: bold;
+            color: #000;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .notes-medicales .content {
+            color: #000;
+            font-style: italic;
+            font-size: 13px;
+        }
+
+        .historique-info {
+            margin-top: 10px;
+            padding: 8px 15px;
+            background: #f0f4f8;
+            border-radius: 5px;
+            font-size: 12px;
+            color: #555;
+        }
+
+        .historique-info strong {
+            color: #1a3a5c;
+        }
+
+        .signature-section {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .signature-left {
+            flex: 1;
+        }
+
+        .signature-right {
+            text-align: right;
+            flex: 1;
+        }
+
+        .signature-left strong {
+            color: #000;
+        }
+
+        .signature-right .cachet em {
+            color: #000;
+        }
+
+        .signature-line {
+            width: 200px;
+            border-top: 1px solid #000;
+            margin-top: 30px;
+            padding-top: 5px;
+            font-size: 12px;
+            color: #000;
+        }
+
+        .cachet {
+            text-align: center;
+            font-size: 11px;
+            color: #000;
+        }
+
+        .cachet-zone {
+            width: 120px;
+            height: 70px;
+            border: 2px dashed #999;
+            margin: 5px auto 0 auto;
+            border-radius: 10px;
+        }
+
+        .toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: #f8f9fa;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            border-bottom: 2px solid #1a3a5c;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .toolbar button {
+            padding: 10px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .toolbar .btn-print {
+            background: #1a3a5c;
+            color: white;
+        }
+
+        .toolbar .btn-print:hover {
+            background: #2a5f8f;
+        }
+
+        .toolbar .btn-close {
+            background: #dc3545;
+            color: white;
+        }
+
+        .toolbar .btn-close:hover {
+            background: #c82333;
+        }
+
+        @media print {
+            .toolbar {
+                display: none !important;
+            }
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            .page {
+                width: 100%;
+                min-height: 100vh;
+            }
+        }
+
+        @media screen and (max-width: 600px) {
+            .header-content { flex-direction: column; text-align: center; }
+            .header-right { text-align: center; margin-top: 10px; }
+            .patient-info { flex-direction: column; gap: 5px; }
+            .medicament-item { flex-wrap: wrap; }
+            .medicament-item .ligne-points { display: none; }
+            .signature-section { flex-direction: column; align-items: center; gap: 20px; }
+            .signature-right { text-align: center; }
+            .cachet-zone { margin: 5px auto 0 auto; }
+            .toolbar { flex-wrap: wrap; padding: 10px; }
+            .toolbar button { flex: 1; min-width: 120px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- BARRE D'OUTILS EN HAUT -->
+    <div class="toolbar">
+        <button class="btn-print" onclick="window.print()">
+            <i class="fas fa-print"></i> Imprimer / PDF
+        </button>
+        <button class="btn-close" onclick="window.close()">
+            <i class="fas fa-times"></i> Fermer
+        </button>
+    </div>
+
+    <div class="page">
+        <!-- En-tête -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="logo-placeholder">
+                        {% if structure and structure.logo_url %}
+                            <img src="{{ structure.logo_url }}" alt="Logo">
+                        {% else %}
+                            <i class="fas fa-hospital"></i>
+                        {% endif %}
+                    </div>
+                    <div class="header-title">
+                        <h1>{{ structure.nom or 'Clinique Medicale' }}</h1>
+                        <p>{{ structure.adresse or '' }}</p>
+                        <p>{{ structure.telephone or '' }} | {{ structure.email or '' }}</p>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <p><strong>N° Dossier :</strong> P{{ "%06d"|format(patient.id) }}</p>
+                    <p><strong>Date :</strong> {{ now.strftime('%d/%m/%Y') }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bande-deco"></div>
+
+        <!-- Corps -->
+        <div class="body">
+            <!-- Titre -->
+            <div class="title">
+                Ordonnance Medicale
+                <span class="version-badge">Version {{ version }}</span>
+            </div>
+
+            <!-- Infos Patient -->
+            <div class="patient-info">
+                <div>
+                    <span class="label">Patient :</span>
+                    <span class="value">{{ patient.prenom }} {{ patient.nom }}</span>
+                </div>
+                <div>
+                    <span class="label">Age :</span>
+                    <span class="value">
+                        {% if patient.date_naissance %}
+                            {{ (now.date() - patient.date_naissance).days // 365 }} ans
+                        {% else %}
+                            -
+                        {% endif %}
+                    </span>
+                </div>
+                <div>
+                    <span class="label">Sexe :</span>
+                    <span class="value">{{ patient.sexe or '-' }}</span>
+                </div>
+                <div>
+                    <span class="label">Prescrit par :</span>
+                    <span class="value">{{ prescripteur }}</span>
+                </div>
+            </div>
+
+            <!-- Medicaments -->
+            <div class="medicaments-title">Medicaments prescrits</div>
+
+            {% if medicaments %}
+                {% for med in medicaments %}
+                <div class="medicament-item">
+                    <span class="nom">{{ med.medicament }}</span>
+                    <span class="ligne-points"></span>
+                    <span class="posologie">
+                        {% if med.dosage %}{{ med.dosage }} - {% endif %}
+                        {{ med.posologie or '' }}
+                        {% if med.duree %} pendant {{ med.duree }} jours - {% endif %}
+                    </span>
+                    <span class="quantite">{{ med.quantite or '1 boite' }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color: #999; font-style: italic; text-align: center; padding: 20px 0;">
+                    Aucun medicament prescrit
+                </p>
+            {% endif %}
+
+            <!-- Notes medicales -->
+            <div class="notes-medicales">
+                <span class="label">Observations / Instructions</span>
+                <div class="content">
+                    A prendre selon prescription medicale. Renouvellement sur ordonnance uniquement.
+                </div>
+            </div>
+
+            <!-- Signature + Cachet -->
+            <div class="signature-section">
+                <div class="signature-left">
+                    <div>
+                        <strong>Medecin traitant</strong>
+                    </div>
+                    <div class="signature-line">
+                        Dr {{ current_user.prenom }} {{ current_user.nom }}
+                    </div>
+                </div>
+                <div class="signature-right">
+                    <div class="cachet">
+                        <em>Cachet du medecin</em>
+                        <div class="cachet-zone"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        window.onload = function() {
+            setTimeout(function() {
+                window.print();
+            }, 500);
+        };
+    </script>
+
+</body>
+</html>

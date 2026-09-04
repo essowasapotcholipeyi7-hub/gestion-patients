@@ -12,72 +12,86 @@
             </h1>
             <p class="text-muted">N° dossier: P{{ "%05d" % patient.id }}</p>
         </div>
-    <div>
-        <button onclick="window.close()" class="btn btn-secondary" data-loading="true">
-            <i class="fas fa-times me-2"></i>Fermer
-        </button>
+        <div>
+            <button onclick="fermerEtNotifier()" class="btn btn-secondary">
+                <i class="fas fa-times me-2"></i>Fermer
+            </button>
+        </div>
+    </div>
+
+<!-- ==================== HABITUDES DE VIE ==================== -->
+<div class="card mb-4">
+    <div class="card-header bg-success text-white">
+        <h5 class="mb-0"><i class="fas fa-heart me-2"></i>Habitudes de vie</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('modifier_habitudes_vie', patient_id=patient.id) }}" id="formHabitudesVie">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Tabac</label>
+                    <select name="tabac" class="form-select">
+                        <option value="Non" {% if patient.tabac == 'Non' %}selected{% endif %}>Non</option>
+                        <option value="Oui" {% if patient.tabac == 'Oui' %}selected{% endif %}>Oui</option>
+                        <option value="Ancien" {% if patient.tabac == 'Ancien' %}selected{% endif %}>Ancien fumeur</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Alcool</label>
+                    <select name="alcool" class="form-select">
+                        <option value="Non" {% if patient.alcool == 'Non' %}selected{% endif %}>Non</option>
+                        <option value="Oui" {% if patient.alcool == 'Oui' %}selected{% endif %}>Oui</option>
+                        <option value="Occasionnel" {% if patient.alcool == 'Occasionnel' %}selected{% endif %}>Occasionnel</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Groupe sanguin</label>
+                    <select name="groupe_sanguin" class="form-select">
+                        <option value="">-- Sélectionner --</option>
+                        <option value="A+" {% if patient.groupe_sanguin == 'A+' %}selected{% endif %}>A+</option>
+                        <option value="A-" {% if patient.groupe_sanguin == 'A-' %}selected{% endif %}>A-</option>
+                        <option value="B+" {% if patient.groupe_sanguin == 'B+' %}selected{% endif %}>B+</option>
+                        <option value="B-" {% if patient.groupe_sanguin == 'B-' %}selected{% endif %}>B-</option>
+                        <option value="AB+" {% if patient.groupe_sanguin == 'AB+' %}selected{% endif %}>AB+</option>
+                        <option value="AB-" {% if patient.groupe_sanguin == 'AB-' %}selected{% endif %}>AB-</option>
+                        <option value="O+" {% if patient.groupe_sanguin == 'O+' %}selected{% endif %}>O+</option>
+                        <option value="O-" {% if patient.groupe_sanguin == 'O-' %}selected{% endif %}>O-</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Médecin traitant</label>
+                    <input type="text" name="medecin_traitant" class="form-control" value="{{ patient.medecin_traitant or '' }}" placeholder="Nom du médecin traitant">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Mutuelle</label>
+                    <input type="text" name="mutuelle" class="form-control" value="{{ patient.mutuelle or '' }}" placeholder="Nom de la mutuelle">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" name="allaitement" class="form-check-input" id="allaitement" {% if patient.allaitement %}checked{% endif %}>
+                        <label class="form-check-label" for="allaitement">Allaitement</label>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" name="grossesse" class="form-check-input" id="grossesse" {% if patient.grossesse %}checked{% endif %}>
+                        <label class="form-check-label" for="grossesse">Grossesse</label>
+                    </div>
+                </div>
+            </div>
+            <!-- ⭐ AJOUTER onclick SUR LE BOUTON -->
+            <button type="submit" 
+                    class="btn btn-success" 
+                    id="btnHabitudes"
+                    onclick="notifierParente('habitudes_modifiees');">
+                <i class="fas fa-save me-2"></i>Enregistrer les habitudes de vie
+            </button>
+        </form>
     </div>
 </div>
 
-    <!-- ==================== HABITUDES DE VIE ==================== -->
-    <div class="card mb-4">
-        <div class="card-header bg-success text-white">
-            <h5 class="mb-0"><i class="fas fa-heart me-2"></i>Habitudes de vie</h5>
-        </div>
-        <div class="card-body">
-            <form method="POST" action="{{ url_for('modifier_habitudes_vie', patient_id=patient.id) }}" id="formHabitudesVie">
-                <div class="row">
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Tabac</label>
-                        <select name="tabac" class="form-select">
-                            <option value="Non" {% if patient.tabac == 'Non' %}selected{% endif %}>Non</option>
-                            <option value="Oui" {% if patient.tabac == 'Oui' %}selected{% endif %}>Oui</option>
-                            <option value="Ancien" {% if patient.tabac == 'Ancien' %}selected{% endif %}>Ancien fumeur</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Alcool</label>
-                        <select name="alcool" class="form-select">
-                            <option value="Non" {% if patient.alcool == 'Non' %}selected{% endif %}>Non</option>
-                            <option value="Oui" {% if patient.alcool == 'Oui' %}selected{% endif %}>Oui</option>
-                            <option value="Occasionnel" {% if patient.alcool == 'Occasionnel' %}selected{% endif %}>Occasionnel</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Groupe sanguin</label>
-                        <input type="text" name="groupe_sanguin" class="form-control" value="{{ patient.groupe_sanguin or '' }}" placeholder="Ex: A+, O-...">
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Médecin traitant</label>
-                        <input type="text" name="medecin_traitant" class="form-control" value="{{ patient.medecin_traitant or '' }}" placeholder="Nom du médecin traitant">
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Mutuelle</label>
-                        <input type="text" name="mutuelle" class="form-control" value="{{ patient.mutuelle or '' }}" placeholder="Nom de la mutuelle">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="form-check mt-4">
-                            <input type="checkbox" name="allaitement" class="form-check-input" id="allaitement" {% if patient.allaitement %}checked{% endif %}>
-                            <label class="form-check-label" for="allaitement">Allaitement</label>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="form-check mt-4">
-                            <input type="checkbox" name="grossesse" class="form-check-input" id="grossesse" {% if patient.grossesse %}checked{% endif %}>
-                            <label class="form-check-label" for="grossesse">Grossesse</label>
-                        </div>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-success">
-                    <i class="fas fa-save me-2"></i>Enregistrer les habitudes de vie
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Formulaire d'ajout d'antécédent -->
+    <!-- ==================== FORMULAIRE D'AJOUT D'ANTÉCÉDENT ==================== -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0"><i class="fas fa-plus me-2"></i>Ajouter un antécédent</h5>
@@ -99,8 +113,8 @@
                             <option value="CHIRURGICAL">ATCD Chirurgicaux</option>
                             <option value="PSYCHOLOGIQUE">ATCD Psychologiques</option>
                             <option value="OBSTETRIQUE">ATCD Obstétriques</option>
-                            <option value="ALLERGIE">⚠️ Allergie</option>
-                            <option value="AUTRE">📌 Autre</option>
+                            <option value="ALLERGIE">Allergie</option>
+                            <option value="AUTRE"> Autre</option>
                         </select>
                     </div>
                     <div class="col-md-4 mb-3" id="zonePrecision" style="display: none;">
@@ -147,7 +161,7 @@
                     <input type="checkbox" name="actif" class="form-check-input" id="actif" checked>
                     <label class="form-check-label" for="actif">Antécédent actif</label>
                 </div>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" id="btnAjoutAntecedent">
                     <i class="fas fa-save me-2"></i>Ajouter l'antécédent
                 </button>
                 {% if return_to == 'consultation' and consultation_id %}
@@ -159,7 +173,7 @@
         </div>
     </div>
 
-    <!-- Liste des antécédents -->
+    <!-- ==================== LISTE DES ANTÉCÉDENTS ==================== -->
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="fas fa-list me-2"></i>Antécédents du patient</h5>
@@ -230,12 +244,13 @@
                                     {% endif %}
                                 </td>
                                 <td>
-<!-- Bouton MODIFIER qui ouvre le modal -->
-<button class="btn btn-sm btn-warning edit-btn" 
-        data-bs-toggle="modal" 
-        data-bs-target="#editModal{{ a.id }}">
-    <i class="fas fa-edit"></i>
-</button>                                    
+                                    <!-- Bouton MODIFIER -->
+                                    <button class="btn btn-sm btn-warning edit-btn" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editModal{{ a.id }}">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    
                                     <!-- Bouton SUPPRIMER -->
                                     <form method="POST" action="{{ url_for('supprimer_antecedent', id=a.id) }}" style="display:inline;" onsubmit="return confirm('Supprimer définitivement cet antécédent ?')">
                                         <input type="hidden" name="patient_id" value="{{ patient.id }}">
@@ -263,7 +278,9 @@
     </div>
 </div>
 
-<!-- Modals de modification -->
+<!-- ============================================================ -->
+<!-- ⭐ MODALS DE MODIFICATION                                     -->
+<!-- ============================================================ -->
 {% for a in antecedents %}
 <div class="modal fade" id="editModal{{ a.id }}" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-lg">
@@ -274,7 +291,6 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- ⭐ FORMULAIRE DE MODIFICATION -->
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Type</label>
@@ -337,9 +353,96 @@
 </div>
 {% endfor %}
 
+<!-- ============================================================ -->
+<!-- ⭐ SCRIPTS                                                   -->
+<!-- ============================================================ -->
 <script>
+
+// ============================================================ //
+// ⭐ FONCTIONS POUR LA PAGE ENFANT                              //
+// ============================================================ //
+
+// ==================== NOTIFIER LA PAGE PARENTE ====================
+function notifierParente(action) {
+    if (window.opener && !window.opener.closed) {
+        try {
+            // ⭐ PETIT DÉLAI POUR QUE LE MESSAGE PARTE
+            setTimeout(function() {
+                window.opener.postMessage({
+                    type: 'ANTECEDENTS_MODIFIES',
+                    action: action
+                }, '*');
+                console.log('✅ Notification envoyée:', action);
+            }, 300);
+        } catch(e) {
+            console.error('Erreur notification:', e);
+        }
+    }
+}
+
+window.notifierParente = notifierParente;
+
+
+// ==================== FERMER ET NOTIFIER ====================
+function fermerEtNotifier() {
+    // Notifier la page parente
+    if (window.opener && !window.opener.closed) {
+        try {
+            window.opener.postMessage({
+                type: 'ANTECEDENTS_MODIFIES',
+                action: 'fermeture'
+            }, '*');
+            console.log('✅ Notification de fermeture envoyée');
+        } catch(e) {
+            console.error('Erreur notification:', e);
+        }
+    }
+    
+    // Fermer la fenêtre
+    setTimeout(function() {
+        window.close();
+    }, 300);
+}
+
+window.fermerEtNotifier = fermerEtNotifier;
+
+
+// ============================================================ //
+// ⭐ SURVEILLER LES FORMULAIRES                                 //
+// ============================================================ //
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Gestion du type "Autre"
+    // ---- HABITUDES DE VIE ----
+    const formHabitudes = document.getElementById('formHabitudesVie');
+    if (formHabitudes) {
+        formHabitudes.addEventListener('submit', function() {
+            notifierParente('habitudes_modifiees');
+        });
+    }
+    
+    // ---- AJOUT D'ANTÉCÉDENT ----
+    const formAjout = document.getElementById('formAjoutAntecedent');
+    if (formAjout) {
+        formAjout.addEventListener('submit', function() {
+            notifierParente('ajout');
+        });
+    }
+    
+    // ---- MODIFICATION D'ANTÉCÉDENT ----
+    document.querySelectorAll('.edit-form').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            notifierParente('modification');
+        });
+    });
+    
+    // ---- SUPPRESSION D'ANTÉCÉDENT ----
+    document.querySelectorAll('form[onsubmit*="confirm"]').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            notifierParente('suppression');
+        });
+    });
+
+    // ---- GESTION DU TYPE "AUTRE" ----
     const typeSelect = document.getElementById('typeAntecedent');
     const zonePrecision = document.getElementById('zonePrecision');
     
@@ -353,6 +456,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// ============================================================ //
+// ⭐ TOAST                                                     //
+// ============================================================ //
+
+function showToast(message, type) {
+    // Fonction existante déjà définie
+}
 </script>
 
 <style>

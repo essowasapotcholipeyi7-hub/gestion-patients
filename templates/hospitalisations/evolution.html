@@ -1,11 +1,11 @@
-{% extends "base.html" %}
+{% extends"base.html" %}
 
 {% block title %}Ajouter une Évolution - {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="row justify-content-center">
-        <div class="col-md-8">
+        <div class="col-md-10">
             <div class="card shadow">
                 <div class="card-header">
                     <h5 class="mb-0">
@@ -18,6 +18,73 @@
                     </small>
                 </div>
                 <div class="card-body">
+                    <!-- ========================================================== -->
+                    <!-- RAPPEL DE LA NOTE D'ADMISSION (RÉFÉRENCE)                  -->
+                    <!-- ========================================================== -->
+                    {% if note_active %}
+                    <div class="card mb-4 border-info bg-light">
+                        <div class="card-header bg-info text-white py-2">
+                            <h6 class="mb-0">
+                                <i class="fas fa-clipboard-list me-2"></i>
+                                Note d'admission (Référence) - v{{ note_active.version }}
+                                {% if note_active.est_initial %}
+                                    <span class="badge bg-light text-info ms-2">Initiale</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark ms-2">Réévaluation</span>
+                                {% endif %}
+                            </h6>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <small><strong>Motif :</strong></small><br>
+                                    <small class="text-muted">{{ note_active.motif_admission or'-' }}</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <small><strong>Diagnostic :</strong></small><br>
+                                    <small class="text-muted">{{ note_active.diagnostic_admission or'-' }}</small>
+                                </div>
+                            </div>
+                            <div class="row mt-1">
+                                <div class="col-md-6">
+                                    <small><strong>Traitement :</strong></small><br>
+                                    <small class="text-muted">{{ note_active.traitement_admission or'-' }}</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <small><strong>Conclusion :</strong></small><br>
+                                    <small class="text-muted">{{ note_active.conclusion_admission or'-' }}</small>
+                                </div>
+                            </div>
+                            {% if note_active.constantes_admission %}
+                            <div class="row mt-1">
+                                <div class="col-12">
+                                    <small><strong>Constantes à l'admission :</strong></small><br>
+                                    <small class="text-muted">{{ note_active.constantes_admission }}</small>
+                                </div>
+                            </div>
+                            {% endif %}
+                            <hr class="my-1">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                <strong>Référence :</strong> Comparez l'état actuel avec l'état initial ci-dessus
+                                <br>
+                                <i class="fas fa-calendar-alt me-1"></i>
+                                Rédigé le {{ note_active.date_redaction.strftime('%d/%m/%Y à %H:%M') }}
+                                par <strong>Dr {{ note_active.redacteur.prenom }} {{ note_active.redacteur.nom }}</strong>
+                            </small>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning mb-4">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Aucune note d'admission trouvée.</strong>
+                        Il est recommandé de rédiger une note d'admission pour avoir une référence de suivi.
+                    </div>
+                    {% endif %}
+
+                    <!-- ========================================================== -->
+                    <!-- FORMULAIRE D'ÉVOLUTION                                     -->
+                    <!-- ========================================================== -->
                     <form method="POST">
                         <!-- Échelle 0-10 -->
                         <div class="mb-4">
@@ -98,6 +165,27 @@
                                 Prochaines étapes
                             </label>
                             <textarea name="prochaines_etapes" class="form-control" rows="2" placeholder="Examens à réaliser, changements de traitement, etc..."></textarea>
+                        </div>
+
+                        <!-- ========================================================== -->
+                        <!-- ÉVOLUTION PAR RAPPORT À L'ADMISSION                        -->
+                        <!-- ========================================================== -->
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-arrow-right me-2 text-primary"></i>
+                                Évolution par rapport à l'admission
+                            </label>
+                            <select name="evolution_par_rapport" class="form-select">
+                                <option value="">-- Sélectionnez une option --</option>
+                                <option value="amelioration">Amélioration</option>
+                                <option value="stable">Stable (pas de changement notable)</option>
+                                <option value="aggravation">Aggravation</option>
+                                <option value="fluctuant">Fluctuant</option>
+                            </select>
+                            <small class="text-muted">
+                                Évaluez l'évolution du patient par rapport à son état initial (voir référence ci-dessus)
+                            </small>
                         </div>
 
                         <div class="d-flex justify-content-between mt-4">

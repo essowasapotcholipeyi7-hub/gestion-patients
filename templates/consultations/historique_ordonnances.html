@@ -1,0 +1,111 @@
+{% extends"base.html" %}
+
+{% block title %}Historique des ordonnances - {{ consultation.patient.prenom }} {{ consultation.patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-history me-2 text-primary"></i>
+            Historique des ordonnances
+        </h1>
+        <div>
+            <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+            <a href="{{ url_for('creer_ordonnance_consultation', id=consultation.id) }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Nouvelle ordonnance
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {% if ordonnances %}
+                <div class="timeline">
+                    {% for ordonnance in ordonnances %}
+                    <div class="border-start border-3 ps-3 mb-3 
+                        {% if ordonnance.est_active %}border-success{% else %}border-secondary{% endif %}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div>
+                                    <span class="badge {% if ordonnance.est_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if ordonnance.est_active %}Active{% else %}Archivee{% endif %}
+                                    </span>
+                                    <strong>Version {{ ordonnance.version }}</strong>
+                                    {% if ordonnance.source_type =='template' %}
+                                        <span class="badge bg-info">Template: {{ ordonnance.source_nom or'Inconnu' }}</span>
+                                    {% elif ordonnance.source_type =='protocole' %}
+                                        <span class="badge bg-warning">Protocole: {{ ordonnance.source_nom or'Inconnu' }}</span>
+                                    {% elif ordonnance.source_type =='manuel' %}
+                                        <span class="badge bg-secondary">Manuelle</span>
+                                    {% elif ordonnance.source_type =='modification' %}
+                                        <span class="badge bg-primary">Modification</span>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">
+                                    <i class="fas fa-user-md me-1"></i>
+                                    Dr {{ ordonnance.redacteur.prenom }} {{ ordonnance.redacteur.nom }}
+                                    - {{ ordonnance.date_redaction.strftime('%d/%m/%Y %H:%M') }}
+                                    {% if ordonnance.motif_modification %}
+                                    - <span class="text-muted">{{ ordonnance.motif_modification }}</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                            <div>
+                                <a href="{{ url_for('modifier_ordonnance_consultation', id=consultation.id, ordonnance_id=ordonnance.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% if ordonnance.est_active %}
+                                <a href="{{ url_for('imprimer_ordonnance_consultation', id=consultation.id) }}" target="_blank" class="btn btn-sm btn-success">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            {% set medicaments = ordonnance.get_medicaments_list() %}
+                            {% if medicaments %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Medicament</th>
+                                            <th>Dosage</th>
+                                            <th>Posologie</th>
+                                            <th>Duree</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for med in medicaments %}
+                                        <tr>
+                                            <td><strong>{{ med.medicament }}</strong></td>
+                                            <td>{{ med.dosage or'-' }}</td>
+                                            <td>{{ med.posologie or'-' }} pendant {{ med.duree or'7' }} jours</td>
+                                            <td>{{ med.quantite or'1 boîte' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted">Aucun medicament</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-muted text-center my-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Aucune ordonnance pour cette consultation.
+                    <br>
+                    <a href="{{ url_for('creer_ordonnance_consultation', id=consultation.id) }}" class="btn btn-sm btn-primary mt-2">
+                        <i class="fas fa-plus me-1"></i>Creer la premiere ordonnance
+                    </a>
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

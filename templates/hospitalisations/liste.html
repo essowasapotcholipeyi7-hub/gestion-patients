@@ -1,16 +1,15 @@
-{% extends "base.html" %}
+{% extends"base.html" %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>
-            <i class="fas fa-hospital me-2"></i>
             Gestion des Hospitalisations
         </h1>
         <div>
-            {% if current_user.role in ['admin_structure', 'medecin', 'secretaire'] %}
+            {% if current_user.role in ['admin_structure','medecin','secretaire'] %}
             <a href="{{ url_for('nouvelle_hospitalisation') }}" class="btn btn-primary">
-                <i class="fas fa-plus me-2"></i>Nouvelle Hospitalisation
+                Nouvelle Hospitalisation
             </a>
             {% endif %}
         </div>
@@ -22,10 +21,10 @@
             <form method="GET" class="row g-3">
                 <div class="col-md-3">
                     <select name="statut" class="form-select">
-                        <option value="tous" {% if statut_actuel == 'tous' %}selected{% endif %}>Tous</option>
-                        <option value="actif" {% if statut_actuel == 'actif' %}selected{% endif %}>Actives</option>
-                        <option value="sorti" {% if statut_actuel == 'sorti' %}selected{% endif %}>Sorties</option>
-                        <option value="transfere" {% if statut_actuel == 'transfere' %}selected{% endif %}>Transférées</option>
+                        <option value="tous" {% if statut_actuel =='tous' %}selected{% endif %}>Tous</option>
+                        <option value="actif" {% if statut_actuel =='actif' %}selected{% endif %}>Actives</option>
+                        <option value="sorti" {% if statut_actuel =='sorti' %}selected{% endif %}>Sorties</option>
+                        <option value="transfere" {% if statut_actuel =='transfere' %}selected{% endif %}>Transférées</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -70,7 +69,7 @@
                         <tr>
                             <td>
                                 <strong>{{ hosp.patient.nom }} {{ hosp.patient.prenom }}</strong><br>
-                                <small class="text-muted">Né(e) le {{ hosp.patient.date_naissance.strftime('%d/%m/%Y') if hosp.patient.date_naissance else '-' }}</small>
+                                <small class="text-muted">Né(e) le {{ hosp.patient.date_naissance.strftime('%d/%m/%Y') if hosp.patient.date_naissance else'-' }}</small>
                             </td>
                             <td>
                                 <span class="badge bg-info">{{ hosp.service }}</span>
@@ -80,11 +79,11 @@
                             </td>
                             <td>{{ hosp.date_debut.strftime('%d/%m/%Y %H:%M') }}</td>
                             <td>
-                                {% if hosp.statut == 'actif' %}
+                                {% if hosp.statut =='actif' %}
                                     <span class="badge bg-success">Actif</span>
-                                {% elif hosp.statut == 'sorti' %}
+                                {% elif hosp.statut =='sorti' %}
                                     <span class="badge bg-secondary">Sorti</span>
-                                {% elif hosp.statut == 'transfere' %}
+                                {% elif hosp.statut =='transfere' %}
                                     <span class="badge bg-warning">Transféré</span>
                                 {% endif %}
                             </td>

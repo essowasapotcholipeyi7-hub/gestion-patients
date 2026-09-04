@@ -1,20 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}Références effectuées{% endblock %}
+{% block title %}References effectuees{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3">
             <i class="fas fa-ambulance me-2 text-warning"></i>
-            Références effectuées
+            References effectuees
             <span class="badge bg-secondary ms-2">{{ references|length }}</span>
         </h1>
         <div>
-        <!-- ⭐ BOUTON NOUVELLE RÉFÉRENCE -->
-        <a href="{{ url_for('nouvelle_reference') }}" class="btn btn-warning me-2" data-loading="true">
-            <i class="fas fa-plus me-2"></i>Nouvelle référence
-        </a>
+            <a href="{{ url_for('nouvelle_reference') }}" class="btn btn-warning me-2" data-loading="true">
+                <i class="fas fa-plus me-2"></i>Nouvelle reference
+            </a>
             <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" data-loading="true">
                 <i class="fas fa-arrow-left me-2"></i>Retour
             </a>
@@ -29,9 +28,9 @@
                     <label class="form-label">Statut</label>
                     <select name="statut" class="form-select">
                         <option value="">Tous</option>
-                        <option value="ENVOYE" {% if statut_actuel == 'ENVOYE' %}selected{% endif %}>Envoyé</option>
-                        <option value="ACCEPTE" {% if statut_actuel == 'ACCEPTE' %}selected{% endif %}>Accepté</option>
-                        <option value="REFUSE" {% if statut_actuel == 'REFUSE' %}selected{% endif %}>Refusé</option>
+                        <option value="ENVOYE" {% if statut_actuel == 'ENVOYE' %}selected{% endif %}>Envoye</option>
+                        <option value="ACCEPTE" {% if statut_actuel == 'ACCEPTE' %}selected{% endif %}>Accepte</option>
+                        <option value="REFUSE" {% if statut_actuel == 'REFUSE' %}selected{% endif %}>Refuse</option>
                         <option value="EN_ATTENTE" {% if statut_actuel == 'EN_ATTENTE' %}selected{% endif %}>En attente</option>
                     </select>
                 </div>
@@ -39,7 +38,7 @@
                     <label class="form-label">Rechercher un patient</label>
                     <div class="input-group">
                         <input type="text" name="search" class="form-control" 
-                               placeholder="Nom, prénom ou N° référence..." value="{{ search }}">
+                               placeholder="Nom, prenom ou N° reference..." value="{{ search }}">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-search"></i>
                         </button>
@@ -47,14 +46,14 @@
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <a href="{{ url_for('liste_references') }}" class="btn btn-secondary">
-                        <i class="fas fa-undo me-1"></i>Réinitialiser
+                        <i class="fas fa-undo me-1"></i>Reinitialiser
                     </a>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Liste des références -->
+    <!-- Liste des references -->
     <div class="card">
         <div class="card-body">
             {% if references %}
@@ -62,9 +61,10 @@
                 <table class="table table-hover table-striped">
                     <thead>
                         <tr>
-                            <th>N° Réf.</th>
+                            <th>N° Ref.</th>
                             <th>Patient</th>
                             <th>Centre</th>
+                            <th>Origine</th>
                             <th>Motif</th>
                             <th>Date</th>
                             <th>Statut</th>
@@ -80,22 +80,31 @@
                                 <small class="text-muted">P{{ "%05d" % ref.patient.id }}</small>
                             </td>
                             <td>{{ ref.centre_reference }}</td>
+                            <td>
+                                {% if ref.consultation_id %}
+                                    <span class="badge bg-info">Consultation</span>
+                                {% elif ref.hospitalisation_id %}
+                                    <span class="badge bg-primary">Hospitalisation</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">-</span>
+                                {% endif %}
+                            </td>
                             <td>{{ ref.motif[:50] }}{% if ref.motif|length > 50 %}...{% endif %}</td>
                             <td>{{ ref.date_reference.strftime('%d/%m/%Y %H:%M') }}</td>
                             <td>
                                 {% if ref.statut == 'ENVOYE' %}
-                                    <span class="badge bg-warning">📤 Envoyé</span>
+                                    <span class="badge bg-warning">Envoye</span>
                                 {% elif ref.statut == 'ACCEPTE' %}
-                                    <span class="badge bg-success">✅ Accepté</span>
+                                    <span class="badge bg-success">Accepte</span>
                                 {% elif ref.statut == 'REFUSE' %}
-                                    <span class="badge bg-danger">❌ Refusé</span>
+                                    <span class="badge bg-danger">Refuse</span>
                                 {% elif ref.statut == 'EN_ATTENTE' %}
-                                    <span class="badge bg-info">⏳ En attente</span>
+                                    <span class="badge bg-info">En attente</span>
                                 {% endif %}
                             </td>
                             <td>
-                                <a href="{{ url_for('reimprimer_reference', id=ref.id) }}" class="btn btn-sm btn-warning" data-loading="true">
-                                    <i class="fas fa-print"></i> Réimprimer
+                                <a href="{{ url_for('imprimer_reference', id=ref.id) }}" target="_blank" class="btn btn-sm btn-warning" data-loading="true">
+                                    <i class="fas fa-print"></i> Imprimer
                                 </a>
                                 {% if ref.statut != 'ACCEPTE' and ref.statut != 'REFUSE' %}
                                 <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#suiviModal{{ ref.id }}">
@@ -111,8 +120,8 @@
             {% else %}
             <div class="text-center py-5">
                 <i class="fas fa-ambulance fa-4x text-muted mb-3"></i>
-                <p class="text-muted">Aucune référence trouvée</p>
-                <p class="text-muted small">Les références apparaîtront ici après leur création.</p>
+                <p class="text-muted">Aucune reference trouvee</p>
+                <p class="text-muted small">Les references apparaissent ici apres leur creation.</p>
             </div>
             {% endif %}
         </div>
@@ -127,7 +136,7 @@
         <div class="modal-content">
             <form method="POST" action="{{ url_for('suivi_reference', id=ref.id) }}">
                 <div class="modal-header">
-                    <h5 class="modal-title">Suivi de la référence</h5>
+                    <h5 class="modal-title">Suivi de la reference</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -137,15 +146,15 @@
                     <div class="mb-3">
                         <label class="form-label">Statut</label>
                         <select name="statut" class="form-select">
-                            <option value="ENVOYE" {% if ref.statut == 'ENVOYE' %}selected{% endif %}>📤 Envoyé</option>
-                            <option value="ACCEPTE" {% if ref.statut == 'ACCEPTE' %}selected{% endif %}>✅ Accepté</option>
-                            <option value="REFUSE" {% if ref.statut == 'REFUSE' %}selected{% endif %}>❌ Refusé</option>
-                            <option value="EN_ATTENTE" {% if ref.statut == 'EN_ATTENTE' %}selected{% endif %}>⏳ En attente</option>
+                            <option value="ENVOYE" {% if ref.statut == 'ENVOYE' %}selected{% endif %}>Envoye</option>
+                            <option value="ACCEPTE" {% if ref.statut == 'ACCEPTE' %}selected{% endif %}>Accepte</option>
+                            <option value="REFUSE" {% if ref.statut == 'REFUSE' %}selected{% endif %}>Refuse</option>
+                            <option value="EN_ATTENTE" {% if ref.statut == 'EN_ATTENTE' %}selected{% endif %}>En attente</option>
                         </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Informations de retour</label>
-                        <textarea name="retour_info" class="form-control" rows="3" placeholder="Résultat du retour...">{{ ref.retour_info or '' }}</textarea>
+                        <textarea name="retour_info" class="form-control" rows="3" placeholder="Resultat du retour...">{{ ref.retour_info or '' }}</textarea>
                     </div>
                 </div>
                 <div class="modal-footer">

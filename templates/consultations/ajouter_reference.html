@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends"base.html" %}
 
 {% block title %}Référence - {{ patient.nom }} {{ patient.prenom }}{% endblock %}
 
@@ -25,9 +25,9 @@
                 <!-- Informations patient (non modifiables) -->
                 <div class="alert alert-info">
                     <strong>Patient :</strong> {{ patient.nom }} {{ patient.prenom }}
-                    <span class="ms-3"><strong>N° dossier :</strong> P{{ "%05d" % patient.id }}</span>
-                    <span class="ms-3"><strong>Date naissance :</strong> {{ patient.date_naissance.strftime('%d/%m/%Y') if patient.date_naissance else '-' }}</span>
-                    <span class="ms-3"><strong>Téléphone :</strong> {{ patient.telephone or '-' }}</span>
+                    <span class="ms-3"><strong>N° dossier :</strong> P{{"%05d" % patient.id }}</span>
+                    <span class="ms-3"><strong>Date naissance :</strong> {{ patient.date_naissance.strftime('%d/%m/%Y') if patient.date_naissance else'-' }}</span>
+                    <span class="ms-3"><strong>Téléphone :</strong> {{ patient.telephone or'-' }}</span>
                 </div>
 
                 <!-- Dernières constantes -->
@@ -36,33 +36,33 @@
                     <div class="row">
                         <div class="col-md-3">
                             <small class="text-muted">Tension</small><br>
-                            <strong>{{ patient.tension_arterielle or '-' }} mmHg</strong>
+                            <strong>{{ patient.tension_arterielle or'-' }} mmHg</strong>
                         </div>
                         <div class="col-md-3">
                             <small class="text-muted">Température</small><br>
-                            <strong>{{ patient.temperature_c or '-' }} °C</strong>
+                            <strong>{{ patient.temperature_c or'-' }} °C</strong>
                         </div>
                         <div class="col-md-3">
                             <small class="text-muted">Pouls</small><br>
-                            <strong>{{ patient.pulse_bpm or '-' }} bpm</strong>
+                            <strong>{{ patient.pulse_bpm or'-' }} bpm</strong>
                         </div>
                         <div class="col-md-3">
                             <small class="text-muted">Saturation O₂</small><br>
-                            <strong>{{ patient.oxygene_saturation or '-' }} %</strong>
+                            <strong>{{ patient.oxygene_saturation or'-' }} %</strong>
                         </div>
                     </div>
                     <div class="row mt-2">
                         <div class="col-md-3">
                             <small class="text-muted">Poids</small><br>
-                            <strong>{{ patient.poids_kg or '-' }} kg</strong>
+                            <strong>{{ patient.poids_kg or'-' }} kg</strong>
                         </div>
                         <div class="col-md-3">
                             <small class="text-muted">Taille</small><br>
-                            <strong>{{ patient.taille_cm or '-' }} cm</strong>
+                            <strong>{{ patient.taille_cm or'-' }} cm</strong>
                         </div>
                         <div class="col-md-3">
                             <small class="text-muted">IMC</small><br>
-                            <strong>{{ patient.imc or '-' }}</strong>
+                            <strong>{{ patient.imc or'-' }}</strong>
                         </div>
                     </div>
                 </div>
@@ -77,7 +77,7 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Diagnostic</label>
-                        <textarea name="diagnostic" class="form-control" rows="3">{{ consultation.diagnostic or '' }}</textarea>
+                        <textarea name="diagnostic" class="form-control" rows="3">{{ consultation.diagnostic or'' }}</textarea>
                     </div>
                 </div>
 

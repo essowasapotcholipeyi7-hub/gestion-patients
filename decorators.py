@@ -11,10 +11,11 @@ def has_permission(permission):
         def decorated_function(*args, **kwargs):
             # Vérifier le rôle de base
             role_permissions = {
-                'admin_structure': ['ANALYSES', 'REFERENCE', 'HOSPITALISATION', 'STATISTIQUES', 'PATIENTS'],
-                'medecin': ['PATIENTS', 'REFERENCE', 'HOSPITALISATION', 'STATISTIQUES', 'ANALYSES'],
+                'admin_structure': ['ANALYSES', 'REFERENCE', 'HOSPITALISATION', 'STATISTIQUES', 'PATIENTS', 'RADIOLOGIE', 'LABORANTIN'],
+                'medecin': ['PATIENTS', 'REFERENCE', 'HOSPITALISATION', 'STATISTIQUES', 'ANALYSES', 'RADIOLOGIE'],
                 'infirmier': ['PATIENTS', 'HOSPITALISATION'],
-                'laborantin': ['ANALYSES'],
+                'laborantin': ['ANALYSES', 'LABORANTIN'],  # ⭐ AJOUTÉ
+                'radiologue': ['RADIOLOGIE', 'ANALYSES'],
                 'secretaire': ['PATIENTS']
             }
             

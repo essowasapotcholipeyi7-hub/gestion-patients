@@ -6,27 +6,33 @@
 <div class="container-fluid">
     <!-- En-tête -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">
-            <i class="fas fa-user me-2"></i>
-            Dossier patient - {{ patient.prenom }} {{ patient.nom }}
-        </h1>
-        <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('engagements.liste', patient_id=patient.id) }}">
+        <div>
+            <h1 class="h3">
+                <i class="fas fa-user me-2"></i>
+                Dossier patient - {{ patient.prenom }} {{ patient.nom }}
+            </h1>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <!-- ⭐ Déontologie -->
+            <a class="btn btn-outline-secondary" href="{{ url_for('engagements.liste', patient_id=patient.id) }}">
                 <i class="fas fa-file-signature me-1"></i> Déontologie
                 <span class="badge bg-primary rounded-pill ms-1">{{ patient.engagements|length }}</span>
             </a>
-        </li>
-    </ul>
-</div>
-        <div>
-            <button onclick="window.print()" class="btn btn-secondary me-2">
-                <i class="fas fa-print me-2"></i>Imprimer
-            </button>
-            <a href="{{ url_for('patients_list') }}" class="btn btn-secondary" data-loading="true">
+            
+            <!-- ⭐ Imprimer le dossier complet -->
+            <a href="{{ url_for('imprimer_dossier_patient', patient_id=patient.id) }}" 
+               target="_blank" 
+               class="btn btn-primary">
+                <i class="fas fa-print me-2"></i>Imprimer le dossier complet
+            </a>
+            
+            <!-- ⭐ Retour -->
+            <a href="{{ url_for('patients_list') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Retour
             </a>
         </div>
     </div>
+
 
     <div class="row">
         <!-- ==================== COLONNE GAUCHE ==================== -->
@@ -372,7 +378,7 @@
                             <th width="50%">Statut :</th>
                             <td>
                                 {% if patient.statut_medical == 'GUERI' %}
-                                    <span class="badge bg-success">Guéri ✅</span>
+                                    <span class="badge bg-success">Guéri </span>
                                 {% elif patient.statut_medical == 'EN_TRAITEMENT' %}
                                     <span class="badge bg-warning">En traitement</span>
                                 {% elif patient.statut_medical == 'PREMIERE_VISITE' %}
@@ -430,7 +436,7 @@
             {% endif %}
         </div>
 
-        <!-- ==================== COLONNE DROITE ==================== -->
+<!-- ==================== COLONNE DROITE ==================== -->
         <div class="col-md-8">
             
             <!-- HISTORIQUE DES CONSULTATIONS -->
@@ -557,7 +563,7 @@
     {# ⭐ Si le texte est vide ou ne contient que des séparateurs, ne rien afficher #}
     {% if examen_text and examen_text != '═══════════════════════════════════════════════════' %}
     <div class="col-md-12">
-        <strong>🔬 Examen physique :</strong>
+        <strong>Examen physique :</strong>
         <div style="padding: 10px; background: #f8f9fa; border-radius: 4px; margin-top: 5px;">
             <pre style="white-space: pre-wrap; font-family: inherit; font-size: 13px; margin: 0; line-height: 1.8;">{{ examen_text }}</pre>
         </div>
@@ -568,13 +574,13 @@
 
                                     {% if consultation.examens_biologie %}
                                     <div class="col-md-6">
-                                        <strong>🧪 Examens biologie :</strong>
+                                        <strong>Examens biologie :</strong>
                                         <p class="small">{{ consultation.examens_biologie }}</p>
                                     </div>
                                     {% endif %}
                                     {% if consultation.examens_imagerie %}
                                     <div class="col-md-6">
-                                        <strong>📷 Examens imagerie :</strong>
+                                        <strong>Examens imagerie :</strong>
                                         <p class="small">{{ consultation.examens_imagerie }}</p>
                                     </div>
                                     {% endif %}
@@ -587,17 +593,17 @@
                                 <div class="alert alert-success">
                                     <strong><i class="fas fa-file-medical-alt me-2"></i>Résultats :</strong><br>
                                     {% if consultation.resultats_biologie %}
-                                        <strong>🧪 Biologie :</strong><br>
+                                        <strong>Biologie :</strong><br>
                                         <div class="border rounded p-2 bg-white mt-1">{{ consultation.resultats_biologie|nl2br }}</div>
                                         <br>
                                     {% endif %}
                                     {% if consultation.resultats_imagerie %}
-                                        <strong>📷 Imagerie :</strong><br>
+                                        <strong>Imagerie :</strong><br>
                                         <div class="border rounded p-2 bg-white mt-1">{{ consultation.resultats_imagerie|nl2br }}</div>
                                         <br>
                                     {% endif %}
                                     {% if consultation.date_resultats %}
-                                        <small>📅 Reçu le {{ consultation.date_resultats.strftime('%d/%m/%Y %H:%M') }}</small>
+                                        <small>Reçu le {{ consultation.date_resultats.strftime('%d/%m/%Y %H:%M') }}</small>
                                     {% endif %}
                                 </div>
                                 {% else %}
@@ -609,6 +615,147 @@
                                         <p class="mb-0 mt-1 small">Les analyses ont été prescrites mais les résultats ne sont pas encore disponibles.</p>
                                     </div>
                                     {% endif %}
+                                {% endif %}
+                                
+                                <!-- ═══════════════════════════════════════════════════════════ -->
+                                <!-- ⭐ NOUVEAU : ORDONNANCE, EXAMENS PRESCRITS, PROTOCOLE       -->
+                                <!-- ═══════════════════════════════════════════════════════════ -->
+                                {% if consultation.ordonnances.count() > 0 or consultation.examens_prescrits.count() > 0 or consultation.protocole_applique %}
+                                <hr>
+                                <div class="row">
+                                    <!-- ORDONNANCE -->
+                                    <div class="col-md-4">
+                                        <div class="card h-100 border-success">
+                                            <div class="card-header bg-success text-white py-1">
+                                                <h6 class="mb-0">
+                                                    <i class="fas fa-prescription me-1"></i> Ordonnance
+                                                    {% if consultation.ordonnance_active %}
+                                                        <span class="badge bg-light text-success ms-1">v{{ consultation.ordonnance_active.version }}</span>
+                                                    {% endif %}
+                                                </h6>
+                                            </div>
+                                            <div class="card-body py-2">
+                                                {% if consultation.ordonnance_active %}
+                                                    {% set medicaments = consultation.ordonnance_active.get_medicaments_list() %}
+                                                    {% if medicaments %}
+                                                        <ul class="list-unstyled mb-0">
+                                                            {% for med in medicaments %}
+                                                            <li class="mb-1 small">
+                                                                <strong>{{ med.medicament }}</strong>
+                                                                <span class="text-muted">
+                                                                    {% if med.dosage %}{{ med.dosage }}{% endif %}
+                                                                    {% if med.posologie %} - {{ med.posologie }}{% endif %}
+                                                                    {% if med.duree %} ({{ med.duree }} jours){% endif %}
+                                                                </span>
+                                                                <span class="badge bg-secondary float-end">{{ med.quantite or '1 boite' }}</span>
+                                                            </li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    {% else %}
+                                                        <p class="text-muted small mb-0">Aucun médicament</p>
+                                                    {% endif %}
+                                                    {% if consultation.ordonnance_active.source_nom %}
+                                                    <small class="text-muted d-block mt-1">
+                                                        <i class="fas fa-tag me-1"></i>{{ consultation.ordonnance_active.source_nom }}
+                                                    </small>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <p class="text-muted small mb-0">Aucune ordonnance</p>
+                                                {% endif %}
+                                                <div class="mt-1">
+                                                    <a href="{{ url_for('historique_ordonnances_consultation', id=consultation.id) }}" 
+                                                       class="btn btn-sm btn-outline-success w-100" data-loading="true">
+                                                        <i class="fas fa-history me-1"></i>Voir historique
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- EXAMENS PRESCRITS -->
+                                    <div class="col-md-4">
+                                        <div class="card h-100 border-info">
+                                            <div class="card-header bg-info text-white py-1">
+                                                <h6 class="mb-0">
+                                                    <i class="fas fa-flask me-1"></i> Examens prescrits
+                                                    <span class="badge bg-light text-info ms-1">{{ consultation.examens_prescrits.count() }}</span>
+                                                </h6>
+                                            </div>
+                                            <div class="card-body py-2">
+                                                {% set examens = consultation.examens_prescrits.filter_by(est_active=True).all() %}
+                                                {% if examens %}
+                                                    {% for examen in examens[:3] %}
+                                                    <div class="mb-1 small">
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <span>
+                                                                <strong>{{ examen.nature }}</strong>
+                                                                <span class="text-muted">- {{ examen.motif or 'Non spécifié' }}</span>
+                                                            </span>
+                                                            <span class="badge 
+                                                                {% if examen.statut == 'TERMINE' %}bg-success
+                                                                {% elif examen.statut == 'EN_COURS' %}bg-warning
+                                                                {% else %}bg-secondary{% endif %}">
+                                                                {{ examen.statut or 'En attente' }}
+                                                            </span>
+                                                        </div>
+                                                        {% set examens_list = examen.get_examens_list() %}
+                                                        {% if examens_list %}
+                                                            <small class="text-muted d-block">
+                                                                {% for e in examens_list[:3] %}
+                                                                    <span class="badge bg-light text-dark">{{ e }}</span>
+                                                                {% endfor %}
+                                                                {% if examens_list|length > 3 %}
+                                                                    <span class="badge bg-secondary">+{{ examens_list|length - 3 }}</span>
+                                                                {% endif %}
+                                                            </small>
+                                                        {% endif %}
+                                                    </div>
+                                                    {% endfor %}
+                                                    {% if examens|length > 3 %}
+                                                        <small class="text-muted">+ {{ examens|length - 3 }} autre(s) examen(s)</small>
+                                                    {% endif %}
+                                                    <div class="mt-1">
+                                                        <a href="{{ url_for('consultation_detail', id=consultation.id) }}#examens" 
+                                                           class="btn btn-sm btn-outline-info w-100" data-loading="true">
+                                                            <i class="fas fa-eye me-1"></i>Voir tous
+                                                        </a>
+                                                    </div>
+                                                {% else %}
+                                                    <p class="text-muted small mb-0">Aucun examen prescrit</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- PROTOCOLE APPLIQUÉ -->
+                                    <div class="col-md-4">
+                                        <div class="card h-100 border-primary">
+                                            <div class="card-header bg-primary text-white py-1">
+                                                <h6 class="mb-0">
+                                                    <i class="fas fa-notes-medical me-1"></i> Protocole
+                                                </h6>
+                                            </div>
+                                            <div class="card-body py-2">
+                                                {% if consultation.protocole_applique %}
+                                                    <div class="mb-1">
+                                                        <strong>{{ consultation.protocole_applique.nom }}</strong>
+                                                    </div>
+                                                    <div class="small text-muted" style="max-height: 80px; overflow-y: auto;">
+                                                        {{ consultation.protocole_applique.description|truncate(120) }}
+                                                    </div>
+                                                    <div class="mt-1">
+                                                        <a href="{{ url_for('detail_protocole', id=consultation.protocole_applique.id) }}" 
+                                                           class="btn btn-sm btn-outline-primary w-100" data-loading="true">
+                                                            <i class="fas fa-eye me-1"></i>Voir le protocole
+                                                        </a>
+                                                    </div>
+                                                {% else %}
+                                                    <p class="text-muted small mb-0">Aucun protocole appliqué</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                                 {% endif %}
                                 
                                 <!-- Traitement -->
@@ -650,139 +797,7 @@
                         </div>
                     {% endif %}
                 </div>
-            </div>
-            
-<!-- PRESCRIPTIONS -->
-<div class="card">
-    <div class="card-header bg-success text-white">
-        <ul class="nav nav-tabs card-header-tabs" role="tablist">
-            <li class="nav-item">
-                <a class="nav-link active" data-bs-toggle="tab" href="#medicamentsTab">
-                    <i class="fas fa-pills me-1"></i> Médicaments
-                    {% set nb_medicaments = prescriptions|selectattr('type_prescription', 'in', ['medicament', None])|list|length %}
-                    <span class="badge bg-light text-dark rounded-pill ms-1">{{ nb_medicaments }}</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#actesTab">
-                    <i class="fas fa-flask me-1"></i> Actes
-                    {% set nb_actes = prescriptions|selectattr('type_prescription', 'equalto', 'acte')|list|length %}
-                    <span class="badge bg-light text-dark rounded-pill ms-1">{{ nb_actes }}</span>
-                </a>
-            </li>
-        </ul>
-    </div>
-    <div class="card-body">
-        
-        <!-- ⭐ TAB MÉDICAMENTS -->
-        <div class="tab-pane fade show active" id="medicamentsTab">
-            {% set medicaments = prescriptions|selectattr('type_prescription', 'in', ['medicament', None])|list %}
-            
-            {% if medicaments %}
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Médicament</th>
-                                <th>Dosage</th>
-                                <th>Posologie</th>
-                                <th>Durée</th>
-                                <th>Instructions</th>
-                                <th>Statut</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for prescription in medicaments %}
-                            <tr>
-                                <td>{{ prescription.date_prescription.strftime('%d/%m/%Y') if prescription.date_prescription else '-' }}</td>
-                                <td><strong>{{ prescription.medicament or '-' }}</strong></td>
-                                <td>{{ prescription.dosage or '-' }}</td>
-                                <td>{{ prescription.frequence or '-' }}</td>
-                                <td>{{ prescription.duree_jours or '-' }} jours</td>
-                                <td>{{ prescription.instructions or '-' }}</td>
-                                <td>
-                                    {% if prescription.statut == 'active' %}
-                                        <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">Terminée</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <div class="alert alert-info text-center">
-                    <i class="fas fa-info-circle me-2"></i>Aucun médicament prescrit
-                </div>
-            {% endif %}
-        </div>
-
-        <!-- ⭐ TAB ACTES -->
-        <div class="tab-pane fade" id="actesTab">
-            {% set actes = prescriptions|selectattr('type_prescription', 'equalto', 'acte')|list %}
-            
-            {% if actes %}
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Acte</th>
-                                <th>Type</th>
-                                <th>Prescripteur</th>
-                                <th>Statut</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for prescription in actes %}
-                            <tr>
-                                <td>{{ prescription.date_prescription.strftime('%d/%m/%Y') if prescription.date_prescription else '-' }}</td>
-                                <td><strong>{{ prescription.medicament or '-' }}</strong></td>
-                                <td>
-                                    {% if prescription.id_consultation %}
-                                        {% set consultation = prescription.consultation %}
-                                        {% if consultation %}
-                                            {% if consultation.examens_biologie and prescription.medicament in consultation.examens_biologie %}
-                                                <span class="badge bg-success">Biologie</span>
-                                            {% elif consultation.examens_imagerie and prescription.medicament in consultation.examens_imagerie %}
-                                                <span class="badge bg-warning text-dark">Imagerie</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">Acte</span>
-                                            {% endif %}
-                                        {% else %}
-                                            <span class="badge bg-secondary">Acte</span>
-                                        {% endif %}
-                                    {% else %}
-                                        <span class="badge bg-secondary">Acte</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ prescription.prescripteur or '-' }}</td>
-                                <td>
-                                    {% if prescription.statut == 'active' %}
-                                        <span class="badge bg-success">Actif</span>
-                                    {% elif prescription.statut == 'realise' %}
-                                        <span class="badge bg-info">Réalisé</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">{{ prescription.statut or 'En attente' }}</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <div class="alert alert-info text-center">
-                    <i class="fas fa-info-circle me-2"></i>Aucun acte prescrit
-                </div>
-            {% endif %}
-        </div>
-        
-    </div>
-</div>
+            </div>            
             
             <!-- BOUTONS D'ACTION -->
             <div class="mt-4">

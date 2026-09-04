@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demande d'Examens</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
+
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            font-size: 14px;
+            color: #000;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 0;
+            margin: 0 auto;
+            background: #fff;
+            position: relative;
+        }
+
+        /* En-tête avec bande bleue */
+        .header {
+            background: #1a3a5c !important;
+            color: white;
+            padding: 20px 40px 15px 40px;
+            position: relative;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo-placeholder {
+            width: 70px;
+            height: 70px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .header-title h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: white;
+        }
+
+        .header-title p {
+            margin: 3px 0 0 0;
+            font-size: 12px;
+            opacity: 0.85;
+            color: white;
+        }
+
+        .header-right {
+            text-align: right;
+            font-size: 12px;
+            opacity: 0.85;
+            color: white;
+        }
+
+        .header-right p {
+            margin: 2px 0;
+        }
+
+        .bande-deco {
+            height: 6px;
+            background: linear-gradient(to right, #2a5f8f, #4a8fc9) !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .body {
+            padding: 30px 40px 20px 40px;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #1a3a5c;
+            border-bottom: 2px solid #1a3a5c;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .patient-info {
+            display: flex;
+            justify-content: space-between;
+            background: #f5f7fa;
+            padding: 12px 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #1a3a5c;
+        }
+
+        .patient-info .label {
+            font-weight: bold;
+            color: #000;
+        }
+
+        .patient-info .value {
+            color: #000;
+        }
+
+        .info-block {
+            margin-bottom: 15px;
+        }
+
+        .info-block .label {
+            font-weight: bold;
+            color: #000;
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .info-block .value {
+            color: #000;
+            padding: 5px 0;
+        }
+
+        .examens-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #000;
+            margin: 20px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed #ccc;
+        }
+
+        .examen-item {
+            display: flex;
+            align-items: baseline;
+            padding: 6px 0;
+            border-bottom: 1px dotted #eee;
+        }
+
+        .examen-item .numero {
+            font-weight: bold;
+            color: #000;
+            margin-right: 10px;
+            min-width: 25px;
+        }
+
+        .examen-item .nom {
+            font-size: 14px;
+            color: #000;
+        }
+
+        .signature-section {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .signature-left {
+            flex: 1;
+        }
+
+        .signature-right {
+            text-align: right;
+            flex: 1;
+        }
+
+        .signature-left strong {
+            color: #000;
+        }
+
+        .signature-right .cachet em {
+            color: #000;
+        }
+
+        .signature-line {
+            width: 200px;
+            border-top: 1px solid #000;
+            margin-top: 30px;
+            padding-top: 5px;
+            font-size: 12px;
+            color: #000;
+        }
+
+        .cachet {
+            text-align: center;
+            font-size: 11px;
+            color: #000;
+        }
+
+        .cachet-zone {
+            width: 120px;
+            height: 70px;
+            border: 2px dashed #999;
+            margin: 5px auto 0 auto;
+            border-radius: 10px;
+        }
+
+        /* ⭐ BOUTONS EN HAUT */
+        .toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: #f8f9fa;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            border-bottom: 2px solid #1a3a5c;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .toolbar button {
+            padding: 10px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .toolbar .btn-print {
+            background: #1a3a5c;
+            color: white;
+        }
+
+        .toolbar .btn-print:hover {
+            background: #2a5f8f;
+        }
+
+        .toolbar .btn-close {
+            background: #dc3545;
+            color: white;
+        }
+
+        .toolbar .btn-close:hover {
+            background: #c82333;
+        }
+
+        @media print {
+            .toolbar {
+                display: none !important;
+            }
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            .page {
+                width: 100%;
+                min-height: 100vh;
+            }
+        }
+
+        @media screen and (max-width: 600px) {
+            .header-content { flex-direction: column; text-align: center; }
+            .header-right { text-align: center; margin-top: 10px; }
+            .patient-info { flex-direction: column; gap: 5px; }
+            .signature-section { flex-direction: column; align-items: center; gap: 20px; }
+            .signature-right { text-align: center; }
+            .cachet-zone { margin: 5px auto 0 auto; }
+            .toolbar { flex-wrap: wrap; padding: 10px; }
+            .toolbar button { flex: 1; min-width: 120px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- BARRE D'OUTILS EN HAUT -->
+    <div class="toolbar">
+        <button class="btn-print" onclick="window.print()">
+            <i class="fas fa-print"></i> Imprimer / PDF
+        </button>
+        <button class="btn-close" onclick="window.close()">
+            <i class="fas fa-times"></i> Fermer
+        </button>
+    </div>
+
+    <div class="page">
+        <!-- En-tête -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-left">
+<div class="logo-placeholder">
+    {% if structure.logo_url %}
+        <img src="{{ structure.logo_url }}" alt="Logo" style="max-width: 70px; max-height: 70px; object-fit: contain;">
+    {% else %}
+        <i class="fas fa-hospital"></i>
+    {% endif %}
+</div>
+                    <div class="header-title">
+                        <h1>{{ structure.nom or 'Clinique Medicale' }}</h1>
+                        <p>{{ structure.adresse or '' }}</p>
+                        <p>{{ structure.telephone or '' }} | {{ structure.email or '' }}</p>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <p><strong>N° Dossier :</strong> P{{ "%06d"|format(hospitalisation.patient.id) }}</p>
+                    <p><strong>Date :</strong> {{ now.strftime('%d/%m/%Y') }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bande-deco"></div>
+
+        <!-- Corps -->
+        <div class="body">
+            <!-- Titre -->
+            <div class="title">Demande d'Examens</div>
+
+            <!-- Infos Patient -->
+            <div class="patient-info">
+                <div>
+                    <span class="label">Patient :</span>
+                    <span class="value">{{ hospitalisation.patient.prenom }} {{ hospitalisation.patient.nom }}</span>
+                </div>
+                <div>
+                    <span class="label">Age :</span>
+                    <span class="value">
+                        {% if hospitalisation.patient.date_naissance %}
+                            {{ (now.date() - hospitalisation.patient.date_naissance).days // 365 }} ans
+                        {% else %}
+                            -
+                        {% endif %}
+                    </span>
+                </div>
+                <div>
+                    <span class="label">Sexe :</span>
+                    <span class="value">{{ hospitalisation.patient.sexe or '-' }}</span>
+                </div>
+            </div>
+
+            <!-- Détails de la demande -->
+            <div class="info-block">
+                <span class="label">Nature de l'examen</span>
+                <span class="value">
+                    <strong>
+                        {% if examen.nature == 'BIOLOGIE' %}
+                            Biologie
+                        {% elif examen.nature == 'IMAGERIE' %}
+                            Imagerie
+                        {% else %}
+                            {{ examen.nature }}
+                        {% endif %}
+                    </strong>
+                </span>
+            </div>
+
+            <div class="info-block">
+                <span class="label">Motif / Diagnostic</span>
+                <span class="value">{{ examen.motif or 'Non specifie' }}</span>
+            </div>
+
+            <div class="info-block">
+                <span class="label">Description</span>
+                <span class="value">{{ examen.description or 'Non specifiee' }}</span>
+            </div>
+
+            <!-- Examens demandés -->
+            <div class="examens-title">Examens demandes</div>
+
+            {% if examens_list %}
+                {% for examen_nom in examens_list %}
+                <div class="examen-item">
+                    <span class="numero">{{ loop.index }}.</span>
+                    <span class="nom">{{ examen_nom }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color: #999; font-style: italic; text-align: center; padding: 10px 0;">
+                    Aucun examen specific
+                </p>
+            {% endif %}
+
+            <!-- Signature + Cachet -->
+            <div class="signature-section">
+                <div class="signature-left">
+                    <div>
+                        <strong>Medecin prescripteur</strong>
+                    </div>
+                    <div class="signature-line">
+                        Dr {{ current_user.prenom }} {{ current_user.nom }}
+                    </div>
+                </div>
+                <div class="signature-right">
+                    <div class="cachet">
+                        <em>Cachet du medecin</em>
+                        <div class="cachet-zone"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        window.onload = function() {
+            setTimeout(function() {
+                window.print();
+            }, 500);
+        };
+    </script>
+</body>
+</html>

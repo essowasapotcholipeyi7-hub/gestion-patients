@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Analyses - {{ patient.nom }} {{ patient.prenom }}{% endblock %}
+{% block title %}Examens - {{ patient.nom }} {{ patient.prenom }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -8,19 +8,22 @@
         <div>
             <h1 class="h3">
                 <i class="fas fa-flask me-2 text-primary"></i>
-                Analyses de {{ patient.prenom }} {{ patient.nom }}
+                {% if current_user.role == 'radiologue' %}
+                    Examens d'imagerie de {{ patient.prenom }} {{ patient.nom }}
+                {% else %}
+                    Analyses de {{ patient.prenom }} {{ patient.nom }}
+                {% endif %}
             </h1>
             <p class="text-muted">
                 N° dossier: P{{ "%05d" % patient.id }} | 
-                {{ analyses|length }} analyse(s) au total
+                {{ analyses|length }} examen(s) au total
             </p>
         </div>
         <div>
-            <a href="{{ url_for('liste_analyses') }}" class="btn btn-secondary" data-loading="true">
+            <a href="{{ url_for('liste_analyses') if current_user.role != 'radiologue' else url_for('liste_radiologie') }}" class="btn btn-secondary" data-loading="true">
                 <i class="fas fa-arrow-left me-2"></i>Retour
             </a>
-            <!-- ⭐ UNIQUEMENT POUR LE MÉDECIN ET L'ADMIN -->
-            {% if current_user.role != 'laborantin' %}
+            {% if current_user.role in ['admin_structure', 'medecin'] %}
             <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-outline-primary" data-loading="true">
                 <i class="fas fa-user me-2"></i>Voir dossier
             </a>
@@ -31,7 +34,7 @@
     <!-- Stats rapides -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="card bg-warning text-white">
+            <div class="card text-white bg-warning">
                 <div class="card-body">
                     <h6 class="card-title">En attente</h6>
                     <h3>{{ analyses|selectattr('statut', 'equalto', 'EN_ATTENTE')|list|length }}</h3>
@@ -39,7 +42,7 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-primary text-white">
+            <div class="card text-white bg-primary">
                 <div class="card-body">
                     <h6 class="card-title">En cours</h6>
                     <h3>{{ analyses|selectattr('statut', 'equalto', 'EN_COURS')|list|length }}</h3>
@@ -47,15 +50,15 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success text-white">
+            <div class="card text-white bg-success">
                 <div class="card-body">
-                    <h6 class="card-title">Terminées</h6>
+                    <h6 class="card-title">Terminés</h6>
                     <h3>{{ analyses|selectattr('statut', 'equalto', 'TERMINE')|list|length }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info text-white">
+            <div class="card text-white bg-info">
                 <div class="card-body">
                     <h6 class="card-title">Total</h6>
                     <h3>{{ analyses|length }}</h3>
@@ -67,7 +70,13 @@
     <!-- Liste des analyses -->
     <div class="card">
         <div class="card-header">
-            <h5 class="mb-0"><i class="fas fa-list me-2"></i>Toutes les analyses</h5>
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>
+                {% if current_user.role == 'radiologue' %}
+                    Tous les examens d'imagerie
+                {% else %}
+                    Toutes les analyses
+                {% endif %}
+            </h5>
         </div>
         <div class="card-body">
             {% if analyses %}
@@ -75,8 +84,9 @@
                     <table class="table table-hover table-striped">
                         <thead>
                             <tr>
-                                <th>Analyse</th>
+                                <th>Nom</th>
                                 <th>Type</th>
+                                <th>Origine</th>
                                 <th>Prescrit par</th>
                                 <th>Date demande</th>
                                 <th>Statut</th>
@@ -90,11 +100,20 @@
                                 <td><strong>{{ analyse.nom_analyse }}</strong></td>
                                 <td>
                                     {% if analyse.type_analyse == 'BIOLOGIE' %}
-                                        <span class="badge bg-success">🧪 Biologie</span>
+                                        <span class="badge bg-success">Biologie</span>
                                     {% elif analyse.type_analyse == 'IMAGERIE' %}
-                                        <span class="badge bg-warning">📷 Imagerie</span>
+                                        <span class="badge bg-warning">Imagerie</span>
                                     {% else %}
                                         <span class="badge bg-secondary">Autre</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if analyse.hospitalisation_id %}
+                                        <span class="badge bg-primary">Hospitalisation</span>
+                                    {% elif analyse.consultation_id %}
+                                        <span class="badge bg-info">Consultation</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">-</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -111,7 +130,7 @@
                                     {% elif analyse.statut == 'EN_COURS' %}
                                         <span class="badge bg-primary">En cours</span>
                                     {% elif analyse.statut == 'TERMINE' %}
-                                        <span class="badge bg-success">Terminé ✅</span>
+                                        <span class="badge bg-success">Terminé</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -124,8 +143,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <!-- ⭐ LE LABORANTIN PEUT SAISIR, LE MÉDECIN VOIT SEULEMENT -->
-                                    {% if analyse.statut != 'TERMINE' and current_user.role in ['laborantin', 'admin_structure'] %}
+                                    {% if analyse.statut != 'TERMINE' and current_user.role in ['laborantin', 'radiologue', 'admin_structure'] %}
                                         <a href="{{ url_for('detail_analyse', id=analyse.id) }}" class="btn btn-sm btn-success" data-loading="true">
                                             <i class="fas fa-edit"></i> Saisir
                                         </a>
@@ -143,13 +161,18 @@
             {% else %}
                 <div class="alert alert-info text-center">
                     <i class="fas fa-info-circle me-2"></i>
-                    Aucune analyse pour ce patient.
+                    {% if current_user.role == 'radiologue' %}
+                        Aucun examen d'imagerie pour ce patient.
+                    {% else %}
+                        Aucune analyse pour ce patient.
+                    {% endif %}
                 </div>
             {% endif %}
         </div>
     </div>
 </div>
 
+<!-- ⭐ MODALS POUR AFFICHER LES RÉSULTATS AVEC IMPRESSION -->
 <!-- Modals pour afficher les résultats -->
 {% for analyse in analyses if analyse.resultats %}
 <div class="modal fade" id="resultatModal{{ analyse.id }}" tabindex="-1">
@@ -161,20 +184,62 @@
             </div>
             <div class="modal-body">
                 <p><strong>Patient :</strong> {{ analyse.patient.nom }} {{ analyse.patient.prenom }}</p>
-                <p><strong>Analyse :</strong> {{ analyse.nom_analyse }}</p>
+                <p><strong>Examen :</strong> {{ analyse.nom_analyse }}</p>
+                <p><strong>Origine :</strong>
+                    {% if analyse.hospitalisation_id %}
+                        Hospitalisation
+                    {% elif analyse.consultation_id %}
+                        Consultation
+                    {% else %}
+                        -
+                    {% endif %}
+                </p>
                 <hr>
                 <p><strong>Résultats :</strong></p>
                 <div class="border rounded p-2 bg-light">{{ analyse.resultats|nl2br }}</div>
                 <small class="text-muted d-block mt-2">
-                    Saisis par : {{ analyse.responsable.prenom }} {{ analyse.responsable.nom }}
+                    Saisis par : {{ analyse.responsable.prenom }} {{ analyse.responsable.nom if analyse.responsable else 'Inconnu' }}
                     le {{ analyse.date_resultats.strftime('%d/%m/%Y %H:%M') }}
                 </small>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <!-- ⭐ BOUTON IMPRESSION ICI -->
+                <a href="{{ url_for('imprimer_resultat_analyse', id=analyse.id) }}" target="_blank" class="btn btn-primary">
+                    <i class="fas fa-print me-2"></i>Imprimer
+                </a>
             </div>
         </div>
     </div>
 </div>
 {% endfor %}
+
+
+<script>
+function imprimerResultat(id) {
+    var contenu = document.getElementById(id).innerHTML;
+    var fenetre = window.open('', '_blank');
+    fenetre.document.write(`
+        <html>
+        <head>
+            <title>Résultats d'analyse</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 30px; }
+                .resultats { white-space: pre-wrap; font-size: 14px; }
+                .info { color: #666; font-size: 12px; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px; }
+            </style>
+        </head>
+        <body>
+            <h2>Résultats d'analyse</h2>
+            <div class="resultats">${contenu}</div>
+            <div class="info">Document imprimé le ${new Date().toLocaleString()}</div>
+            <script>
+                window.onload = function() { window.print(); window.close(); };
+            <\/script>
+        </body>
+        </html>
+    `);
+    fenetre.document.close();
+}
+</script>
 {% endblock %}

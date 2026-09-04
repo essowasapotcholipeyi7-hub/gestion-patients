@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dossier Patient - {{ patient.nom }} {{ patient.prenom }}</title>
+    <style>
+        @page { size: A4; margin: 15mm; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        body { font-family: 'Times New Roman', Times, serif; font-size: 12px; color: #000; background: #fff; line-height: 1.5; }
+        .page { page-break-after: always; }
+        .header { text-align: center; border-bottom: 3px solid #1a3a5c; padding-bottom: 15px; margin-bottom: 20px; }
+        .header h1 { font-size: 22px; color: #1a3a5c; margin: 0; text-transform: uppercase; letter-spacing: 2px; }
+        .header .patient-id { font-size: 13px; color: #1a3a5c; font-weight: bold; }
+        .section-title { font-size: 16px; font-weight: bold; color: #1a3a5c; border-bottom: 2px solid #1a3a5c; padding-bottom: 5px; margin-top: 20px; margin-bottom: 10px; }
+        .section-title .badge { font-size: 11px; background: #1a3a5c; color: white; padding: 1px 10px; border-radius: 10px; margin-left: 8px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px 20px; margin-bottom: 10px; }
+        .info-grid .item { padding: 3px 0; }
+        .info-grid .label { font-weight: bold; color: #333; }
+        .table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; font-size: 11px; }
+        .table th { background: #1a3a5c; color: white; padding: 6px 10px; text-align: left; font-weight: bold; }
+        .table td { padding: 5px 10px; border-bottom: 1px solid #ddd; }
+        .table tr:nth-child(even) { background: #f5f7fa; }
+        .consultation-block { border: 1px solid #ddd; border-radius: 5px; padding: 10px 15px; margin-bottom: 15px; page-break-inside: avoid; }
+        .consultation-block .consultation-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 8px; }
+        .consultation-block .consultation-header .date { font-weight: bold; color: #1a3a5c; }
+        .consultation-block .consultation-header .medecin { color: #555; font-size: 11px; }
+        .consultation-block .detail-row { display: flex; padding: 2px 0; }
+        .consultation-block .detail-row .label { font-weight: bold; min-width: 120px; color: #333; }
+        .consultation-block .detail-row .value { color: #000; }
+        .hospitalisation-block { border: 1px solid #17a2b8; border-radius: 5px; padding: 10px 15px; margin-bottom: 15px; page-break-inside: avoid; background: #f8fcff; }
+        .hospitalisation-block .hosp-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #17a2b8; padding-bottom: 5px; margin-bottom: 8px; }
+        .hospitalisation-block .hosp-header .date { font-weight: bold; color: #17a2b8; }
+        .hospitalisation-block .hosp-header .statut-badge { font-size: 11px; padding: 2px 10px; border-radius: 10px; color: white; }
+        .hospitalisation-block .hosp-detail { display: flex; flex-wrap: wrap; padding: 2px 0; }
+        .hospitalisation-block .hosp-detail .label { font-weight: bold; min-width: 120px; color: #333; }
+        .engagement-block { border: 1px solid #6f42c1; border-radius: 5px; padding: 10px 15px; margin-bottom: 15px; page-break-inside: avoid; background: #f8f0ff; }
+        .engagement-block .eng-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #6f42c1; padding-bottom: 5px; margin-bottom: 8px; }
+        .engagement-block .eng-header .type { font-weight: bold; color: #6f42c1; }
+        .engagement-block .eng-content { font-size: 11px; white-space: pre-wrap; }
+        .signature-section { margin-top: 40px; padding-top: 20px; border-top: 2px solid #000; display: flex; justify-content: space-between; align-items: flex-end; }
+        .signature-line { width: 200px; border-top: 1px solid #000; margin-top: 30px; padding-top: 5px; font-size: 11px; text-align: center; }
+        .footer { text-align: center; font-size: 10px; color: #888; margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; }
+        .medicaments-list { margin: 5px 0; padding-left: 20px; }
+        .medicaments-list li { padding: 2px 0; }
+        .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 10px; color: white; }
+        .badge-primary { background: #1a3a5c; }
+        .badge-success { background: #28a745; }
+        .badge-danger { background: #dc3545; }
+        .badge-warning { background: #ffc107; color: #000; }
+        .badge-info { background: #17a2b8; }
+        .badge-secondary { background: #6c757d; }
+        .badge-pink { background: #d63384; }
+        .badge-avis { background: #6f42c1; }
+        .badge-protocole { background: #fd7e14; }
+        .badge-constante { background: #e83e8c; }
+        .badge-evolution { background: #6610f2; }
+        .badge-note { background: #20c997; }
+        .badge-engagement { background: #6f42c1; }
+        .hosp-sub-section { margin-top: 8px; padding: 8px 12px; background: #f1f8ff; border-radius: 4px; border-left: 3px solid #17a2b8; }
+        .hosp-sub-section .sub-title { font-weight: bold; color: #17a2b8; font-size: 12px; display: block; margin-bottom: 3px; }
+        .avis-block { border-left: 3px solid #6f42c1; padding-left: 10px; margin-top: 5px; }
+        .avis-block .avis-medecin { font-weight: bold; color: #6f42c1; }
+        .note-block { background: #f0fff4; border: 1px solid #28a745; border-radius: 4px; padding: 8px 12px; margin-top: 5px; }
+        .note-block .note-label { font-weight: bold; color: #28a745; }
+        .note-block .note-content { font-size: 11px; white-space: pre-wrap; }
+        .resultat-block { background: #fff8f0; border: 1px solid #fd7e14; border-radius: 4px; padding: 5px 10px; margin-top: 3px; font-size: 11px; }
+        .resultat-block .resultat-label { font-weight: bold; color: #fd7e14; }
+        .hpv-block { background: #f8f0ff; border: 1px solid #6f42c1; border-radius: 4px; padding: 5px 10px; margin-top: 3px; font-size: 11px; }
+        .hpv-block .hpv-label { font-weight: bold; color: #6f42c1; }
+        .examen-physique-block { background: #f0f4ff; border: 1px solid #1a3a5c; border-radius: 4px; padding: 5px 10px; margin-top: 3px; font-size: 11px; }
+        .examen-physique-block .ep-label { font-weight: bold; color: #1a3a5c; }
+        @media print { .no-print { display: none !important; } .page { page-break-after: always; } }
+
+        /* ⭐ STYLE POUR LA BARRE D'OUTILS À L'IMPRESSION */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                padding-top: 0 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+
+<!-- ============================================================ -->
+<!-- BARRE D'OUTILS (Imprimer / Fermer)                            -->
+<!-- ============================================================ -->
+<div class="toolbar no-print" style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: #1a3a5c;
+    padding: 10px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+">
+    <div style="color: white; font-weight: bold; font-size: 14px;">
+        <i class="fas fa-file-medical-alt me-2"></i>
+        Dossier Patient - {{ patient.nom }} {{ patient.prenom }}
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button onclick="window.print()" style="
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 25px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        ">
+            <i class="fas fa-print me-2"></i>Imprimer / PDF
+        </button>
+        <button onclick="window.close()" style="
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 25px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        ">
+            <i class="fas fa-times me-2"></i>Fermer
+        </button>
+    </div>
+</div>
+
+<!-- Ajouter un padding-top pour compenser la barre fixe -->
+<div style="padding-top: 70px;">
+
+
+
+<!-- ============================================================ -->
+<!-- PAGE 1 : IDENTITÉ + HABITUDES + ANTÉCÉDENTS                   -->
+<!-- ============================================================ -->
+<div class="page">
+
+    <div class="header">
+        <h1>Dossier Médical du Patient</h1>
+        <div class="patient-id">N° Dossier : P{{ "%06d"|format(patient.id) }}</div>
+        <div style="font-size: 13px; color: #555;">{{ patient.nom }} {{ patient.prenom }}</div>
+    </div>
+
+    <!-- IDENTITÉ -->
+    <div class="section-title">Identité du patient</div>
+    <div class="info-grid">
+        <div class="item"><span class="label">Nom :</span> {{ patient.nom }}</div>
+        <div class="item"><span class="label">Prénom :</span> {{ patient.prenom }}</div>
+        <div class="item"><span class="label">Âge :</span> {{ age }} ans</div>
+        <div class="item"><span class="label">Sexe :</span> {{ patient.sexe or '-' }}</div>
+        <div class="item"><span class="label">Date naissance :</span> {{ patient.date_naissance.strftime('%d/%m/%Y') if patient.date_naissance else '-' }}</div>
+        <div class="item"><span class="label">Lieu naissance :</span> {{ patient.lieu_naissance or '-' }}</div>
+        <div class="item"><span class="label">Téléphone :</span> {{ patient.telephone or '-' }}</div>
+        <div class="item"><span class="label">Email :</span> {{ patient.email or '-' }}</div>
+        <div class="item"><span class="label">Profession :</span> {{ patient.profession or '-' }}</div>
+        <div class="item"><span class="label">Adresse :</span> {{ patient.adresse or '-' }}</div>
+        <div class="item"><span class="label">Assurance :</span> {{ patient.type_assurance or '-' }}</div>
+        <div class="item"><span class="label">Médecin traitant :</span> {{ patient.medecin_traitant or '-' }}</div>
+    </div>
+
+    <!-- HABITUDES DE VIE -->
+    <div class="section-title">Habitudes de vie</div>
+    <div class="info-grid">
+        <div class="item"><span class="label">Tabac :</span> {{ patient.tabac or 'Non' }}</div>
+        <div class="item"><span class="label">Alcool :</span> {{ patient.alcool or 'Non' }}</div>
+        <div class="item"><span class="label">Allaitement :</span> {{ 'Oui' if patient.allaitement else 'Non' }}</div>
+        <div class="item"><span class="label">Grossesse :</span> {{ 'Oui' if patient.grossesse else 'Non' }}</div>
+        <div class="item"><span class="label">Groupe sanguin :</span> {{ patient.groupe_sanguin or '-' }}</div>
+        <div class="item"><span class="label">Mutuelle :</span> {{ patient.mutuelle or '-' }}</div>
+    </div>
+
+    <!-- ANTÉCÉDENTS -->
+    <div class="section-title">Antécédents</div>
+    {% if antecedents %}
+    <table class="table">
+        <thead>
+            <tr><th>Type</th><th>Description</th><th>Début</th><th>Sévérité</th><th>Statut</th></tr>
+        </thead>
+        <tbody>
+            {% for a in antecedents %}
+            <tr>
+                <td><span class="badge 
+                    {% if a.type_antecedent == 'ALLERGIE' %}badge-danger
+                    {% elif a.type_antecedent == 'CHIRURGICAL' %}badge-info
+                    {% elif a.type_antecedent == 'MEDICAL' %}badge-primary
+                    {% elif a.type_antecedent == 'PSYCHOLOGIQUE' %}badge-secondary
+                    {% elif a.type_antecedent == 'OBSTETRIQUE' %}badge-pink
+                    {% else %}badge-secondary{% endif %}">{{ a.type_antecedent }}</span></td>
+                <td>{{ a.description }}</td>
+                <td>{{ a.date_debut.strftime('%d/%m/%Y') if a.date_debut else '-' }}</td>
+                <td>{{ a.severite or '-' }}</td>
+                <td>{{ 'Actif' if a.actif else 'Inactif' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #999; font-style: italic;">Aucun antécédent enregistré</p>
+    {% endif %}
+
+    <div class="footer">Document imprimé le {{ now.strftime('%d/%m/%Y à %H:%M') }} - Page 1</div>
+</div>
+
+<!-- ============================================================ -->
+<!-- PAGE 2 : CONSULTATIONS (COMPLÈTES)                            -->
+<!-- ============================================================ -->
+<div class="page">
+
+    <div class="header">
+        <h1>Dossier Médical du Patient</h1>
+        <div class="patient-id">{{ patient.nom }} {{ patient.prenom }} - P{{ "%06d"|format(patient.id) }}</div>
+    </div>
+
+    <div class="section-title">Consultations <span class="badge badge-primary">{{ consultations_data|length }}</span></div>
+
+    {% if consultations_data %}
+        {% for data in consultations_data %}
+        {% set c = data.consultation %}
+        <div class="consultation-block">
+            <div class="consultation-header">
+                <span class="date">{{ c.date_consultation.strftime('%d/%m/%Y %H:%M') }}</span>
+                <span class="medecin">
+                    {% if data.medecin %}Dr {{ data.medecin.prenom }} {{ data.medecin.nom }}{% else %}Médecin inconnu{% endif %}
+                </span>
+            </div>
+
+            <div class="detail-row"><span class="label">Motif :</span> <span class="value">{{ c.motif or '-' }}</span></div>
+            <div class="detail-row"><span class="label">Diagnostic :</span> <span class="value">{{ c.diagnostic or '-' }}</span></div>
+
+            <!-- HISTOIRE DE LA MALADIE -->
+            {% if c.histoire_maladie or c.hpi_date_debut or c.hpi_circonstances %}
+            <div class="hpv-block">
+                <span class="hpv-label">Histoire de la maladie</span>
+                <div style="white-space: pre-wrap; font-size: 11px; margin-top: 3px; padding: 5px; background: #f8f9fa; border-radius: 3px;">
+                    {% if c.histoire_maladie %}
+                        {{ c.histoire_maladie }}
+                    {% else %}
+                        {% if c.hpi_date_debut %}Début : {{ c.hpi_date_debut.strftime('%d/%m/%Y') }}{% endif %}
+                        {% if c.hpi_debut_type %} - {{ c.hpi_debut_type }}{% endif %}
+                        {% if c.hpi_circonstances %}<br>Circonstances : {{ c.hpi_circonstances }}{% endif %}
+                        {% if c.hpi_evolution %}<br>Évolution : {{ c.hpi_evolution }}{% endif %}
+                        {% if c.hpi_facteurs %}<br>Facteurs : {{ c.hpi_facteurs }}{% endif %}
+                        {% if c.hpi_traitements %}<br>Traitements : {{ c.hpi_traitements }}{% endif %}
+                        {% if c.hpi_signes %}<br>Signes : {{ c.hpi_signes }}{% endif %}
+                        {% if c.hpi_complements_medecin %}<br>Compléments : {{ c.hpi_complements_medecin }}{% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Constantes -->
+            {% if c.tension_arterielle or c.temperature_c %}
+            <div style="margin-top:5px;">
+                <strong>Constantes :</strong>
+                <span>TA: {{ c.tension_arterielle or '-' }}</span>
+                <span style="margin-left:15px;">T°: {{ c.temperature_c or '-' }} °C</span>
+                <span style="margin-left:15px;">Pouls: {{ c.pulse_bpm or '-' }} bpm</span>
+                <span style="margin-left:15px;">Poids: {{ c.poids_kg or '-' }} kg</span>
+            </div>
+            {% endif %}
+
+            <!-- EXAMEN PHYSIQUE - COMPLET SANS LIMITATION -->
+            {% if data.examen_physique and data.examen_physique.examen_complet %}
+            <div class="examen-physique-block">
+                <span class="ep-label">Examen physique</span>
+                <div style="white-space: pre-wrap; font-size: 11px; margin-top: 3px; padding: 8px; background: #f8f9fa; border-radius: 3px; border: 1px solid #e9ecef;">
+                    {{ data.examen_physique.examen_complet }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ORDONNANCE -->
+            {% if data.prescriptions %}
+            <div style="margin-top:8px;">
+                <strong style="color:#28a745;">Ordonnance :</strong>
+                <ul class="medicaments-list">
+                    {% for p in data.prescriptions %}
+                    <li><strong>{{ p.medicament }}</strong> 
+                        {% if p.dosage %}- {{ p.dosage }}{% endif %} 
+                        {% if p.posologie %}- {{ p.posologie }}{% endif %}
+                        {% if p.duree_jours %} ({{ p.duree_jours }} jours){% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <!-- EXAMENS PRESCRITS -->
+            {% if data.examens_prescrits %}
+            <div style="margin-top:5px;">
+                <strong style="color:#17a2b8;">Examens prescrits :</strong>
+                <ul style="margin:2px 0 0 20px;padding:0;">
+                    {% for e in data.examens_prescrits %}
+                    <li style="font-size:11px;">
+                        <strong>{{ e.nature }}</strong> - {{ e.motif or 'Non spécifié' }}
+                        <span class="badge 
+                            {% if e.statut == 'TERMINE' %}badge-success
+                            {% elif e.statut == 'EN_COURS' %}badge-warning
+                            {% else %}badge-secondary{% endif %}">
+                            {{ e.statut or 'En attente' }}
+                        </span>
+                        {% set examens_list = e.get_examens_list() %}
+                        {% if examens_list %}
+                            <ul style="margin:2px 0 0 15px;padding:0;">
+                            {% for ex in examens_list %}
+                                <li style="font-size:10px;">{{ ex }}</li>
+                            {% endfor %}
+                            </ul>
+                        {% endif %}
+                        <!-- RÉSULTATS -->
+                        {% if e.resultats %}
+                        <div class="resultat-block" style="margin-top:3px;">
+                            <span class="resultat-label">Résultats :</span>
+                            <div style="white-space: pre-wrap; font-size: 10px; padding: 5px; background: #fff; border-radius: 3px; margin-top: 3px;">
+                                {{ e.resultats }}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <!-- ANALYSES -->
+            {% if data.analyses %}
+            <div style="margin-top:5px;font-size:11px;">
+                <strong style="color:#6c757d;">Analyses :</strong>
+                {% for a in data.analyses %}
+                    {{ a.nom_analyse }}
+                    <span class="badge 
+                        {% if a.statut == 'TERMINE' %}badge-success
+                        {% elif a.statut == 'EN_COURS' %}badge-warning
+                        {% else %}badge-secondary{% endif %}">{{ a.statut }}</span>
+                    {% if a.resultats %}
+                    <div style="font-size:10px; color:#555; margin-left:10px; padding:3px 5px; background:#f8f9fa; border-radius:3px; margin-top:2px;">
+                        Résultat : {{ a.resultats|truncate(200) }}
+                    </div>
+                    {% endif %}
+                    {% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+    <p style="color: #999; font-style: italic;">Aucune consultation enregistrée</p>
+    {% endif %}
+
+    <div class="footer">Document imprimé le {{ now.strftime('%d/%m/%Y à %H:%M') }} - Page 2</div>
+</div>
+
+<!-- ============================================================ -->
+<!-- PAGE 3 : HOSPITALISATIONS (COMPLÈTES)                         -->
+<!-- ============================================================ -->
+<div class="page">
+
+    <div class="header">
+        <h1>Dossier Médical du Patient</h1>
+        <div class="patient-id">{{ patient.nom }} {{ patient.prenom }} - P{{ "%06d"|format(patient.id) }}</div>
+    </div>
+
+    <div class="section-title">Hospitalisations <span class="badge badge-info">{{ hospitalisations_data|length }}</span></div>
+
+    {% if hospitalisations_data %}
+        {% for hd in hospitalisations_data %}
+        {% set h = hd.hospitalisation %}
+        <div class="hospitalisation-block">
+            <div class="hosp-header">
+                <span class="date">{{ h.date_debut.strftime('%d/%m/%Y %H:%M') }}</span>
+                <span>
+                    <span class="statut-badge 
+                        {% if h.statut == 'actif' %}badge-success
+                        {% elif h.statut == 'sorti' %}badge-secondary
+                        {% elif h.statut == 'transfere' %}badge-warning
+                        {% else %}badge-secondary{% endif %}">
+                        {{ h.statut }}
+                    </span>
+                </span>
+            </div>
+
+            <div class="hosp-detail"><span class="label">Service :</span> {{ h.service }}</div>
+            <div class="hosp-detail"><span class="label">Motif :</span> {{ h.motif }}</div>
+            <div class="hosp-detail"><span class="label">Chambre :</span> {{ h.chambre or '-' }}</div>
+            {% if h.date_fin %}
+            <div class="hosp-detail"><span class="label">Date sortie :</span> {{ h.date_fin.strftime('%d/%m/%Y %H:%M') }}</div>
+            {% endif %}
+            {% if h.centre_transfert %}
+            <div class="hosp-detail"><span class="label">Transfert vers :</span> {{ h.centre_transfert }}</div>
+            {% endif %}
+
+            <!-- NOTE D'ADMISSION -->
+            {% if hd.note_active %}
+            <div class="note-block">
+                <span class="note-label">Note d'admission</span>
+                <div style="font-size: 11px; margin-top: 3px;">
+                    <div><strong>Motif :</strong> {{ hd.note_active.motif_admission or '-' }}</div>
+                    <div><strong>Contexte :</strong> {{ hd.note_active.contexte_admission or '-' }}</div>
+                    <div><strong>Examen clinique :</strong> {{ hd.note_active.examen_clinique_admission or '-' }}</div>
+                    <div><strong>Diagnostic :</strong> {{ hd.note_active.diagnostic_admission or '-' }}</div>
+                    <div><strong>Traitement :</strong> {{ hd.note_active.traitement_admission or '-' }}</div>
+                    <div><strong>Conclusion :</strong> {{ hd.note_active.conclusion_admission or '-' }}</div>
+                    {% if hd.note_active.examens_admission %}
+                    <div><strong>Examens :</strong> {{ hd.note_active.examens_admission }}</div>
+                    {% endif %}
+                    <div style="font-size: 10px; color: #888; margin-top: 3px;">
+                        Rédigé par : {{ hd.note_active.redacteur.prenom if hd.note_active.redacteur else 'Inconnu' }} {{ hd.note_active.redacteur.nom if hd.note_active.redacteur else '' }}
+                        le {{ hd.note_active.date_redaction.strftime('%d/%m/%Y %H:%M') if hd.note_active.date_redaction else '-' }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- PROTOCOLE -->
+            {% if h.protocole %}
+            <div class="hosp-sub-section">
+                <span class="sub-title"><span class="badge badge-protocole">Protocole</span> {{ h.protocole.nom }}</span>
+                <div style="font-size:11px; white-space: pre-line;">{{ h.protocole.description }}</div>
+            </div>
+            {% endif %}
+
+            <!-- ÉQUIPE SOIGNANTE -->
+            {% if hd.medecins %}
+            <div style="margin-top:5px;font-size:11px;">
+                <strong style="color:#1a3a5c;">Médecins :</strong>
+                {% for m in hd.medecins %}
+                    {{ m.medecin.prenom }} {{ m.medecin.nom }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if hd.infirmiers %}
+            <div style="font-size:11px;">
+                <strong style="color:#28a745;">Infirmiers :</strong>
+                {% for i in hd.infirmiers %}
+                    {{ i.infirmier.prenom }} {{ i.infirmier.nom }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- ORDONNANCE -->
+            {% if hd.ordonnance_medicaments %}
+            <div class="hosp-sub-section">
+                <span class="sub-title"><span class="badge badge-success">Ordonnance</span></span>
+                <ul class="medicaments-list">
+                    {% for med in hd.ordonnance_medicaments %}
+                    <li><strong>{{ med.medicament }}</strong> 
+                        {% if med.dosage %}- {{ med.dosage }}{% endif %} 
+                        {% if med.posologie %}- {{ med.posologie }}{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <!-- EXAMENS PRESCRITS -->
+            {% if hd.examens_prescrits %}
+            <div class="hosp-sub-section">
+                <span class="sub-title"><span class="badge badge-info">Examens prescrits</span></span>
+                <ul style="margin:2px 0 0 0;padding:0;">
+                    {% for e in hd.examens_prescrits %}
+                    <li style="font-size:11px;">
+                        <strong>{{ e.nature }}</strong> - {{ e.motif or 'Non spécifié' }}
+                        <span class="badge 
+                            {% if e.statut == 'TERMINE' %}badge-success
+                            {% elif e.statut == 'EN_COURS' %}badge-warning
+                            {% else %}badge-secondary{% endif %}">
+                            {{ e.statut or 'En attente' }}
+                        </span>
+                        {% if e.resultats %}
+                        <div class="resultat-block">
+                            <span class="resultat-label">Résultats :</span>
+                            <div style="white-space: pre-wrap; font-size: 10px;">{{ e.resultats }}</div>
+                        </div>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <!-- CONSTANTES -->
+            {% if hd.constantes %}
+            <div class="hosp-sub-section">
+                <span class="sub-title"><span class="badge badge-constante">Constantes</span> ({{ hd.constantes|length }})</span>
+                <div style="font-size:11px; max-height:100px; overflow:hidden;">
+                    {% for c in hd.constantes[:5] %}
+                    <div style="display:flex; gap:15px; flex-wrap:wrap; border-bottom:1px solid #eee; padding:2px 0;">
+                        <span>{{ c.date_prise.strftime('%d/%m %H:%M') }}</span>
+                        <span>T°: {{ c.temperature or '-' }}°C</span>
+                        <span>PA: {{ c.pression_arterielle or '-' }}</span>
+                        <span>FC: {{ c.frequence_cardiaque or '-' }}</span>
+                        <span>SpO₂: {{ c.saturation_oxygene or '-' }}%</span>
+                        <span>Douleur: {{ c.douleur or '-' }}/10</span>
+                    </div>
+                    {% endfor %}
+                    {% if hd.constantes|length > 5 %}
+                    <div style="color:#888; font-style:italic;">... et {{ hd.constantes|length - 5 }} autre(s)</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ÉVOLUTIONS -->
+            {% if hd.evolutions %}
+            <div class="hosp-sub-section">
+                <span class="sub-title"><span class="badge badge-evolution">Évolutions</span> ({{ hd.evolutions|length }})</span>
+                <div style="font-size:11px; max-height:100px; overflow:hidden;">
+                    {% for ev in hd.evolutions[:3] %}
+                    <div style="border-bottom:1px solid #eee; padding:3px 0;">
+                        <div><strong>{{ ev.date_evolution.strftime('%d/%m %H:%M') }}</strong> 
+                            <span class="badge 
+                                {% if ev.etat_echelle >= 7 %}badge-success
+                                {% elif ev.etat_echelle >= 4 %}badge-warning
+                                {% else %}badge-danger{% endif %}">
+                                État: {{ ev.etat_echelle }}/10
+                            </span>
+                        </div>
+                        <div style="font-size:10px; color:#555;">{{ ev.observations|truncate(100) or '-' }}</div>
+                    </div>
+                    {% endfor %}
+                    {% if hd.evolutions|length > 3 %}
+                    <div style="color:#888; font-style:italic;">... et {{ hd.evolutions|length - 3 }} autre(s)</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- AVIS EXTERNES -->
+            {% if hd.avis_externes %}
+            <div class="hosp-sub-section">
+                <span class="sub-title"><span class="badge badge-avis">Avis externes</span> ({{ hd.avis_externes|length }})</span>
+                {% for avis in hd.avis_externes[:3] %}
+                <div class="avis-block" style="font-size:11px;">
+                    <div><span class="avis-medecin">{{ avis.medecin_nom }}</span> 
+                        {% if avis.specialite %}({{ avis.specialite }}){% endif %}
+                        <span style="color:#888;font-size:10px;">{{ avis.date_demande.strftime('%d/%m/%Y') }}</span>
+                    </div>
+                    <div><strong>Demande :</strong> {{ avis.demande_avis or '-' }}</div>
+                    <div><strong>Avis :</strong> {{ avis.avis_recu|truncate(100) }}</div>
+                </div>
+                {% endfor %}
+                {% if hd.avis_externes|length > 3 %}
+                <div style="color:#888; font-style:italic; font-size:11px;">... et {{ hd.avis_externes|length - 3 }} autre(s)</div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+    <p style="color: #999; font-style: italic;">Aucune hospitalisation enregistrée</p>
+    {% endif %}
+
+    <div class="footer">Document imprimé le {{ now.strftime('%d/%m/%Y à %H:%M') }} - Page 3</div>
+</div>
+
+<!-- ============================================================ -->
+<!-- PAGE 4 : ENGAGEMENTS                                          -->
+<!-- ============================================================ -->
+<div class="page">
+
+    <div class="header">
+        <h1>Dossier Médical du Patient</h1>
+        <div class="patient-id">{{ patient.nom }} {{ patient.prenom }} - P{{ "%06d"|format(patient.id) }}</div>
+    </div>
+
+    <div class="section-title">Engagements <span class="badge badge-engagement">{{ engagements|length }}</span></div>
+
+    {% if engagements %}
+        {% for engagement in engagements %}
+        <div class="engagement-block">
+            <div class="eng-header">
+                <span class="type">
+                    <span class="badge 
+                        {% if engagement.type_engagement == 'DNR' %}badge-danger
+                        {% elif engagement.type_engagement == 'REFUS_TRAITEMENT' %}badge-warning
+                        {% elif engagement.type_engagement == 'SORTIE_AVIS' %}badge-info
+                        {% else %}badge-secondary{% endif %}">
+                        {{ engagement.get_type_label() }}
+                    </span>
+                    <span style="font-size:11px; color:#888;">#{{ engagement.id }}</span>
+                </span>
+                <span style="font-size:11px; color:#888;">Créé le {{ engagement.date_creation.strftime('%d/%m/%Y %H:%M') }}</span>
+            </div>
+            <div class="eng-content">{{ engagement.contenu }}</div>
+            <div style="font-size:10px; color:#888; margin-top:3px;">
+                <strong>Médecin :</strong> Dr {{ engagement.medecin.prenom }} {{ engagement.medecin.nom }}
+                {% if engagement.signe_par_patient %}
+                    <span class="badge badge-success">✓ Patient signé</span>
+                {% endif %}
+                {% if engagement.signe_par_medecin %}
+                    <span class="badge badge-success">✓ Médecin signé</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <p style="color: #999; font-style: italic;">Aucun engagement enregistré</p>
+    {% endif %}
+
+    <!-- SIGNATURE -->
+    <div class="signature-section">
+        <div><div class="signature-line">Signature du médecin</div></div>
+        <div><div class="signature-line">Cachet du médecin</div></div>
+    </div>
+
+    <div class="footer">Document imprimé le {{ now.strftime('%d/%m/%Y à %H:%M') }} - Page 4</div>
+</div>
+
+</body>
+</html>

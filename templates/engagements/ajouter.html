@@ -6,7 +6,6 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3">
-            <i class="fas fa-file-signature me-2 text-primary"></i>
             Nouvel engagement
             {% if patient %}
                 <small class="text-muted">- {{ patient.prenom }} {{ patient.nom }}</small>
@@ -36,7 +35,7 @@
                 <div id="patientResults" class="list-group mt-1" style="max-height: 250px; overflow-y: auto; display: none;"></div>
                 <div id="patientSelected" class="mt-2" style="display: none;">
                     <div class="alert alert-success py-1 px-2">
-                        <strong>✅ Patient sélectionné :</strong> 
+                        <strong> Patient sélectionné :</strong> 
                         <span id="selectedPatientName"></span>
                         <button type="button" class="btn btn-sm btn-outline-danger float-end" onclick="clearPatient()">
                             <i class="fas fa-times"></i>
@@ -50,7 +49,7 @@
                 <strong>Patient :</strong> {{ patient.prenom }} {{ patient.nom }}
                 <span class="text-muted">(N° {{ patient.patient_source_id or 'P' + patient.id|string }})</span>
                 <a href="{{ url_for('engagements.liste') }}" class="btn btn-sm btn-outline-secondary float-end">
-                    <i class="fas fa-times"></i> Changer
+                    Changer
                 </a>
             </div>
             {% endif %}
@@ -94,7 +93,7 @@
 
                 <div id="champsCommun" style="display: none;">
 <!-- Témoins -->
-<h5 class="mt-4"><i class="fas fa-users me-2"></i>Témoins (recommandé)</h5>
+<h5 class="mt-4">Témoins (recommandé)</h5>
 <hr>
 <div class="row">
     <div class="col-md-6 mb-3">
@@ -108,7 +107,7 @@
 </div>
 
 <!-- Représentant légal -->
-<h5 class="mt-4"><i class="fas fa-gavel me-2"></i>Représentant légal</h5>
+<h5 class="mt-4">Représentant légal</h5>
 <hr>
 <div class="row">
     <div class="col-md-6 mb-3">
@@ -131,7 +130,7 @@
 
                 <div class="mt-4">
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-2"></i>Créer l'engagement
+                        Créer l'engagement
                     </button>
                     <a href="{{ url_for('engagements.liste', patient_id=patient.id if patient else '') }}" class="btn btn-secondary">
                         <i class="fas fa-times me-2"></i>Annuler

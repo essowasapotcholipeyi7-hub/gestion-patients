@@ -4,134 +4,342 @@
 
 {% block content %}
 <div class="container-fluid">
+    <!-- ============================================================ -->
+    <!-- EN-TÊTE                                                       -->
+    <!-- ============================================================ -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">
-            <i class="fas fa-users me-2"></i>
-            Liste des patients
-        </h1>
+        <div>
+            <h1 class="h3">
+                <i class="fas fa-users me-2"></i>
+                Liste des patients
+                {% if statut_actuel %}
+                    <span class="badge bg-primary ms-2">
+                        {{ statut_actuel|replace('_', ' ')|title }}
+                    </span>
+                {% endif %}
+            </h1>
+            <p class="text-muted mb-0">
+                <i class="fas fa-user me-1"></i>
+                Total : {{ patients|length }} patient(s)
+            </p>
+        </div>
         <a href="{{ url_for('patient_ajouter') }}" class="btn btn-primary">
             <i class="fas fa-user-plus me-2"></i>Nouveau patient
         </a>
     </div>
 
-    <!-- Barre de recherche -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-8">
-                    <input type="text" id="searchInput" class="form-control" placeholder="Rechercher par nom, prénom, téléphone...">
-                </div>
-                <div class="col-md-4">
-                    <select id="assuranceFilter" class="form-select">
-                        <option value="">Toutes les assurances</option>
-                        <option value="AMU-CNSS">AMU-CNSS</option>
-                        <option value="AMU-INAM">AMU-INAM</option>
-                        <option value="AUTRE_ASSURANCE">Autre assurance</option>
-                        <option value="NON_ASSURÉ">Non assuré</option>
-                    </select>
-                </div>
-            </div>
+    <!-- ============================================================ -->
+    <!-- FILTRES RAPIDES PAR STATUT                                    -->
+    <!-- ============================================================ -->
+    <div class="mb-3">
+        <div class="btn-group" role="group">
+            <a href="{{ url_for('patients_list') }}" class="btn btn-outline-secondary {% if not statut_actuel %}active{% endif %}">
+                <i class="fas fa-list me-1"></i>Tous
+                <span class="badge bg-secondary ms-1">{{ patients|length }}</span>
+            </a>
+            <a href="{{ url_for('patients_list') }}?statut=PREMIERE_VISITE" class="btn btn-outline-info {% if statut_actuel == 'PREMIERE_VISITE' %}active{% endif %}">
+                <i class="fas fa-user-clock me-1"></i>Première visite
+                <span class="badge bg-info ms-1">{{ total_attente or 0 }}</span>
+            </a>
+            <a href="{{ url_for('patients_list') }}?statut=EN_TRAITEMENT" class="btn btn-outline-warning {% if statut_actuel == 'EN_TRAITEMENT' %}active{% endif %}">
+                <i class="fas fa-prescription me-1"></i>En traitement
+                <span class="badge bg-warning ms-1">{{ total_traitement or 0 }}</span>
+            </a>
+            <a href="{{ url_for('patients_list') }}?statut=GUERI" class="btn btn-outline-success {% if statut_actuel == 'GUERI' %}active{% endif %}">
+                <i class="fas fa-check-circle me-1"></i>Guéris
+                <span class="badge bg-success ms-1">{{ total_gueris or 0 }}</span>
+            </a>
+            <a href="{{ url_for('patients_list') }}?statut=TRANSFERE" class="btn btn-outline-secondary {% if statut_actuel == 'TRANSFERE' %}active{% endif %}">
+                <i class="fas fa-ambulance me-1"></i>Transférés
+                <span class="badge bg-secondary ms-1">{{ total_transferes or 0 }}</span>
+            </a>
         </div>
     </div>
 
-    <!-- Tableau des patients -->
-    <div class="card">
+    <!-- ============================================================ -->
+    <!-- BARRE DE RECHERCHE ET FILTRES                                 -->
+    <!-- ============================================================ -->
+    <div class="card mb-4 border-0 shadow-sm">
         <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover" id="patientsTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Nom</th>
-                            <th>Prénom</th>
-                            <th>Téléphone</th>
-                            <th>Assurance</th>
-                            <th>Statut médical</th>
-                            <th>Dernière consultation</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for patient in patients %}
-                        <tr>
-                            <td>{{ patient.id }}</td>
-                            <td>{{ patient.nom }}</td>
-                            <td>{{ patient.prenom }}</td>
-                            <td>{{ patient.telephone or '-' }}</td>
-                            <td>
-                                {% if patient.type_assurance == 'AMU-CNSS' %}
-                                    <span class="badge bg-primary">AMU-CNSS</span>
-                                {% elif patient.type_assurance == 'AMU-INAM' %}
-                                    <span class="badge bg-info">AMU-INAM</span>
-                                {% elif patient.type_assurance == 'AUTRE_ASSURANCE' %}
-                                    <span class="badge bg-warning">Autre</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">Non assuré</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if patient.statut_medical == 'GUERI' %}
-                                    <span class="badge bg-success">Guéri</span>
-                                {% elif patient.statut_medical == 'EN_TRAITEMENT' %}
-                                    <span class="badge bg-warning">En traitement</span>
-                                {% elif patient.statut_medical == 'PREMIERE_VISITE' %}
-                                    <span class="badge bg-info">Première visite</span>
-                                {% elif patient.statut_medical == 'DECEDE' %}
-                                    <span class="badge bg-danger">Décédé</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ patient.statut_medical or 'Inconnu' }}</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ patient.date_derniere_consultation.strftime('%d/%m/%Y') if patient.date_derniere_consultation else '-' }}</td>
-                            <td>
-                                <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-sm btn-outline-primary" title="Voir">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="{{ url_for('patient_modifier', id=patient.id) }}" class="btn btn-sm btn-outline-secondary" title="Modifier">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <a href="{{ url_for('consultation_ajouter_avec_patient', id=patient.id) }}" class="btn btn-sm btn-outline-info" title="Nouvelle consultation">
-                                    <i class="fas fa-stethoscope"></i>
-                                </a>
-                            </td>
-                        </tr>
+            <form method="GET" action="{{ url_for('patients_list') }}" class="row g-3" id="searchForm">
+                <div class="col-md-5">
+                    <div class="input-group">
+                        <span class="input-group-text bg-primary text-white">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" name="search" id="searchInput" class="form-control" 
+                               placeholder="Rechercher par nom, prénom, téléphone..." 
+                               value="{{ search or '' }}">
+                        <input type="hidden" name="statut" value="{{ statut_actuel or '' }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select name="assurance" id="assuranceFilter" class="form-select">
+                        <option value="">Toutes les assurances</option>
+                        <option value="AMU-CNSS" {% if assurance_filter == 'AMU-CNSS' %}selected{% endif %}>AMU-CNSS</option>
+                        <option value="AMU-INAM" {% if assurance_filter == 'AMU-INAM' %}selected{% endif %}>AMU-INAM</option>
+                        <option value="AUTRE_ASSURANCE" {% if assurance_filter == 'AUTRE_ASSURANCE' %}selected{% endif %}>Autre assurance</option>
+                        <option value="NON_ASSURÉ" {% if assurance_filter == 'NON_ASSURÉ' %}selected{% endif %}>Non assuré</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-2"></i>Rechercher
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <a href="{{ url_for('patients_list') }}" class="btn btn-outline-secondary w-100">
+                        <i class="fas fa-times me-2"></i>Réinitialiser
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TABLEAU DES PATIENTS                                          -->
+    <!-- ============================================================ -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            {% if patients %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped" id="patientsTable">
+                        <thead>
+                            <tr>
+                                <th>N°</th>
+                                <th>Nom</th>
+                                <th>Prénom</th>
+                                <th>Téléphone</th>
+                                <th>Assurance</th>
+                                <th>Statut médical</th>
+                                <th>Dernière consultation</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for patient in patients %}
+                            <tr>
+                                <td>
+                                    <span class="fw-bold">P{{ "%05d" % patient.id }}</span>
+                                </td>
+                                <td>{{ patient.nom }}</td>
+                                <td>{{ patient.prenom }}</td>
+                                <td>
+                                    {% if patient.telephone %}
+                                        <a href="tel:{{ patient.telephone }}" class="text-decoration-none">
+                                            {{ patient.telephone }}
+                                        </a>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if patient.type_assurance == 'AMU-CNSS' %}
+                                        <span class="badge bg-primary">AMU-CNSS</span>
+                                    {% elif patient.type_assurance == 'AMU-INAM' %}
+                                        <span class="badge bg-info text-white">AMU-INAM</span>
+                                    {% elif patient.type_assurance == 'AUTRE_ASSURANCE' %}
+                                        <span class="badge bg-warning text-dark">
+                                            {{ patient.autre_assurance_nom or 'Autre' }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Non assuré</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if patient.statut_medical == 'GUERI' %}
+                                        <span class="badge bg-success">Guéri</span>
+                                    {% elif patient.statut_medical == 'EN_TRAITEMENT' %}
+                                        <span class="badge bg-warning text-dark">En traitement</span>
+                                    {% elif patient.statut_medical == 'PREMIERE_VISITE' %}
+                                        <span class="badge bg-info text-white">1ère visite</span>
+                                    {% elif patient.statut_medical == 'TRANSFERE' %}
+                                        <span class="badge bg-secondary">Transféré</span>
+                                    {% elif patient.statut_medical == 'PERDU_VUE' %}
+                                        <span class="badge bg-dark">Perdu de vue</span>
+                                    {% elif patient.statut_medical == 'DECEDE' %}
+                                        <span class="badge bg-danger">Décédé</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ patient.statut_medical or 'Inconnu' }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if patient.date_derniere_consultation %}
+                                        <span class="text-muted" style="font-size: 13px;">
+                                            {{ patient.date_derniere_consultation.strftime('%d/%m/%Y') }}
+                                            <br>
+                                            <small class="text-muted">{{ patient.date_derniere_consultation.strftime('%H:%M') }}</small>
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-outline-primary" title="Voir le dossier">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('patient_modifier', id=patient.id) }}" class="btn btn-outline-secondary" title="Modifier">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{{ url_for('consultation_ajouter_avec_patient', id=patient.id) }}" class="btn btn-outline-info" title="Nouvelle consultation">
+                                            <i class="fas fa-stethoscope"></i>
+                                        </a>
+                                        <a href="{{ url_for('imprimer_dossier_patient', patient_id=patient.id) }}" class="btn btn-outline-success" title="Imprimer le dossier" target="_blank">
+                                            <i class="fas fa-print"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-users fa-4x text-muted opacity-25 mb-3"></i>
+                    <h5 class="text-muted">
+                        {% if statut_actuel %}
+                            Aucun patient avec le statut "{{ statut_actuel|replace('_', ' ')|title }}"
                         {% else %}
-                        <tr>
-                            <td colspan="8" class="text-center">Aucun patient trouvé</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                            Aucun patient enregistré
+                        {% endif %}
+                    </h5>
+                    <p class="text-muted">Commencez par créer un nouveau patient.</p>
+                    <a href="{{ url_for('patient_ajouter') }}" class="btn btn-primary">
+                        <i class="fas fa-user-plus me-2"></i>Ajouter un patient
+                    </a>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
+<!-- ============================================================ -->
+<!-- JAVASCRIPT                                                    -->
+<!-- ============================================================ -->
 <script>
-// Filtre de recherche
-document.getElementById('searchInput').addEventListener('keyup', function() {
-    let filter = this.value.toLowerCase();
-    let rows = document.querySelectorAll('#patientsTable tbody tr');
+document.addEventListener('DOMContentLoaded', function() {
+    // ============================================================ //
+    // RECHERCHE EN TEMPS RÉEL (client-side)                         //
+    // ============================================================ //
+    const searchInput = document.getElementById('searchInput');
+    const assuranceFilter = document.getElementById('assuranceFilter');
+    const rows = document.querySelectorAll('#patientsTable tbody tr');
     
-    rows.forEach(row => {
-        let text = row.textContent.toLowerCase();
-        row.style.display = text.includes(filter) ? '' : 'none';
-    });
-});
-
-// Filtre par assurance
-document.getElementById('assuranceFilter').addEventListener('change', function() {
-    let filter = this.value;
-    let rows = document.querySelectorAll('#patientsTable tbody tr');
+    function filtrerTableau() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const assuranceValue = assuranceFilter.value;
+        
+        rows.forEach(row => {
+            let visible = true;
+            
+            // Filtre par recherche
+            if (searchTerm) {
+                const text = row.textContent.toLowerCase();
+                if (!text.includes(searchTerm)) {
+                    visible = false;
+                }
+            }
+            
+            // Filtre par assurance
+            if (visible && assuranceValue) {
+                const assuranceCell = row.cells[4];
+                if (assuranceCell) {
+                    const assuranceText = assuranceCell.textContent;
+                    if (!assuranceText.includes(assuranceValue) && 
+                        !assuranceText.includes(assuranceValue.replace('_', ' '))) {
+                        visible = false;
+                    }
+                }
+            }
+            
+            row.style.display = visible ? '' : 'none';
+        });
+    }
     
-    rows.forEach(row => {
-        let assurance = row.cells[4]?.textContent || '';
-        if (filter === '' || assurance.includes(filter)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
+    // Événements
+    if (searchInput) {
+        searchInput.addEventListener('input', filtrerTableau);
+    }
+    if (assuranceFilter) {
+        assuranceFilter.addEventListener('change', filtrerTableau);
+    }
+    
+    // ============================================================ //
+    // COMPTEUR DE RÉSULTATS                                         //
+    // ============================================================ //
+    function updateResultCount() {
+        const visibleRows = document.querySelectorAll('#patientsTable tbody tr:not([style*="display: none"])');
+        const total = document.querySelectorAll('#patientsTable tbody tr').length;
+        const countElement = document.querySelector('.result-count');
+        if (countElement) {
+            countElement.textContent = visibleRows.length + ' / ' + total;
         }
+    }
+    
+    // Mettre à jour le compteur après chaque filtre
+    const observer = new MutationObserver(function() {
+        updateResultCount();
+    });
+    
+    rows.forEach(row => {
+        observer.observe(row, { attributes: true, attributeFilter: ['style'] });
     });
 });
 </script>
+
+<style>
+/* Style pour le tableau */
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+}
+.table td {
+    vertical-align: middle;
+    font-size: 14px;
+}
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Badges */
+.badge {
+    font-weight: 500;
+    padding: 4px 10px;
+}
+
+/* Boutons d'action */
+.btn-group .btn {
+    border-radius: 4px !important;
+    margin: 0 1px;
+}
+.btn-group .btn:hover {
+    z-index: 2;
+}
+
+/* Animation hover sur les lignes */
+.table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+/* Filtres rapides */
+.btn-group .btn {
+    border-radius: 0;
+}
+.btn-group .btn:first-child {
+    border-radius: 4px 0 0 4px;
+}
+.btn-group .btn:last-child {
+    border-radius: 0 4px 4px 0;
+}
+.btn-group .btn.active {
+    z-index: 2;
+}
+</style>
 {% endblock %}

@@ -3,273 +3,402 @@
 {% block title %}Dashboard - {{ current_user.prenom }} {{ current_user.nom }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">
-            <i class="fas fa-chart-line me-2"></i>
-            Tableau de bord
-            {% if current_user.role == 'medecin' %}
-                - Dr {{ current_user.prenom }} {{ current_user.nom }}
-            {% elif current_user.role == 'infirmier' %}
-                - Infirmier {{ current_user.prenom }} {{ current_user.nom }}
-            {% elif current_user.role == 'secretaire' %}
-                - Secrétaire {{ current_user.prenom }} {{ current_user.nom }}
-            {% elif current_user.role == 'admin_structure' %}
-                - Admin {{ current_user.prenom }} {{ current_user.nom }}
-            {% else %}
-                - {{ current_user.prenom }} {{ current_user.nom }}
-            {% endif %}
-        </h1>
+<div class="container-fluid px-0">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
         <div>
-            <span class="badge bg-primary fs-6">
-                <i class="fas fa-building me-1"></i> {{ current_user.structure.nom if current_user.structure else 'Structure' }}
-            </span>
-            <span class="badge bg-secondary fs-6 ms-2">
-                <i class="fas fa-user-tag me-1"></i>
-                {% if current_user.role == 'medecin' %}
-                    👨‍⚕️ Médecin
-                {% elif current_user.role == 'infirmier' %}
-                    🩺 Infirmier
-                {% elif current_user.role == 'secretaire' %}
-                    📋 Secrétaire
-                {% elif current_user.role == 'admin_structure' %}
-                    👑 Admin
-                {% else %}
-                    {{ current_user.role }}
-                {% endif %}
+            <h1 class="h4 mb-1">
+                <i class="fas fa-chart-line me-2 text-primary"></i>
+                Tableau de bord
+            </h1>
+            <p class="text-muted mb-0 small">
+                {{ current_user.prenom }} {{ current_user.nom }}
+                <span class="badge bg-light text-dark border ms-1">
+                    {{ current_user.role|replace('_', ' ')|title }}
+                </span>
+                <span class="mx-2">·</span>
+                <i class="fas fa-building me-1"></i>{{ current_user.structure.nom if current_user.structure else 'Structure' }}
+                <span class="mx-2">·</span>
+                <i class="fas fa-calendar-alt me-1"></i>{{ now.strftime('%A %d %B %Y') }}
+            </p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-outline-secondary btn-sm" onclick="window.location.reload()">
+                <i class="fas fa-sync-alt me-1"></i>Rafraîchir
+            </button>
+            <span class="badge bg-success">
+                <i class="fas fa-circle me-1" style="font-size: 7px;"></i>En ligne
             </span>
         </div>
     </div>
 
-    <!-- Cartes statistiques adaptées au rôle -->
-    <div class="row mb-4">
-        <!-- Patients -->
-        <div class="col-md-3 mb-3">
-            <div class="card bg-primary text-white h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="card-title">
-                                {% if current_user.role == 'infirmier' %}
-                                    Patients suivis
-                                {% else %}
-                                    Mes patients
-                                {% endif %}
-                            </h6>
-                            <h2 class="display-6">{{ patients_actifs }}</h2>
+    <!-- ============================================================ -->
+    <!-- KPI CARDS (adaptés au rôle)                                  -->
+    <!-- ============================================================ -->
+    <div class="row g-3 mb-4">
+        <!-- Carte 1 : Patients -->
+        <div class="col-xl-3 col-lg-6 col-md-6">
+            <a href="{{ url_for('patients_list') }}" class="text-decoration-none">
+                <div class="card h-100 hover-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="text-muted text-uppercase small fw-semibold">
+                                    {% if current_user.role == 'infirmier' %}Patients suivis{% else %}Mes patients{% endif %}
+                                </span>
+                                <h2 class="fw-bold mb-0 mt-1 kpi-number">{{ patients_actifs }}</h2>
+                                <small class="text-muted">
+                                    <i class="fas fa-arrow-up text-success me-1"></i>+{{ patients_actifs|default(0) }} total
+                                </small>
+                            </div>
+                            <div class="kpi-icon kpi-icon-primary">
+                                <i class="fas fa-users"></i>
+                            </div>
                         </div>
-                        <i class="fas fa-users fa-3x opacity-50"></i>
+                        <div class="mt-3">
+                            <div class="progress"><div class="progress-bar bg-primary" style="width: 75%;"></div></div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
-        
-        <!-- Consultations -->
-        <div class="col-md-3 mb-3">
-            <div class="card bg-success text-white h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="card-title">
-                                {% if current_user.role == 'infirmier' %}
-                                    Patients hospitalisés
-                                {% else %}
-                                    Consultations aujourd'hui
-                                {% endif %}
-                            </h6>
-                            <h2 class="display-6">
-                                {% if current_user.role == 'infirmier' %}
-                                    {{ hospitalisations_actives or 0 }}
-                                {% else %}
-                                    {{ consultations_aujourdhui }}
-                                {% endif %}
-                            </h2>
+
+        <!-- Carte 2 : Consultations / Hospitalisations -->
+        <div class="col-xl-3 col-lg-6 col-md-6">
+            <a href="{% if current_user.role == 'infirmier' %}{{ url_for('liste_hospitalisations') }}{% else %}{{ url_for('consultation_ajouter') }}{% endif %}" class="text-decoration-none">
+                <div class="card h-100 hover-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="text-muted text-uppercase small fw-semibold">
+                                    {% if current_user.role == 'infirmier' %}Hospitalisations{% else %}Consultations aujourd'hui{% endif %}
+                                </span>
+                                <h2 class="fw-bold mb-0 mt-1 kpi-number">
+                                    {% if current_user.role == 'infirmier' %}{{ hospitalisations_actives or 0 }}{% else %}{{ consultations_aujourdhui }}{% endif %}
+                                </h2>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar-day me-1"></i>
+                                    {% if current_user.role == 'infirmier' %}Actives{% else %}Aujourd'hui{% endif %}
+                                </small>
+                            </div>
+                            <div class="kpi-icon kpi-icon-success">
+                                <i class="fas fa-{% if current_user.role == 'infirmier' %}hospital{% else %}stethoscope{% endif %}"></i>
+                            </div>
                         </div>
-                        <i class="fas fa-{% if current_user.role == 'infirmier' %}hospital{% else %}calendar-day{% endif %} fa-3x opacity-50"></i>
+                        <div class="mt-3">
+                            <div class="progress"><div class="progress-bar bg-success" style="width: 60%;"></div></div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
-        
-        <!-- Prescriptions / Constantes -->
-        <div class="col-md-3 mb-3">
-            <div class="card bg-info text-white h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="card-title">
-                                {% if current_user.role == 'infirmier' %}
-                                    Constantes prises
-                                {% else %}
-                                    Prescriptions actives
-                                {% endif %}
-                            </h6>
-                            <h2 class="display-6">
-                                {% if current_user.role == 'infirmier' %}
-                                    {{ constantes_prises or 0 }}
-                                {% else %}
-                                    {{ prescriptions_actives }}
-                                {% endif %}
-                            </h2>
+
+        <!-- Carte 3 : Prescriptions / Constantes -->
+        <div class="col-xl-3 col-lg-6 col-md-6">
+            <a href="{% if current_user.role == 'infirmier' %}{{ url_for('infirmier_dashboard') }}{% else %}{{ url_for('prescription_ajouter') }}{% endif %}" class="text-decoration-none">
+                <div class="card h-100 hover-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="text-muted text-uppercase small fw-semibold">
+                                    {% if current_user.role == 'infirmier' %}Constantes prises{% else %}Prescriptions actives{% endif %}
+                                </span>
+                                <h2 class="fw-bold mb-0 mt-1 kpi-number">
+                                    {% if current_user.role == 'infirmier' %}{{ constantes_prises or 0 }}{% else %}{{ prescriptions_actives }}{% endif %}
+                                </h2>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock me-1"></i>
+                                    {% if current_user.role == 'infirmier' %}Ce jour{% else %}En cours{% endif %}
+                                </small>
+                            </div>
+                            <div class="kpi-icon kpi-icon-info">
+                                <i class="fas fa-{% if current_user.role == 'infirmier' %}heartbeat{% else %}prescription{% endif %}"></i>
+                            </div>
                         </div>
-                        <i class="fas fa-{% if current_user.role == 'infirmier' %}heartbeat{% else %}prescription-bottle{% endif %} fa-3x opacity-50"></i>
+                        <div class="mt-3">
+                            <div class="progress"><div class="progress-bar bg-info" style="width: 45%;"></div></div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
-        
-        <!-- Patients guéris / Sortis -->
-        <div class="col-md-3 mb-3">
-            <div class="card bg-warning text-white h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="card-title">
-                                {% if current_user.role == 'infirmier' %}
-                                    Patients sortis
-                                {% else %}
-                                    Patients guéris
-                                {% endif %}
-                            </h6>
-                            <h2 class="display-6">{{ patients_gueris }}</h2>
+
+        <!-- Carte 4 : Patients guéris / Sortis -->
+        <div class="col-xl-3 col-lg-6 col-md-6">
+            <a href="{{ url_for('patients_list') }}?statut=GUERI" class="text-decoration-none">
+                <div class="card h-100 hover-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="text-muted text-uppercase small fw-semibold">
+                                    {% if current_user.role == 'infirmier' %}Patients sortis{% else %}Patients guéris{% endif %}
+                                </span>
+                                <h2 class="fw-bold mb-0 mt-1 kpi-number">{{ patients_gueris }}</h2>
+                                <small class="text-muted">
+                                    <i class="fas fa-check-circle text-success me-1"></i>Taux de réussite
+                                </small>
+                            </div>
+                            <div class="kpi-icon kpi-icon-warning">
+                                <i class="fas fa-{% if current_user.role == 'infirmier' %}door-open{% else %}heart{% endif %}"></i>
+                            </div>
                         </div>
-                        <i class="fas fa-{% if current_user.role == 'infirmier' %}check-double{% else %}heartbeat{% endif %} fa-3x opacity-50"></i>
+                        <div class="mt-3">
+                            <div class="progress"><div class="progress-bar bg-warning" style="width: 85%;"></div></div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
-    <!-- Actions rapides (adaptées au rôle) -->
+    <!-- ============================================================ -->
+    <!-- ACTIONS RAPIDES                                              -->
+    <!-- ============================================================ -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Actions rapides</h5>
+                    <i class="fas fa-bolt text-warning me-2"></i>Actions rapides
                 </div>
                 <div class="card-body">
-                    {% if current_user.role == 'medecin' %}
-                        <a href="{{ url_for('patient_ajouter') }}" class="btn btn-primary me-2">
-                            <i class="fas fa-user-plus me-2"></i>Nouveau patient
+                    <div class="d-flex flex-wrap gap-2">
+                        {% if current_user.role == 'medecin' %}
+                            <a href="{{ url_for('patient_ajouter') }}" class="btn btn-primary">
+                                <i class="fas fa-user-plus me-2"></i>Nouveau patient
+                            </a>
+                            <a href="{{ url_for('consultation_ajouter') }}" class="btn btn-success">
+                                <i class="fas fa-stethoscope me-2"></i>Nouvelle consultation
+                            </a>
+                            <a href="{{ url_for('prescription_ajouter') }}" class="btn btn-info text-white">
+                                <i class="fas fa-prescription me-2"></i>Nouvelle prescription
+                            </a>
+                        {% elif current_user.role == 'infirmier' %}
+                            <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-primary">
+                                <i class="fas fa-hospital me-2"></i>Voir hospitalisations
+                            </a>
+                            <a href="{{ url_for('infirmier_dashboard') }}" class="btn btn-success">
+                                <i class="fas fa-user-nurse me-2"></i>Prise en charge
+                            </a>
+                        {% elif current_user.role == 'secretaire' %}
+                            <a href="{{ url_for('patients_list') }}" class="btn btn-primary">
+                                <i class="fas fa-users me-2"></i>Liste patients
+                            </a>
+                            <a href="{{ url_for('patient_ajouter') }}" class="btn btn-success">
+                                <i class="fas fa-user-plus me-2"></i>Nouveau patient
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('patients_list') }}" class="btn btn-primary">
+                                <i class="fas fa-users me-2"></i>Liste patients
+                            </a>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-success">
+                                <i class="fas fa-home me-2"></i>Accueil
+                            </a>
+                        {% endif %}
+                        <a href="{{ url_for('recherche_patients') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-search me-2"></i>Rechercher un patient
                         </a>
-                        <a href="{{ url_for('consultation_ajouter') }}" class="btn btn-success me-2">
-                            <i class="fas fa-stethoscope me-2"></i>Nouvelle consultation
-                        </a>
-                        <a href="{{ url_for('prescription_ajouter') }}" class="btn btn-info me-2">
-                            <i class="fas fa-prescription me-2"></i>Nouvelle prescription
-                        </a>
-                    {% elif current_user.role == 'infirmier' %}
-                        <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-primary me-2">
-                            <i class="fas fa-hospital me-2"></i>Voir hospitalisations
-                        </a>
-                        <a href="{{ url_for('patients_list') }}" class="btn btn-success me-2">
-                            <i class="fas fa-users me-2"></i>Voir patients
-                        </a>
-                    {% elif current_user.role == 'secretaire' %}
-                        <a href="{{ url_for('patients_list') }}" class="btn btn-primary me-2">
-                            <i class="fas fa-users me-2"></i>Voir patients
-                        </a>
-                        <a href="{{ url_for('patient_ajouter') }}" class="btn btn-success me-2">
-                            <i class="fas fa-user-plus me-2"></i>Nouveau patient
-                        </a>
-                    {% endif %}
-                    <a href="{{ url_for('recherche_patients') }}" class="btn btn-secondary">
-                        <i class="fas fa-search me-2"></i>Rechercher patient
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- DEUX COLONNES : DERNIERS PATIENTS + RENDEZ-VOUS             -->
+    <!-- ============================================================ -->
+    <div class="row g-4">
+        <!-- Colonne gauche : Derniers patients -->
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-user-plus text-primary me-2"></i>Derniers patients ajoutés</span>
+                    <a href="{{ url_for('patients_list') }}" class="btn btn-sm btn-outline-primary">
+                        Voir tous <i class="fas fa-arrow-right ms-1"></i>
                     </a>
                 </div>
+                <div class="card-body">
+                    {% if derniers_patients %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Patient</th>
+                                        <th>Contact</th>
+                                        <th>Date</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for patient in derniers_patients %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="avatar-circle me-2">
+                                                    {{ patient.prenom[0] }}{{ patient.nom[0] }}
+                                                </div>
+                                                <div>
+                                                    <div class="fw-semibold">{{ patient.prenom }} {{ patient.nom }}</div>
+                                                    <small class="text-muted">N° {{ "%05d" % patient.id }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="small">
+                                                {% if patient.telephone %}
+                                                    <i class="fas fa-phone text-muted me-1"></i>{{ patient.telephone }}
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-light text-dark border">
+                                                {{ patient.date_creation.strftime('%d/%m/%Y') if patient.date_creation else '-' }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-users fa-2x text-muted opacity-25 mb-3"></i>
+                            <p class="text-muted mb-0">Aucun patient enregistré</p>
+                        </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
-    </div>
 
-<!-- Derniers patients (en haut, pleine largeur) -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-user-plus me-2"></i>Derniers patients ajoutés</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover">
-                        <thead>
-                            <tr>
-                                <th>Nom</th>
-                                <th>Prénom</th>
-                                <th>Téléphone</th>
-                                <th>Date création</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for patient in derniers_patients %}
-                            <tr>
-                                <td>{{ patient.nom }}</td>
-                                <td>{{ patient.prenom }}</td>
-                                <td>{{ patient.telephone or '-' }}</td>
-                                <td>{{ patient.date_creation.strftime('%d/%m/%Y') if patient.date_creation else '-' }}</td>
-                                <td>
-                                    <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i> Voir
-                                    </a>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="5" class="text-center">Aucun patient</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+        <!-- Colonne droite : Prochains rendez-vous -->
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-calendar-check text-success me-2"></i>Prochains rendez-vous</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="window.location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="card-body">
+                    {% if prochains_rdv %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Patient</th>
+                                        <th>Date</th>
+                                        <th>Motif</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for consultation in prochains_rdv %}
+                                    <tr>
+                                        <td><div class="fw-semibold">{{ consultation.patient.prenom }} {{ consultation.patient.nom }}</div></td>
+                                        <td>
+                                            {% if consultation.prochain_rdv %}
+                                                {% set rdv_date = consultation.prochain_rdv.date() %}
+                                                {% if rdv_date == today %}
+                                                    <span class="badge bg-danger">Aujourd'hui</span>
+                                                {% elif rdv_date < today %}
+                                                    <span class="badge bg-secondary">Passé</span>
+                                                {% else %}
+                                                    <span class="badge bg-success">
+                                                        {{ consultation.prochain_rdv.strftime('%d/%m') }}
+                                                        <span style="font-size: 9px;">{{ consultation.prochain_rdv.strftime('%H:%M') }}</span>
+                                                    </span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="badge bg-light text-dark border">Non défini</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="text-truncate" style="max-width: 150px;" title="{{ consultation.motif or '-' }}">
+                                                {{ consultation.motif[:40] if consultation.motif else '-' }}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-calendar-day fa-2x text-muted opacity-25 mb-3"></i>
+                            <p class="text-muted mb-0">Aucun rendez-vous programmé</p>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Prochains rendez-vous (en bas, pleine largeur) -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Prochains rendez-vous</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover">
-                        <thead>
-                            <tr>
-                                <th>Patient</th>
-                                <th>Date</th>
-                                <th>Motif</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for consultation in prochains_rdv %}
-                            <tr>
-                                <td>{{ consultation.patient.nom }} {{ consultation.patient.prenom }}</td>
-                                <td>
-                                    <span class="badge bg-{% if consultation.prochain_rdv.date() == today %}danger{% elif consultation.prochain_rdv.date() < today %}secondary{% else %}success{% endif %}">
-                                        {{ consultation.prochain_rdv.strftime('%d/%m/%Y %H:%M') if consultation.prochain_rdv else '-' }}
-                                    </span>
-                                </td>
-                                <td>{{ consultation.motif[:50] if consultation.motif else '-' }}</td>
-                                <td>
-                                    <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i> Voir
-                                    </a>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="4" class="text-center">Aucun rendez-vous programmé</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- ============================================================ -->
+<!-- STYLES SPECIFIQUES AU DASHBOARD                              -->
+<!-- ============================================================ -->
+<style>
+.hover-card {
+    cursor: pointer;
+}
+.hover-card:hover {
+    transform: translateY(-3px);
+}
+a .hover-card { color: inherit; }
+
+.kpi-number {
+    font-size: 2rem;
+    color: var(--hp-text);
+}
+
+.kpi-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+.kpi-icon-primary { background: var(--hp-primary-light); color: var(--hp-primary); }
+.kpi-icon-success { background: var(--hp-success-light); color: var(--hp-success); }
+.kpi-icon-info { background: var(--hp-info-light); color: var(--hp-info); }
+.kpi-icon-warning { background: var(--hp-warning-light); color: var(--hp-warning); }
+
+.avatar-circle {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--hp-primary-light);
+    color: var(--hp-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.text-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.progress {
+    height: 4px;
+    border-radius: 2px;
+}
+</style>
 {% endblock %}

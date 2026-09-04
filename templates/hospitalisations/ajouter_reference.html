@@ -1,0 +1,161 @@
+{% extends"base.html" %}
+
+{% block title %}Nouvelle référence - {{ patient.nom }} {{ patient.prenom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-ambulance me-2 text-warning"></i>
+            Nouvelle référence
+        </h1>
+        <div>
+            <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary" data-loading="true">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-header bg-warning text-white">
+            <h5 class="mb-0"><i class="fas fa-file-medical me-2"></i>Formulaire de référence</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <!-- Patient pré-rempli -->
+                <div class="alert alert-info">
+                    <strong>Patient :</strong> {{ patient.nom }} {{ patient.prenom }}
+                    <span class="ms-3"><strong>N° dossier :</strong> P{{"%05d" % patient.id }}</span>
+                    <span class="ms-3"><strong>Service :</strong> {{ hospitalisation.service }}</span>
+                    <span class="ms-3"><strong>Hospitalisation :</strong> {{ hospitalisation.date_debut.strftime('%d/%m/%Y') }}</span>
+                </div>
+
+                <!-- Constantes pré-remplies -->
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-heartbeat me-2 text-danger"></i>Dernières constantes du patient</h6>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <small class="text-muted">Tension</small><br>
+                            <strong>{{ patient.tension_arterielle or'-' }}</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Température</small><br>
+                            <strong>{{ patient.temperature_c or'-' }} °C</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Pouls</small><br>
+                            <strong>{{ patient.pulse_bpm or'-' }} bpm</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Saturation</small><br>
+                            <strong>{{ patient.oxygene_saturation or'-' }} %</strong>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3">
+                            <small class="text-muted">Poids</small><br>
+                            <strong>{{ patient.poids_kg or'-' }} kg</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Taille</small><br>
+                            <strong>{{ patient.taille_cm or'-' }} cm</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">IMC</small><br>
+                            <strong>{{ patient.imc or'-' }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bouton d'action pour les constantes -->
+                <div class="text-end mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-info" onclick="rafraichirConstantes()">
+                        <i class="fas fa-sync me-1"></i>Rafraîchir les constantes
+                    </button>
+                </div>
+
+                <hr>
+
+                <!-- Motif et diagnostic -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Motif de référence *</label>
+                        <textarea name="motif" class="form-control" rows="3" required></textarea>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Diagnostic</label>
+                        <textarea name="diagnostic" class="form-control" rows="3">{{ hospitalisation.motif or'' }}</textarea>
+                        <div class="alert alert-light border mt-2 py-1 px-2" style="font-size: 0.85rem; background: #f8f9fa;">
+                            <i class="fas fa-lock me-1 text-secondary"></i>
+                            <strong>Confidentialité :</strong> Saisissez le <strong>code CIM-10</strong> 
+                            (ex: A00, C10, E11, I10) plutôt que le libellé complet.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Centre de référence -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Centre de référence *</label>
+                        <input type="text" name="centre_reference" class="form-control" required placeholder="Ex: CHU Lomé, Clinique Saint-Jean...">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Service demandé</label>
+                        <input type="text" name="service_reference" class="form-control" placeholder="Ex: Cardiologie, Neurologie...">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Médecin référent (destinataire)</label>
+                    <input type="text" name="medecin_referent" class="form-control" placeholder="Nom du médecin au centre de référence">
+                </div>
+
+                <hr>
+
+                <!-- Résumé clinique -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Résumé clinique</label>
+                    <textarea name="resume_clinique" class="form-control" rows="4" placeholder="Résumé de l'état du patient..."></textarea>
+                </div>
+
+                <!-- Examens réalisés -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Examens réalisés</label>
+                    <textarea name="examens_realises" class="form-control" rows="3" placeholder="Liste des examens déjà réalisés..."></textarea>
+                </div>
+
+                <!-- Traitements en cours -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Traitements en cours</label>
+                    <textarea name="traitements_en_cours" class="form-control" rows="3" placeholder="Traitements actuels du patient..."></textarea>
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Annuler
+                    </a>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-file-pdf me-2"></i>Créer et imprimer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== RAFRAÎCHIR LES CONSTANTES ====================
+function rafraichirConstantes() {
+    const patientId = {{ patient.id }};
+    fetch(`/api/patient/${patientId}/constantes`)
+        .then(response => response.json())
+        .then(data => {
+            const container = document.querySelector('.alert-info .row');
+            if (container) {
+                location.reload();
+            }
+        })
+        .catch(error => console.error('Erreur:', error));
+}
+</script>
+{% endblock %}

@@ -1,10 +1,10 @@
-{% extends "base.html" %}
+<!-- templates/nouvelle_hospitalisation.html -->
+{% extends"base.html" %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>
-            <i class="fas fa-plus-circle me-2"></i>
             Nouvelle Hospitalisation
         </h1>
         <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-secondary">
@@ -12,140 +12,454 @@
         </a>
     </div>
 
+    <!-- ALERTE IMPORTANTE -->
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>Note d'admission :</strong> Cette note est <strong>obligatoire</strong> et servira de 
+        <strong>référence</strong> pour tout le suivi du patient. Elle décrit l'<strong>état initial</strong> 
+        à son entrée dans le service.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
     <div class="card">
         <div class="card-body">
-            <form method="POST">
-                <div class="row">
-<!-- Patient avec recherche dynamique -->
-<div class="col-md-6 mb-3">
-    <label class="form-label">Patient *</label>
-    <div class="input-group">
-        <input type="text" id="patientSearch" class="form-control" 
-               placeholder="Rechercher par nom, prénom ou N° dossier..." autocomplete="off">
-        <input type="hidden" name="patient_id" id="patientId">
-        <button class="btn btn-outline-secondary" type="button" onclick="clearPatient()">
-            <i class="fas fa-times"></i>
-        </button>
-    </div>
-    <div id="patientResults" class="list-group mt-1" style="max-height: 200px; overflow-y: auto; display: none;"></div>
-    <div id="patientSelected" class="mt-2" style="display: none;">
-        <div class="alert alert-success py-1 px-2">
-            <strong>✅ Patient sélectionné :</strong> 
-            <span id="selectedPatientName"></span>
-            <button type="button" class="btn btn-sm btn-outline-danger float-end" onclick="clearPatient()">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    </div>
-</div>
+            <form method="POST" id="admissionForm" novalidate>
+                
+                <!-- ============================================================ -->
+                <!-- SECTION 1 : PATIENT ET ADMISSION                               -->
+                <!-- ============================================================ -->
+                <div class="card mb-4 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            Patient & Admission
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Patient avec recherche dynamique -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <span class="text-danger">*</span> Patient
+                                </label>
+                                <div class="input-group">
+                                    <input type="text" id="patientSearch" class="form-control"placeholder="Rechercher par nom, prénom ou N° dossier..."autocomplete="off" required>
+                                    <input type="hidden" name="patient_id" id="patientId" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="clearPatient()">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div id="patientResults" class="list-group mt-1" style="max-height: 200px; overflow-y: auto; display: none;"></div>
+                                <div id="patientSelected" class="mt-2" style="display: none;">
+                                    <div class="alert alert-success py-2 px-3">
+                                        <i class="fas fa-check-circle me-2"></i>
+                                        <strong>Patient sélectionné :</strong> 
+                                        <span id="selectedPatientName"></span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger float-end" onclick="clearPatient()">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <small class="text-muted">Saisissez au moins 2 caractères pour la recherche</small>
+                            </div>
 
-                    <!-- Service -->
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Service *</label>
-                        <select name="service" id="serviceSelect" class="form-select" required>
-                            <option value="">Sélectionnez un service</option>
-                            {% for service in services %}
-                            <option value="{{ service.nom }}">{{ service.nom }}</option>
-                            {% endfor %}
-                        </select>
+                            <!-- Service -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <span class="text-danger">*</span> Service
+                                </label>
+                                <select name="service" id="serviceSelect" class="form-select" required>
+                                    <option value="">Sélectionnez un service</option>
+                                    {% for service in services %}
+                                    <option value="{{ service.nom }}">{{ service.nom }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Service où le patient sera hospitalisé</small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Motif d'hospitalisation (courte description) -->
+                            <div class="col-12 mb-3">
+                                <label class="form-label fw-bold">
+                                    <span class="text-danger">*</span> Motif d'hospitalisation (résumé)
+                                </label>
+                                <input type="text" name="motif" class="form-control"placeholder="Ex: Pneumopathie sévère, Suivi post-opératoire..." required>
+                                <small class="text-muted">Résumé en une phrase du motif d'admission</small>
+                            </div>
+                        </div>
+
+                        <!-- Salle et Lit -->
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Salle</label>
+                                <select name="salle_id" id="salleSelect" class="form-select">
+                                    <option value="">Sélectionnez d'abord un service</option>
+                                </select>
+                                <small class="text-muted">Choisissez une salle disponible</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Lit</label>
+                                <select name="lit_id" id="litSelect" class="form-select">
+                                    <option value="">Sélectionnez d'abord une salle</option>
+                                </select>
+                                <small class="text-muted">Choisissez un lit disponible</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Chambre (manuel)</label>
+                                <input type="text" name="chambre" class="form-control" placeholder="Ex: 301">
+                                <small class="text-muted">Laisser vide si un lit est sélectionné</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Motif -->
-                <div class="row">
-                    <div class="col-12 mb-3">
-                        <label class="form-label">Motif d'hospitalisation *</label>
-                        <textarea name="motif" class="form-control" rows="3" placeholder="Raison de l'hospitalisation..." required></textarea>
+                <!-- ============================================================ -->
+                <!-- SECTION 2 : ÉQUIPE SOIGNANTE                                   -->
+                <!-- ============================================================ -->
+                <div class="card mb-4 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-user-md me-2"></i>
+                            Équipe soignante
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Médecins référents</label>
+                                <select name="medecins_ids" class="form-select" multiple>
+                                    {% for medecin in medecins %}
+                                    <option value="{{ medecin.id }}">
+                                        Dr {{ medecin.prenom }} {{ medecin.nom }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Infirmiers assignés</label>
+                                <select name="infirmiers_ids" class="form-select" multiple>
+                                    {% for infirmier in infirmiers %}
+                                    <option value="{{ infirmier.id }}">
+                                        {{ infirmier.prenom }} {{ infirmier.nom }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Salle et Lit -->
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Salle</label>
-                        <select name="salle_id" id="salleSelect" class="form-select">
-                            <option value="">Sélectionnez d'abord un service</option>
-                        </select>
-                        <small class="text-muted">Choisissez une salle disponible</small>
+                <!-- ============================================================ -->
+                <!-- SECTION 3 : NOTE D'ADMISSION (STRUCTURÉE)                      -->
+                <!-- ============================================================ -->
+                <div class="card mb-4 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            NOTE D'ADMISSION (État initial)
+                        </h5>
+                        <small class="text-dark">Cette note servira de <strong>référence</strong> pour le suivi du patient</small>
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Lit</label>
-                        <select name="lit_id" id="litSelect" class="form-select">
-                            <option value="">Sélectionnez d'abord une salle</option>
-                        </select>
-                        <small class="text-muted">Choisissez un lit disponible</small>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Chambre (manuel)</label>
-                        <input type="text" name="chambre" class="form-control" placeholder="Ex: 301">
-                        <small class="text-muted">Laisser vide si un lit est sélectionné</small>
+                    <div class="card-body">
+                        <!-- RAPPEL -->
+                        <div class="alert alert-light border-start border-4 border-warning mb-4">
+                            <i class="fas fa-lightbulb text-warning me-2"></i>
+                            <strong>À remplir par le médecin qui admet le patient</strong>
+                            <br><small class="text-muted">Décrivez précisément l'état initial du patient pour servir de référence</small>
+                        </div>
+
+                        <!-- LIGNE 1 : Motif et Contexte -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <span class="text-danger">*</span> Motif d'hospitalisation
+                                </label>
+                                <textarea name="note_motif" class="form-control" rows="2" required
+                                    placeholder="Raison principale de l'admission..."></textarea>
+                                <small class="text-muted">Pourquoi le patient a-t-il été admis ?</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <span class="text-danger">*</span> Contexte et Antécédents
+                                </label>
+                                <textarea name="note_contexte" class="form-control" rows="2" required
+                                    placeholder="Antécédents médicaux, traitements en cours, allergies, contexte social..."></textarea>
+                                <small class="text-muted">Ce qui existait avant l'admission</small>
+                            </div>
+                        </div>
+
+                        <!-- LIGNE 2 : Examen clinique et Diagnostic -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <span class="text-danger">*</span> Examen clinique initial
+                                </label>
+                                <textarea name="note_examen_clinique" class="form-control" rows="3" required
+                                    placeholder="Constantes (TA, T°, FC, SpO2, poids, taille, IMC), symptômes observés, signes cliniques..."></textarea>
+                                <small class="text-muted">Ce que le médecin constate à l'admission</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <span class="text-danger">*</span> Diagnostic présumé
+                                </label>
+                                <textarea name="note_diagnostic" class="form-control" rows="3" required
+                                    placeholder="Hypothèses diagnostiques..."></textarea>
+                                <small class="text-muted">Premières hypothèses diagnostiques</small>
+                            </div>
+                        </div>
+
+                        <!-- LIGNE 3 : Examens et Traitement -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    Examens complémentaires prescrits
+                                </label>
+                                <textarea name="note_examens" class="form-control" rows="2"placeholder="Analyses biologiques, imagerie, autres examens..."></textarea>
+                                <small class="text-muted">Examens à réaliser</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <span class="text-danger">*</span> Traitement initial
+                                </label>
+                                <textarea name="note_traitement" class="form-control" rows="2" required
+                                    placeholder="Médicaments prescrits, posologie, durée..."></textarea>
+                                <small class="text-muted">Traitement débuté à l'admission</small>
+                            </div>
+                        </div>
+
+                        <!-- LIGNE 4 : Évolution prévue et Conclusion -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    Évolution prévue / Objectifs
+                                </label>
+                                <textarea name="note_evolution_prevue" class="form-control" rows="2"placeholder="Objectifs de l'hospitalisation, prochaines étapes..."></textarea>
+                                <small class="text-muted">Ce qu'on attend pour la suite</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <span class="text-danger">*</span> Conclusion du médecin référent
+                                </label>
+                                <textarea name="note_conclusion" class="form-control" rows="2" required
+                                    placeholder="Avis du médecin, synthèse, recommandations..."></textarea>
+                                <small class="text-muted">Synthèse et avis du médecin qui admet le patient</small>
+                            </div>
+                        </div>
+
+                        <!-- Constantes récupérées du patient -->
+                        <div class="row mt-3" id="constantesPatientSection" style="display: none;">
+                            <div class="col-12">
+                                <div class="card border-info">
+                                    <div class="card-header bg-info text-white py-2">
+                                        <h6 class="mb-0">
+                                            Constantes du patient récupérées
+                                        </h6>
+                                    </div>
+                                    <div class="card-body py-2">
+                                        <div class="row">
+                                            <div class="col-md-2">
+                                                <small class="text-muted">Tension</small><br>
+                                                <strong id="const_tension">-</strong>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <small class="text-muted">Température</small><br>
+                                                <strong id="const_temperature">-</strong>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <small class="text-muted">Pouls</small><br>
+                                                <strong id="const_pouls">-</strong>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <small class="text-muted">Saturation</small><br>
+                                                <strong id="const_saturation">-</strong>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <small class="text-muted">Poids</small><br>
+                                                <strong id="const_poids">-</strong>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <small class="text-muted">Taille</small><br>
+                                                <strong id="const_taille">-</strong>
+                                            </div>
+                                        </div>
+                                        <hr class="my-1">
+                                        <small class="text-muted">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Ces constantes sont récupérées du dossier du patient.
+                                            Elles seront intégrées automatiquement dans la note d'admission.
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="note_constantes" id="note_constantes" value="">
                     </div>
                 </div>
 
-                <!-- Médecins et Infirmiers -->
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Médecins référents</label>
-                        <select name="medecins_ids" class="form-select" multiple>
-                            {% for medecin in medecins %}
-                            <option value="{{ medecin.id }}">
-                                Dr {{ medecin.prenom }} {{ medecin.nom }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <small class="text-muted">Maintenez Ctrl pour sélectionner plusieurs</small>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Infirmiers assignés</label>
-                        <select name="infirmiers_ids" class="form-select" multiple>
-                            {% for infirmier in infirmiers %}
-                            <option value="{{ infirmier.id }}">
-                                {{ infirmier.prenom }} {{ infirmier.nom }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <small class="text-muted">Maintenez Ctrl pour sélectionner plusieurs</small>
+                <!-- ============================================================ -->
+                <!-- BOUTONS D'ACTION                                               -->
+                <!-- ============================================================ -->
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Annuler
+                    </a>
+                    <div>
+                        <button type="reset" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-undo me-2"></i>Réinitialiser
+                        </button>
+                        <button type="submit" class="btn btn-primary btn-lg" id="btnSubmit">
+                            <i class="fas fa-save me-2"></i>Admettre le patient
+                        </button>
                     </div>
                 </div>
 
-                <!-- Notes -->
-                <div class="row">
-                    <div class="col-12 mb-3">
-                        <label class="form-label">Notes d'admission</label>
-                        <textarea name="notes_admission" class="form-control" rows="3" placeholder="Informations complémentaires..."></textarea>
-                    </div>
-                </div>
-
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                    <button type="reset" class="btn btn-secondary me-md-2">
-                        <i class="fas fa-undo me-2"></i>Réinitialiser
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-2"></i>Admettre le patient
-                    </button>
-                </div>
+                <!-- Champ caché pour le statut -->
+                <input type="hidden" name="statut" value="actif">
             </form>
         </div>
     </div>
 </div>
 
+<!-- ============================================================ -->
+<!-- JAVASCRIPT                                                    -->
+<!-- ============================================================ -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // ========== RECHERCHE PATIENT ==========
+    let searchTimeout = null;
+    const patientSearch = document.getElementById('patientSearch');
+    const patientResults = document.getElementById('patientResults');
+    const patientId = document.getElementById('patientId');
+    const patientSelected = document.getElementById('patientSelected');
+    const selectedPatientName = document.getElementById('selectedPatientName');
+    const constantesSection = document.getElementById('constantesPatientSection');
+    const noteConstantes = document.getElementById('note_constantes');
+
+    // Recherche en temps réel
+    patientSearch.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        const term = this.value.trim();
+        
+        if (term.length < 2) {
+            patientResults.style.display ='none';
+            patientResults.innerHTML ='';
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => {
+            fetch(`/api/patients/search?q=${encodeURIComponent(term)}`)
+                .then(response => response.json())
+                .then(data => {
+                    patientResults.innerHTML ='';
+                    if (data.length === 0) {
+                        patientResults.innerHTML ='<div class="list-group-item text-muted">Aucun patient trouvé</div>';
+                        patientResults.style.display ='block';
+                        return;
+                    }
+                    
+                    data.forEach(patient => {
+                        const div = document.createElement('div');
+                        div.className ='list-group-item list-group-item-action';
+                        div.innerHTML = `<strong>${patient.nom} ${patient.prenom}</strong>
+                            <span class="text-muted">(P${patient.id_padded})</span>
+                            ${patient.telephone ? `- ${patient.telephone}` :''}
+                            ${patient.assurance ? `<br><small class="text-muted">Assurance: ${patient.assurance}</small>` :''}
+                        `;
+                        div.onclick = function() {
+                            selectPatient(patient.id, patient.nom, patient.prenom);
+                        };
+                        patientResults.appendChild(div);
+                    });
+                    patientResults.style.display ='block';
+                })
+                .catch(error => console.error('Erreur:', error));
+        }, 300);
+    });
+
+    // Sélectionner un patient
+    function selectPatient(id, nom, prenom) {
+        patientId.value = id;
+        patientSearch.value ='';
+        patientSearch.placeholder = `${prenom} ${nom} sélectionné`;
+        patientResults.style.display ='none';
+        patientResults.innerHTML ='';
+        
+        patientSelected.style.display ='block';
+        selectedPatientName.textContent = `${prenom} ${nom}`;
+        
+        // Charger les constantes du patient
+        chargerConstantesPatient(id);
+    }
+
+    // Effacer la sélection
+    window.clearPatient = function() {
+        patientId.value ='';
+        patientSearch.value ='';
+        patientSearch.placeholder ='Rechercher par nom, prénom ou N° dossier...';
+        patientSelected.style.display ='none';
+        constantesSection.style.display ='none';
+        noteConstantes.value ='';
+    }
+
+    // Charger les constantes du patient
+    function chargerConstantesPatient(id) {
+        fetch(`/api/patient/${id}/constantes`)
+            .then(response => response.json())
+            .then(data => {
+                constantesSection.style.display ='block';
+                document.getElementById('const_tension').textContent = data.tension ||'-';
+                document.getElementById('const_temperature').textContent = data.temperature ? data.temperature +' °C' :'-';
+                document.getElementById('const_pouls').textContent = data.pouls ? data.pouls +' bpm' :'-';
+                document.getElementById('const_saturation').textContent = data.saturation ? data.saturation +' %' :'-';
+                document.getElementById('const_poids').textContent = data.poids ? data.poids +' kg' :'-';
+                document.getElementById('const_taille').textContent = data.taille ? data.taille +' cm' :'-';
+                
+                // Stocker les constantes pour la note
+                const constantesText = `TA: ${data.tension ||'-'}, T°: ${data.temperature ||'-'}°C, FC: ${data.pouls ||'-'} bpm, SpO2: ${data.saturation ||'-'}%, Poids: ${data.poids ||'-'} kg, Taille: ${data.taille ||'-'} cm, IMC: ${data.imc ||'-'}`;
+                noteConstantes.value = constantesText;
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                constantesSection.style.display ='none';
+                noteConstantes.value ='';
+            });
+    }
+
+    // Fermer les résultats en cliquant ailleurs
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#patientSearch') && !e.target.closest('#patientResults')) {
+            patientResults.style.display ='none';
+        }
+    });
+
+    // Recherche avec la touche Entrée
+    patientSearch.addEventListener('keypress', function(e) {
+        if (e.key ==='Enter') {
+            e.preventDefault();
+            const firstResult = patientResults.querySelector('.list-group-item-action');
+            if (firstResult) {
+                firstResult.click();
+            }
+        }
+    });
+
+    // ========== CHARGEMENT DES SALLES ET LITS ==========
     const serviceSelect = document.getElementById('serviceSelect');
     const salleSelect = document.getElementById('salleSelect');
     const litSelect = document.getElementById('litSelect');
-    
-    // Charger les salles quand un service est sélectionné
+
     serviceSelect.addEventListener('change', function() {
         const serviceNom = this.value;
-        salleSelect.innerHTML = '<option value="">Chargement...</option>';
-        litSelect.innerHTML = '<option value="">Sélectionnez d\'abord une salle</option>';
+        salleSelect.innerHTML ='<option value="">Chargement...</option>';
+        litSelect.innerHTML ='<option value="">Sélectionnez d\'abord une salle</option>';
         
         if (serviceNom) {
             fetch(`/api/salles/disponibles?service=${encodeURIComponent(serviceNom)}`)
                 .then(response => response.json())
                 .then(data => {
-                    salleSelect.innerHTML = '<option value="">Sélectionnez une salle</option>';
+                    salleSelect.innerHTML ='<option value="">Sélectionnez une salle</option>';
                     data.forEach(salle => {
                         const option = document.createElement('option');
                         option.value = salle.id;
@@ -155,23 +469,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error('Erreur:', error);
-                    salleSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+                    salleSelect.innerHTML ='<option value="">Erreur de chargement</option>';
                 });
         } else {
-            salleSelect.innerHTML = '<option value="">Sélectionnez d\'abord un service</option>';
+            salleSelect.innerHTML ='<option value="">Sélectionnez d\'abord un service</option>';
         }
     });
-    
-    // Charger les lits quand une salle est sélectionnée
+
     salleSelect.addEventListener('change', function() {
         const salleId = this.value;
-        litSelect.innerHTML = '<option value="">Chargement...</option>';
+        litSelect.innerHTML ='<option value="">Chargement...</option>';
         
         if (salleId) {
             fetch(`/api/lits/disponibles?salle_id=${salleId}`)
                 .then(response => response.json())
                 .then(data => {
-                    litSelect.innerHTML = '<option value="">Sélectionnez un lit</option>';
+                    litSelect.innerHTML ='<option value="">Sélectionnez un lit</option>';
                     data.forEach(lit => {
                         const option = document.createElement('option');
                         option.value = lit.id;
@@ -179,129 +492,86 @@ document.addEventListener('DOMContentLoaded', function() {
                         litSelect.appendChild(option);
                     });
                     if (data.length === 0) {
-                        litSelect.innerHTML = '<option value="">Aucun lit disponible dans cette salle</option>';
+                        litSelect.innerHTML ='<option value="">Aucun lit disponible dans cette salle</option>';
                     }
                 })
                 .catch(error => {
                     console.error('Erreur:', error);
-                    litSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+                    litSelect.innerHTML ='<option value="">Erreur de chargement</option>';
                 });
         } else {
-            litSelect.innerHTML = '<option value="">Sélectionnez d\'abord une salle</option>';
+            litSelect.innerHTML ='<option value="">Sélectionnez d\'abord une salle</option>';
         }
     });
-});
-// ==================== RECHERCHE DYNAMIQUE DE PATIENT ====================
-let searchTimeout = null;
-const patientSearch = document.getElementById('patientSearch');
-const patientResults = document.getElementById('patientResults');
-const patientId = document.getElementById('patientId');
-const patientSelected = document.getElementById('patientSelected');
-const selectedPatientName = document.getElementById('selectedPatientName');
 
-// Recherche en temps réel
-patientSearch.addEventListener('input', function() {
-    clearTimeout(searchTimeout);
-    const term = this.value.trim();
-    
-    if (term.length < 2) {
-        patientResults.style.display = 'none';
-        patientResults.innerHTML = '';
-        return;
-    }
-    
-    searchTimeout = setTimeout(() => {
-        fetch(`/api/patients/search?q=${encodeURIComponent(term)}`)
-            .then(response => response.json())
-            .then(data => {
-                patientResults.innerHTML = '';
-                if (data.length === 0) {
-                    patientResults.innerHTML = '<div class="list-group-item text-muted">Aucun patient trouvé</div>';
-                    patientResults.style.display = 'block';
-                    return;
-                }
-                
-                data.forEach(patient => {
-                    const div = document.createElement('div');
-                    div.className = 'list-group-item list-group-item-action';
-                    div.innerHTML = `
-                        <strong>${patient.nom} ${patient.prenom}</strong>
-                        <span class="text-muted">(P${patient.id_padded})</span>
-                        ${patient.telephone ? `- ${patient.telephone}` : ''}
-                        ${patient.assurance ? `<br><small class="text-muted">Assurance: ${patient.assurance}</small>` : ''}
-                    `;
-                    div.onclick = function() {
-                        selectPatient(patient.id, patient.nom, patient.prenom);
-                    };
-                    patientResults.appendChild(div);
-                });
-                patientResults.style.display = 'block';
-            })
-            .catch(error => console.error('Erreur:', error));
-    }, 300);
-});
-
-// Sélectionner un patient
-function selectPatient(id, nom, prenom) {
-    patientId.value = id;
-    patientSearch.value = '';
-    patientSearch.placeholder = `${prenom} ${nom} sélectionné`;
-    patientResults.style.display = 'none';
-    patientResults.innerHTML = '';
-    
-    patientSelected.style.display = 'block';
-    selectedPatientName.textContent = `${prenom} ${nom}`;
-    
-    // ⭐ Charger les constantes du patient si disponible
-    chargerConstantesPatient(id);
-}
-
-// Effacer la sélection
-function clearPatient() {
-    patientId.value = '';
-    patientSearch.value = '';
-    patientSearch.placeholder = 'Rechercher par nom, prénom ou N° dossier...';
-    patientSelected.style.display = 'none';
-    document.getElementById('constantesPatient').style.display = 'none';
-}
-
-// ⭐ Charger les constantes du patient (optionnel)
-function chargerConstantesPatient(patientId) {
-    fetch(`/api/patient/${patientId}/constantes`)
-        .then(response => response.json())
-        .then(data => {
-            const container = document.getElementById('constantesPatient');
-            if (container) {
-                container.style.display = 'block';
-                document.getElementById('const_tension').textContent = data.tension || '-';
-                document.getElementById('const_temperature').textContent = data.temperature ? data.temperature + ' °C' : '-';
-                document.getElementById('const_pouls').textContent = data.pouls ? data.pouls + ' bpm' : '-';
-                document.getElementById('const_saturation').textContent = data.saturation ? data.saturation + ' %' : '-';
-                document.getElementById('const_poids').textContent = data.poids ? data.poids + ' kg' : '-';
-                document.getElementById('const_taille').textContent = data.taille ? data.taille + ' cm' : '-';
-                document.getElementById('const_imc').textContent = data.imc || '-';
-            }
-        })
-        .catch(error => console.error('Erreur:', error));
-}
-
-// Fermer les résultats en cliquant ailleurs
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('#patientSearch') && !e.target.closest('#patientResults')) {
-        patientResults.style.display = 'none';
-    }
-});
-
-// Recherche avec la touche Entrée
-patientSearch.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        const firstResult = patientResults.querySelector('.list-group-item-action');
-        if (firstResult) {
-            firstResult.click();
+    // ========== VALIDATION DU FORMULAIRE ==========
+    document.getElementById('admissionForm').addEventListener('submit', function(e) {
+        const patientIdValue = patientId.value;
+        const serviceValue = serviceSelect.value;
+        const motifValue = document.querySelector('textarea[name="motif"]').value;
+        
+        // Vérifier que le patient est sélectionné
+        if (!patientIdValue) {
+            e.preventDefault();
+            alert('Veuillez sélectionner un patient.');
+            patientSearch.focus();
+            return false;
         }
-    }
-});
+        
+        // Vérifier que le service est sélectionné
+        if (!serviceValue) {
+            e.preventDefault();
+            alert('Veuillez sélectionner un service.');
+            serviceSelect.focus();
+            return false;
+        }
+        
+        // Vérifier que le motif est rempli
+        if (!motifValue.trim()) {
+            e.preventDefault();
+            alert('Veuillez saisir le motif d\'hospitalisation.');
+            document.querySelector('textarea[name="motif"]').focus();
+            return false;
+        }
+        
+        // Vérifier que la note d'admission est complète
+        const noteMotif = document.querySelector('textarea[name="note_motif"]').value;
+        const noteContexte = document.querySelector('textarea[name="note_contexte"]').value;
+        const noteExamen = document.querySelector('textarea[name="note_examen_clinique"]').value;
+        const noteDiagnostic = document.querySelector('textarea[name="note_diagnostic"]').value;
+        const noteTraitement = document.querySelector('textarea[name="note_traitement"]').value;
+        const noteConclusion = document.querySelector('textarea[name="note_conclusion"]').value;
+        
+        if (!noteMotif.trim() || !noteContexte.trim() || !noteExamen.trim() || 
+            !noteDiagnostic.trim() || !noteTraitement.trim() || !noteConclusion.trim()) {
+            e.preventDefault();
+            alert('La note d\'admission doit être complète.\n\n' +
+'Les champs suivants sont obligatoires :\n' +
+'- Motif d\'hospitalisation\n' +
+'- Contexte et Antécédents\n' +
+'- Examen clinique initial\n' +
+'- Diagnostic présumé\n' +
+'- Traitement initial\n' +
+'- Conclusion du médecin référent');
+            
+            // Scroll vers la note
+            document.querySelector('textarea[name="note_motif"]').scrollIntoView({ behavior:'smooth' });
+            return false;
+        }
+        
+        // Confirmation
+        if (!confirm('Confirmez-vous l\'admission de ce patient ?\n\n' +
+'La note d\'admission sera verrouillée après validation.')) {
+            e.preventDefault();
+            return false;
+        }
+        
+        return true;
+    });
 
+    // ========== EXPOSER LES FONCTIONS GLOBALES ==========
+    window.selectPatient = selectPatient;
+    window.chargerConstantesPatient = chargerConstantesPatient;
+});
 </script>
 {% endblock %}

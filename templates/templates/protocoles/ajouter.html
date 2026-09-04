@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Ajouter un Protocole{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        Nouveau Protocole de Soins
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nom du protocole <span class="text-danger">*</span></label>
+                            <input type="text" name="nom" class="form-control" 
+                                   placeholder="Ex: Paludisme grave, Pneumopathie..." required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Description / Etapes <span class="text-danger">*</span></label>
+                            <textarea name="description" class="form-control" rows="6" required
+                                      placeholder="1. Administrer Artesunate inj 2.4mg/kg a H0, H12, H24&#10;2. Surveiller les constantes toutes les 2h&#10;3. Si pas d'amelioration apres 6h, repeter la dose&#10;4. Realiser un bilan biologique : NFS, CRP, Glycemie"></textarea>
+                            <small class="text-muted">Decrivez les etapes du protocole (une etape par ligne).</small>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Ordonnance associee (optionnelle)</label>
+                                <select name="ordonnance_type_id" class="form-select">
+                                    <option value="">-- Aucune --</option>
+                                    {% for o in ordonnances %}
+                                    <option value="{{ o.id }}">{{ o.nom }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">L'ordonnance sera pre-remplie automatiquement.</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Examens associes (optionnelle)</label>
+                                <select name="examen_type_id" class="form-select">
+                                    <option value="">-- Aucun --</option>
+                                    {% for e in examens %}
+                                    <option value="{{ e.id }}">{{ e.nom }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">La liste des examens sera pre-remplie automatiquement.</small>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{{ url_for('liste_protocoles') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Annuler
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Enregistrer le protocole
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

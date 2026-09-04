@@ -8,11 +8,10 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3">
-                <i class="fas fa-hospital me-2 text-primary"></i>
                 Hospitalisation - {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}
             </h1>
             <p class="text-muted mb-0">
-                <i class="fas fa-calendar-alt me-1"></i> Admis le {{ hospitalisation.date_debut.strftime('%d/%m/%Y à %H:%M') }}
+                Admis le {{ hospitalisation.date_debut.strftime('%d/%m/%Y à %H:%M') }}
                 {% if hospitalisation.statut == 'actif' %}
                     <span class="badge bg-success ms-2">Actif</span>
                 {% elif hospitalisation.statut == 'sorti' %}
@@ -28,6 +27,7 @@
                     <i class="fas fa-check-circle me-2"></i>Clôturer
                 </button>
             {% endif %}
+
             <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Retour
             </a>
@@ -35,7 +35,9 @@
     </div>
 
     <div class="row">
-        <!-- Colonne gauche -->
+        <!-- ============================================================ -->
+        <!-- COLONNE GAUCHE                                               -->
+        <!-- ============================================================ -->
         <div class="col-md-4">
             <!-- Carte Patient -->
             <div class="card mb-4">
@@ -54,26 +56,23 @@
                 </div>
             </div>
 
-<!-- Carte Hospitalisation -->
-<div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Hospitalisation</h5>
-    </div>
-    <div class="card-body">
-        <p><strong>Service :</strong> {{ hospitalisation.service }}</p>
-        <p><strong>Chambre :</strong> {{ hospitalisation.chambre or 'Non spécifié' }}</p>
-        <!-- ⭐ AFFICHER LE LIT ASSIGNÉ -->
-        {% if hospitalisation.lit_id %}
-        <p><strong>Lit assigné :</strong> 
-            <span class="badge bg-success">{{ hospitalisation.lit.chambre }} - Lit {{ hospitalisation.lit.numero }}</span>
-        </p>
-        {% endif %}
-        <p><strong>Motif :</strong> {{ hospitalisation.motif }}</p>
-        {% if hospitalisation.notes_admission %}
-        <p><strong>Notes admission :</strong><br>{{ hospitalisation.notes_admission }}</p>
-        {% endif %}
-    </div>
-</div>
+            <!-- Carte Hospitalisation -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Hospitalisation</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Service :</strong> {{ hospitalisation.service }}</p>
+                    <p><strong>Chambre :</strong> {{ hospitalisation.chambre or 'Non spécifié' }}</p>
+                    {% if hospitalisation.lit_id %}
+                    <p><strong>Lit assigné :</strong> 
+                        <span class="badge bg-success">{{ hospitalisation.lit.chambre }} - Lit {{ hospitalisation.lit.numero }}</span>
+                    </p>
+                    {% endif %}
+                    <p><strong>Motif :</strong> {{ hospitalisation.motif }}</p>
+                </div>
+            </div>
+
             <!-- Carte Équipe soignante -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -134,30 +133,39 @@
             {% endif %}
         </div>
 
-<!-- Colonne droite -->
-<div class="col-md-8">
-    <!-- Actions rapides -->
-<!-- Actions rapides (UNIQUEMENT SI ACTIF) -->
+        <!-- ============================================================ -->
+        <!-- COLONNE DROITE                                               -->
+        <!-- ============================================================ -->
+        <div class="col-md-8">
+
+<!-- ========================================================== -->
+<!-- ACTIONS RAPIDES                                             -->
+<!-- ========================================================== -->
 {% if hospitalisation.statut == 'actif' %}
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <a href="{{ url_for('ajouter_evolution', id=hospitalisation.id) }}" class="btn btn-primary w-100">
             <i class="fas fa-notes-medical me-2"></i>Évolution
-            <small class="d-block text-white-150" style="font-size: 0.65rem;">👨‍⚕️ Réservé au médecin</small>
+            <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé au médecin</small>
         </a>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <a href="{{ url_for('ajouter_constante', id=hospitalisation.id) }}" class="btn btn-success w-100">
             <i class="fas fa-heartbeat me-2"></i>Constantes
-            <small class="d-block text-white-150" style="font-size: 0.65rem;">🩺 Réservé aux infirmiers</small>
+            <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé aux infirmiers</small>
         </a>
     </div>
-    <div class="col-md-4">
-        <!-- ⭐ BOUTON AVIS EXTERNES -->
+    <div class="col-md-3">
         <button class="btn btn-info w-100 text-white" data-bs-toggle="modal" data-bs-target="#avisExternesModal">
             <i class="fas fa-user-md me-2"></i>Avis externes
-            <small class="d-block text-white-50" style="font-size: 0.65rem;">📩 Médecins externes</small>
+            <small class="d-block text-white-50" style="font-size: 0.65rem;">Médecins externes</small>
         </button>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('ajouter_reference_hospitalisation', id=hospitalisation.id) }}" class="btn btn-warning w-100 text-dark">
+            <i class="fas fa-ambulance me-2"></i>Référencer
+            <small class="d-block text-dark-50" style="font-size: 0.65rem;">Référer le patient</small>
+        </a>
     </div>
 </div>
 {% else %}
@@ -170,15 +178,270 @@
 </div>
 {% endif %}
 
-            <!-- Graphique Évolution -->
+
+            <!-- ========================================================== -->
+            <!-- ⭐ CARTE PROTOCOLE DE SOINS                                 -->
+            <!-- ========================================================== -->
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-notes-medical me-2"></i>
+                        <strong>Protocole de soins</strong>
+                        {% if hospitalisation.protocole %}
+                            <span class="badge bg-light text-primary ms-2">{{ hospitalisation.protocole.nom }}</span>
+                        {% else %}
+                            <span class="badge bg-warning ms-2">Aucun</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if hospitalisation.statut == 'actif' %}
+                            <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#protocoleModal">
+                                <i class="fas fa-{% if hospitalisation.protocole %}exchange-alt{% else %}plus{% endif %} me-1"></i>
+                                {% if hospitalisation.protocole %}Changer{% else %}Appliquer{% endif %}
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if hospitalisation.protocole %}
+                        <div class="alert alert-info">
+                            <strong>{{ hospitalisation.protocole.nom }}</strong>
+                            <hr>
+                            <div style="white-space: pre-line;">{{ hospitalisation.protocole.description }}</div>
+                        </div>
+                        {% if hospitalisation.protocole.ordonnance_type %}
+                        <div class="mt-2">
+                            <span class="badge bg-success">
+                                <i class="fas fa-prescription me-1"></i>
+                                Ordonnance : {{ hospitalisation.protocole.ordonnance_type.nom }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% if hospitalisation.protocole.examen_type %}
+                        <div class="mt-1">
+                            <span class="badge bg-info">
+                                <i class="fas fa-flask me-1"></i>
+                                Examens : {{ hospitalisation.protocole.examen_type.nom }}
+                            </span>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <p class="text-muted text-center my-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Aucun protocole de soins appliqué.
+                            <br>
+                            <button class="btn btn-sm btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#protocoleModal">
+                                <i class="fas fa-plus me-1"></i>Appliquer un protocole
+                            </button>
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+
+<!-- ========================================================== -->
+<!-- ⭐ CARTE ORDONNANCE                                         -->
+<!-- ========================================================== -->
+<div class="card mb-4 border-success">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-prescription me-2"></i>
+            <strong>Ordonnance medicale</strong>
+            {% if ordonnance_medicaments %}
+                <span class="badge bg-light text-success ms-2">{{ ordonnance_medicaments|length }} medicament(s)</span>
+                <span class="badge bg-light text-info ms-1">Version {{ ordonnance_version or 1 }}</span>
+            {% else %}
+                <span class="badge bg-warning ms-2">Vide</span>
+            {% endif %}
+        </div>
+        <div>
+            {% if hospitalisation.statut == 'actif' %}
+                <!-- ⭐ NOUVELLE PRESCRIPTION -->
+                <button class="btn btn-light btn-sm" onclick="ouvrirNouvellePrescription()">
+                    <i class="fas fa-plus me-1"></i>Nouvelle prescription
+                </button>
+                
+                {% if ordonnance_medicaments %}
+                    <!-- ⭐ MODIFIER -->
+                    <button class="btn btn-outline-light btn-sm" onclick="ouvrirModificationPrescription()">
+                        <i class="fas fa-edit me-1"></i>Modifier
+                    </button>
+                    
+                    <!-- ⭐ IMPRIMER -->
+                    <a href="{{ url_for('imprimer_ordonnance', id=hospitalisation.id) }}" target="_blank" class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-print me-1"></i>Imprimer
+                    </a>
+                    
+                    <!-- ⭐ HISTORIQUE -->
+                    <a href="{{ url_for('historique_ordonnances_hospitalisation', id=hospitalisation.id) }}" class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-history me-1"></i>Historique
+                    </a>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        {% if ordonnance_medicaments %}
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Medicament</th>
+                            <th>Dosage</th>
+                            <th>Posologie</th>
+                            <th>Duree</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for med in ordonnance_medicaments %}
+                        <tr>
+                            <td><strong>{{ med.medicament }}</strong></td>
+                            <td>{{ med.dosage or '-' }}</td>
+                            <td>{{ med.posologie or '-' }}</td>
+                            <td>{{ med.duree or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- ⭐ PIED DE PAGE -->
+            <small class="text-muted d-block mt-2">
+                <i class="fas fa-user-md me-1"></i>
+                Prescrit par : 
+                {% if hospitalisation.createur %}
+                    {{ hospitalisation.createur.prenom }} {{ hospitalisation.createur.nom }}
+                {% else %}
+                    {{ current_user.prenom }} {{ current_user.nom }}
+                {% endif %}
+                -
+                <i class="fas fa-calendar-alt me-1"></i>
+                {{ hospitalisation.updated_at.strftime('%d/%m/%Y %H:%M') if hospitalisation.updated_at else 'Date inconnue' }}
+            </small>
+            
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Aucune ordonnance prescrite.
+                <br>
+                <button class="btn btn-sm btn-success mt-2" onclick="ouvrirNouvellePrescription()">
+                    <i class="fas fa-plus me-1"></i>Nouvelle prescription
+                </button>
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ========================================================== -->
+<!-- ⭐ CARTE EXAMENS AVEC HISTORIQUE                            -->
+<!-- ========================================================== -->
+<div class="card mb-4 border-info">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-flask me-2"></i>
+            <strong>Examens prescrits</strong>
+            <span class="badge bg-light text-info ms-2">{{ nb_examens_prescrits }}</span>
+        </div>
+        <div>
+            {% if hospitalisation.statut == 'actif' %}
+                <!-- ⭐ BOUTON NOUVELLE DEMANDE -->
+                <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#examenModal">
+                    <i class="fas fa-plus me-1"></i>Nouvelle demande
+                </button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        {# ✅ CORRIGÉ : Utiliser la variable examens_prescrits déjà chargée #}
+        {% if examens_prescrits %}
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Nature</th>
+                            <th>Examens</th>
+                            <th>Prescrit le</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for examen in examens_prescrits %}
+                        <tr>
+                            <td>
+                                <span class="badge {% if examen.nature == 'BIOLOGIE' %}bg-success{% elif examen.nature == 'IMAGERIE' %}bg-info{% else %}bg-secondary{% endif %}">
+                                    {{ examen.nature }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set examens_list = examen.get_examens_list() %}
+                                {% if examens_list %}
+                                    <ul class="mb-0 ps-3">
+                                        {% for e in examens_list %}
+                                        <li><small>{{ e }}</small></li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td><small>{{ examen.date_prescription.strftime('%d/%m/%Y %H:%M') }}</small></td>
+                            <td>
+                                <span class="badge bg-{% if examen.statut == 'TERMINE' %}success{% elif examen.statut == 'EN_COURS' %}warning{% else %}secondary{% endif %}">
+                                    {{ examen.statut }}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('imprimer_examen', id=hospitalisation.id, examen_id=examen.id) }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                                {% if examen.statut != 'TERMINE' and current_user.role in ['admin_structure', 'medecin', 'laborantin'] %}
+                                <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#resultatsModal{{ examen.id }}">
+                                    <i class="fas fa-flask"></i>
+                                </button>
+                                {% endif %}
+                                {% if hospitalisation.statut == 'actif' and current_user.role in ['admin_structure', 'medecin'] %}
+                                <form method="POST" action="{{ url_for('supprimer_examen_prescrit', id=hospitalisation.id, examen_id=examen.id) }}" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer cet examen ?')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <!-- ⭐ PIED DE PAGE -->
+            <small class="text-muted d-block mt-2">
+                <i class="fas fa-user-md me-1"></i>
+                Prescrit par : {{ current_user.prenom }} {{ current_user.nom }}
+            </small>
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Aucun examen prescrit.
+                <br>
+                <button class="btn btn-sm btn-info mt-2 text-white" data-bs-toggle="modal" data-bs-target="#examenModal">
+                    <i class="fas fa-plus me-1"></i>Nouvelle demande
+                </button>
+            </p>
+        {% endif %}
+    </div>
+</div>                        
+
+
+            <!-- ========================================================== -->
+            <!-- GRAPHIQUE ÉVOLUTION                                         -->
+            <!-- ========================================================== -->
             {% if evolutions %}
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Évolution de l'état</h5>
                     <div>
-                        <span class="badge bg-success me-1">● Bon</span>
-                        <span class="badge bg-warning me-1">● Moyen</span>
-                        <span class="badge bg-danger">● Critique</span>
+                        <span class="badge bg-success me-1">Bon</span>
+                        <span class="badge bg-warning me-1">Moyen</span>
+                        <span class="badge bg-danger">Critique</span>
                     </div>
                 </div>
                 <div class="card-body">
@@ -213,7 +476,9 @@
             </div>
             {% endif %}
 
-            <!-- Évolutions -->
+            <!-- ========================================================== -->
+            <!-- ÉVOLUTIONS                                                  -->
+            <!-- ========================================================== -->
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-history me-2"></i>Évolutions</h5>
@@ -246,6 +511,22 @@
                                 <strong>Prochaines étapes :</strong> {{ evolution.prochaines_etapes }}
                             </p>
                             {% endif %}
+                            <!-- Évolution par rapport à l'admission -->
+                            {% if evolution.evolution_par_rapport %}
+                            <p class="mb-1">
+                                <strong>Évolution :</strong>
+                                <span class="badge 
+                                    {% if evolution.evolution_par_rapport == 'amelioration' %}bg-success
+                                    {% elif evolution.evolution_par_rapport == 'aggravation' %}bg-danger
+                                    {% elif evolution.evolution_par_rapport == 'stable' %}bg-secondary
+                                    {% else %}bg-info{% endif %}">
+                                    {% if evolution.evolution_par_rapport == 'amelioration' %}Amélioration
+                                    {% elif evolution.evolution_par_rapport == 'aggravation' %}Aggravation
+                                    {% elif evolution.evolution_par_rapport == 'stable' %}Stable
+                                    {% else %}{{ evolution.evolution_par_rapport }}{% endif %}
+                                </span>
+                            </p>
+                            {% endif %}
                             <small class="text-muted">
                                 <i class="fas fa-user me-1"></i> {{ evolution.redacteur.nom }} {{ evolution.redacteur.prenom }}
                                 ({{ evolution.redacteur.role }})
@@ -261,182 +542,169 @@
                 </div>
             </div>
 
-<!-- Constantes Vitales -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Constantes Vitales</h5>
-        <span class="badge bg-success">{{ constantes|length }}</span>
-    </div>
-    <div class="card-body">
-        {% if constantes %}
-        <div class="table-responsive">
-            <table class="table table-sm table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>Date/Heure</th>
-                        <th>Température</th>
-                        <th>PA</th>
-                        <th>FC</th>
-                        <th>SpO₂</th>
-                        <th>Glycémie</th>
-                        <th>Diurèse</th>
-                        <th>Gaz/Selles</th>
-                        <th>Douleur</th>
-                        <th>Conscience</th>
-                        <th>Autres</th>
-                        <th>Notes</th>
-                        <th>Infirmier</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for c in constantes %}
-                    <tr>
-                        <td><strong>{{ c.date_prise.strftime('%d/%m %H:%M') }}</strong></td>
-                        <td>
-                            {% if c.temperature %}
-                                <span class="badge {% if c.temperature > 38 %}bg-danger{% elif c.temperature > 37.5 %}bg-warning{% else %}bg-success{% endif %}">
-                                    {{ c.temperature }} °C
-                                </span>
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>{{ c.pression_arterielle or '-' }}</td>
-                        <td>
-                            {% if c.frequence_cardiaque %}
-                                <span class="badge {% if c.frequence_cardiaque > 100 or c.frequence_cardiaque < 60 %}bg-danger{% else %}bg-success{% endif %}">
-                                    {{ c.frequence_cardiaque }} bpm
-                                </span>
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if c.saturation_oxygene %}
-                                <span class="badge {% if c.saturation_oxygene < 95 %}bg-danger{% elif c.saturation_oxygene < 97 %}bg-warning{% else %}bg-success{% endif %}">
-                                    {{ c.saturation_oxygene }} %
-                                </span>
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>{{ c.glycemie or '-' }} g/L</td>
-                        <td>{{ c.diurese or '-' }}</td>
-                        <td>
-                            {% if c.emission_gaz or c.selles %}
-                                {{ c.emission_gaz or '-' }} / {{ c.selles or '-' }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if c.douleur %}
-                                <span class="badge {% if c.douleur > 7 %}bg-danger{% elif c.douleur > 4 %}bg-warning{% else %}bg-success{% endif %}">
-                                    {{ c.douleur }}/10
-                                </span>
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>{{ c.conscience or '-' }}</td>
-                        <td>
-                            {% if c.autres_constantes %}
-                                <span class="text-muted small">{{ c.autres_constantes[:30] }}{% if c.autres_constantes|length > 30 %}...{% endif %}</span>
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if c.notes %}
-                                <span class="text-muted small">{{ c.notes[:30] }}{% if c.notes|length > 30 %}...{% endif %}</span>
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>{{ c.infirmier.nom }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Dernière constante en évidence -->
-        <div class="mt-3">
-            <div class="alert alert-info">
-                <strong>📊 Dernières constantes :</strong>
-                {% set derniere = constantes|first %}
-                <div class="row mt-2">
-                    <div class="col-md-2">
-                        <small class="text-muted">Température</small><br>
-                        <strong>{{ derniere.temperature or '-' }} °C</strong>
-                    </div>
-                    <div class="col-md-2">
-                        <small class="text-muted">PA</small><br>
-                        <strong>{{ derniere.pression_arterielle or '-' }}</strong>
-                    </div>
-                    <div class="col-md-2">
-                        <small class="text-muted">FC</small><br>
-                        <strong>{{ derniere.frequence_cardiaque or '-' }} bpm</strong>
-                    </div>
-                    <div class="col-md-2">
-                        <small class="text-muted">SpO₂</small><br>
-                        <strong>{{ derniere.saturation_oxygene or '-' }} %</strong>
-                    </div>
-                    <div class="col-md-2">
-                        <small class="text-muted">Douleur</small><br>
-                        <strong>{{ derniere.douleur or '-' }}/10</strong>
-                    </div>
-                    <div class="col-md-2">
-                        <small class="text-muted">Diurèse</small><br>
-                        <strong>{{ derniere.diurese or '-' }}</strong>
-                    </div>
+            <!-- ========================================================== -->
+            <!-- CONSTANTES VITALES                                          -->
+            <!-- ========================================================== -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Constantes Vitales</h5>
+                    <span class="badge bg-success">{{ constantes|length }}</span>
                 </div>
-                <div class="row mt-2">
-                    <div class="col-md-6">
-                        <small class="text-muted">Notes</small><br>
-                        <strong>{{ derniere.notes or '-' }}</strong>
+                <div class="card-body">
+                    {% if constantes %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date/Heure</th>
+                                    <th>Température</th>
+                                    <th>PA</th>
+                                    <th>FC</th>
+                                    <th>SpO₂</th>
+                                    <th>Glycémie</th>
+                                    <th>Diurèse</th>
+                                    <th>Douleur</th>
+                                    <th>Évolution</th>
+                                    <th>Infirmier</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in constantes %}
+                                <tr>
+                                    <td><strong>{{ c.date_prise.strftime('%d/%m %H:%M') }}</strong></td>
+                                    <td>
+                                        {% if c.temperature %}
+                                            <span class="badge {% if c.temperature > 38 %}bg-danger{% elif c.temperature > 37.5 %}bg-warning{% else %}bg-success{% endif %}">
+                                                {{ c.temperature }} °C
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ c.pression_arterielle or '-' }}</td>
+                                    <td>
+                                        {% if c.frequence_cardiaque %}
+                                            <span class="badge {% if c.frequence_cardiaque > 100 or c.frequence_cardiaque < 60 %}bg-danger{% else %}bg-success{% endif %}">
+                                                {{ c.frequence_cardiaque }} bpm
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if c.saturation_oxygene %}
+                                            <span class="badge {% if c.saturation_oxygene < 95 %}bg-danger{% elif c.saturation_oxygene < 97 %}bg-warning{% else %}bg-success{% endif %}">
+                                                {{ c.saturation_oxygene }} %
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ c.glycemie or '-' }} g/L</td>
+                                    <td>{{ c.diurese or '-' }}</td>
+                                    <td>
+                                        {% if c.douleur %}
+                                            <span class="badge {% if c.douleur > 7 %}bg-danger{% elif c.douleur > 4 %}bg-warning{% else %}bg-success{% endif %}">
+                                                {{ c.douleur }}/10
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if c.evolution_par_rapport %}
+                                            <span class="badge 
+                                                {% if c.evolution_par_rapport == 'amelioration' %}bg-success
+                                                {% elif c.evolution_par_rapport == 'aggravation' %}bg-danger
+                                                {% else %}bg-secondary{% endif %}">
+                                                {% if c.evolution_par_rapport == 'amelioration' %}Amel.
+                                                {% elif c.evolution_par_rapport == 'aggravation' %}Agg.
+                                                {% else %}Stable{% endif %}
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ c.infirmier.nom }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="col-md-6">
-                        <small class="text-muted">Autres constantes</small><br>
-                        <strong>{{ derniere.autres_constantes or '-' }}</strong>
+                    
+                    <!-- Dernière constante en évidence -->
+                    {% if constantes %}
+                    <div class="mt-3">
+                        <div class="alert alert-info">
+                            <strong>Dernières constantes :</strong>
+                            {% set derniere = constantes|first %}
+                            <div class="row mt-2">
+                                <div class="col-md-2">
+                                    <small class="text-muted">Température</small><br>
+                                    <strong>{{ derniere.temperature or '-' }} °C</strong>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">PA</small><br>
+                                    <strong>{{ derniere.pression_arterielle or '-' }}</strong>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">FC</small><br>
+                                    <strong>{{ derniere.frequence_cardiaque or '-' }} bpm</strong>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">SpO₂</small><br>
+                                    <strong>{{ derniere.saturation_oxygene or '-' }} %</strong>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">Douleur</small><br>
+                                    <strong>{{ derniere.douleur or '-' }}/10</strong>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">Diurèse</small><br>
+                                    <strong>{{ derniere.diurese or '-' }}</strong>
+                                </div>
+                            </div>
+                            <small class="text-muted mt-2 d-block">
+                                Prise le {{ derniere.date_prise.strftime('%d/%m/%Y à %H:%M') }} par {{ derniere.infirmier.nom }}
+                            </small>
+                        </div>
                     </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-heartbeat fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">Aucune constante enregistrée pour cette hospitalisation</p>
+                        {% if hospitalisation.statut == 'actif' and current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
+                        <a href="{{ url_for('ajouter_constante', id=hospitalisation.id) }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Prendre les constantes
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
-                <small class="text-muted mt-2 d-block">
-                    Prise le {{ derniere.date_prise.strftime('%d/%m/%Y à %H:%M') }} par {{ derniere.infirmier.nom }}
-                </small>
             </div>
         </div>
-        {% else %}
-        <div class="text-center py-4">
-            <i class="fas fa-heartbeat fa-3x text-muted mb-3"></i>
-            <p class="text-muted">Aucune constante enregistrée pour cette hospitalisation</p>
-            {% if hospitalisation.statut == 'actif' and current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
-            <a href="{{ url_for('ajouter_constante', id=hospitalisation.id) }}" class="btn btn-primary">
-                <i class="fas fa-plus me-2"></i>Prendre les constantes
-            </a>
-            {% endif %}
-        </div>
-        {% endif %}
     </div>
 </div>
 
-<!-- ========== AVIS MÉDECINS EXTERNES ========== -->
+<!-- ========================================================== -->
+<!-- AVIS DES MÉDECINS EXTERNES                                 -->
+<!-- ========================================================== -->
 <div class="card mb-4">
     <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">
             <i class="fas fa-user-md me-2"></i>
-            Avis de médecins externes
-            <span class="badge bg-light text-dark ms-2">{{ hospitalisation.avis_externes_list|length }}</span>
+            Avis des médecins externes
+            <span class="badge bg-light text-info ms-2">{{ hospitalisation.avis_externes_list|length }}</span>
         </h5>
         {% if hospitalisation.statut == 'actif' %}
         <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#avisExternesModal">
-            <i class="fas fa-plus me-1"></i>Nouvel avis
+            <i class="fas fa-plus me-1"></i>Ajouter
         </button>
         {% endif %}
     </div>
     <div class="card-body">
         {% if hospitalisation.avis_externes_list|length > 0 %}
-            <!-- Chronologie des avis -->
             <div class="timeline-avis">
                 {% for avis in hospitalisation.avis_externes_list|sort(attribute='date_demande', reverse=True) %}
                 <div class="border-start border-3 border-info ps-3 mb-3">
@@ -478,11 +746,283 @@
         {% else %}
             <p class="text-muted text-center my-3">
                 <i class="fas fa-info-circle me-2"></i>
-                Aucun avis externe enregistré
+                Aucun avis externe enregistré pour cette hospitalisation.
             </p>
         {% endif %}
     </div>
 </div>
+
+<!-- ============================================================ -->
+<!-- ⭐ MODAL PROTOCOLE                                             -->
+<!-- ============================================================ -->
+<div class="modal fade" id="protocoleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-notes-medical me-2"></i>
+                    {% if protocole_actif %}Changer{% else %}Appliquer{% endif %} un protocole
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('appliquer_protocole', id=hospitalisation.id) }}">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Le protocole appliquera automatiquement l'ordonnance et les examens associes.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Protocole</label>
+                        <select name="protocole_id" class="form-select" required>
+                            <option value="">-- Selectionner un protocole --</option>
+                            {% for p in protocoles_disponibles %}
+                            <option value="{{ p.id }}" {% if protocole_actif and protocole_actif.id == p.id %}selected{% endif %}>
+                                {{ p.nom }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div id="protocolePreview">
+                        {% if protocole_actif %}
+                        <div class="alert alert-light">
+                            <strong>{{ protocole_actif.nom }}</strong>
+                            <hr>
+                            <div style="white-space: pre-line;">{{ protocole_actif.description }}</div>
+                        </div>
+                        {% else %}
+                        <p class="text-muted">Selectionnez un protocole pour voir les details.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-check me-2"></i>Appliquer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- ⭐ MODAL ORDONNANCE (UNIQUE POUR NOUVELLE ET MODIFICATION)    -->
+<!-- ============================================================ -->
+<div class="modal fade" id="ordonnanceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="ordonnanceModalTitle">
+                    <i class="fas fa-prescription me-2"></i>
+                    Nouvelle prescription
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('modifier_ordonnance_hospitalisation', id=hospitalisation.id) }}" id="ordonnanceForm">
+                <div class="modal-body">
+                    <div class="alert alert-info" id="ordonnanceModalAlert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Remplissez les champs pour créer une nouvelle prescription.
+                    </div>
+                    
+                    <!-- ⭐ CHAMP CACHÉ POUR DIFFÉRENCIER NOUVELLE / MODIFICATION -->
+                    <input type="hidden" name="action_type" id="ordonnanceActionType" value="nouvelle">
+                    
+                    <!-- ⭐ CHAMP MOTIF DE MODIFICATION (caché par défaut) -->
+                    <div id="ordonnanceMotifModification" style="display: none;" class="mb-3">
+                        <label class="form-label fw-bold">Motif de la modification</label>
+                        <input type="text" name="motif_modification" class="form-control" 
+                               placeholder="Ex: Ajustement posologie, Nouveau medicament..." value="Modification de la prescription">
+                    </div>
+
+                    <!-- Recherche de médicaments -->
+                    <div class="card mb-3 border-success">
+                        <div class="card-body py-2">
+                            <div class="row align-items-center">
+                                <div class="col-md-7">
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-success text-white">
+                                            <i class="fas fa-search"></i>
+                                        </span>
+                                        <input type="text" id="medicamentSearchOrdonnance" class="form-control" 
+                                               placeholder="Rechercher un medicament..." autocomplete="off">
+                                    </div>
+                                    <div id="medicamentResultsOrdonnance" class="list-group mt-1" 
+                                         style="max-height: 200px; overflow-y: auto; display: none; border: 1px solid #ddd; border-radius: 4px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="text" id="medicamentManualOrdonnance" class="form-control" 
+                                           placeholder="Ou saisir manuellement...">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-outline-success w-100" onclick="ajouterMedicamentManuelOrdonnance()">
+                                        <i class="fas fa-plus me-1"></i>Ajouter
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted mt-1 d-block">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Recherchez un medicament existant ou ajoutez-en un manuellement
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Liste des médicaments -->
+                    <div id="medicaments-container">
+                        <div class="row mb-2 fw-bold text-muted">
+                            <div class="col-4">Medicament</div>
+                            <div class="col-2">Dosage</div>
+                            <div class="col-3">Posologie</div>
+                            <div class="col-2">Duree</div>
+                            <div class="col-1">Action</div>
+                        </div>
+                        <div id="medicaments-list">
+                            <!-- Les medicaments seront charges ici -->
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="ajouterMedicamentOrdonnance()">
+                            <i class="fas fa-plus me-2"></i>Ajouter un medicament
+                        </button>
+                    </div>
+
+                    <!-- ⭐⭐⭐ CORRIGÉ ICI ⭐⭐⭐ -->
+                    <input type="hidden" name="medicaments_json" id="medicaments_json_ordonnance" value="{{ hospitalisation.ordonnance_prescite or '[]' }}">
+                    
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-success" id="ordonnanceSubmitBtn">
+                        <i class="fas fa-save me-2"></i>Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- ============================================================ -->
+<!-- ⭐ MODAL EXAMENS AVEC RECHERCHE D'ANALYSES                    -->
+<!-- ============================================================ -->
+<div class="modal fade" id="examenModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    Prescrire des examens
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('ajouter_examen_prescrit', id=hospitalisation.id) }}" id="examenForm">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        Vous pouvez choisir un examen type ou creer une prescription personnalisee.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Examen type (optionnelle)</label>
+                        <select name="examen_type_id" id="examenTypeSelect" class="form-select">
+                            <option value="">-- Selectionner un examen type --</option>
+                            {% for e in examens_types %}
+                            <option value="{{ e.id }}">{{ e.nom }} ({{ e.nature }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <hr>
+                    <h6 class="fw-bold">Prescription personnalisee</h6>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nature <span class="text-danger">*</span></label>
+                        <select name="nature" class="form-select" required>
+                            <option value="BIOLOGIE">Biologie</option>
+                            <option value="IMAGERIE">Imagerie</option>
+                            <option value="AUTRE">Autre</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Motif / Diagnostic</label>
+                        <textarea name="motif" class="form-control" rows="2" placeholder="Motif de la demande..."></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="Description..."></textarea>
+                    </div>
+
+                    <hr>
+
+                    <!-- ⭐ RECHERCHE D'ANALYSES -->
+                    <div class="card mb-3 border-info">
+                        <div class="card-body py-2">
+                            <div class="row align-items-center">
+                                <div class="col-md-7">
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-info text-white">
+                                            <i class="fas fa-search"></i>
+                                        </span>
+                                        <input type="text" id="analyseSearchExamen" class="form-control" 
+                                               placeholder="Rechercher une analyse..." autocomplete="off">
+                                    </div>
+                                    <div id="analyseResultsExamen" class="list-group mt-1" 
+                                         style="max-height: 200px; overflow-y: auto; display: none; border: 1px solid #ddd; border-radius: 4px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="text" id="analyseManualExamen" class="form-control" 
+                                           placeholder="Ou saisir manuellement...">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-outline-info w-100" onclick="ajouterAnalyseManuelleExamen()">
+                                        <i class="fas fa-plus me-1"></i>Ajouter
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted mt-1 d-block">
+                                Recherchez une analyse existante ou ajoutez-en une manuellement
+                            </small>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-info">
+                        Examens
+                        <span class="badge bg-secondary ms-2" id="examenCountModal">0</span>
+                    </h6>
+
+                    <div id="examens-container">
+                        <div class="row mb-2 fw-bold text-muted">
+                            <div class="col-11">Examen</div>
+                            <div class="col-1">Action</div>
+                        </div>
+                        <div id="examens-list-modal">
+                            <!-- Les examens seront ajoutes ici -->
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="ajouterExamenModal()">
+                            <i class="fas fa-plus me-2"></i>Ajouter une ligne vide
+                        </button>
+                    </div>
+
+                    <input type="hidden" name="examens_json" id="examens_json_modal" value="[]">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-info text-white">
+                        <i class="fas fa-save me-2"></i>Prescrire
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
 <!-- ========== MODAL CLÔTURER ========== -->
 <div class="modal fade" id="cloturerModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -561,6 +1101,7 @@
         </div>
     </div>
 </div>
+
 <!-- ========== MODAL AJOUTER AVIS EXTERNE ========== -->
 <div class="modal fade" id="avisExternesModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -581,7 +1122,7 @@
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">👨‍⚕️ Médecin *</label>
+                            <label class="form-label fw-bold">Médecin *</label>
                             <input type="text" name="medecin_nom" class="form-control" required 
                                    placeholder="Dr. Kouassi, Pr. Mensah...">
                         </div>
@@ -593,30 +1134,30 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label fw-bold">🏥 Établissement</label>
+                        <label class="form-label fw-bold">Établissement</label>
                         <input type="text" name="etablissement" class="form-control" 
                                placeholder="CHU Lomé, Clinique Saint-Jean...">
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label fw-bold">📩 Demande d'avis</label>
+                        <label class="form-label fw-bold">Demande d'avis</label>
                         <textarea name="demande_avis" class="form-control" rows="2" 
                                   placeholder="Ce qui a été demandé au médecin externe..."></textarea>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label fw-bold">📋 Avis reçu *</label>
+                        <label class="form-label fw-bold">Avis reçu *</label>
                         <textarea name="avis_recu" class="form-control" rows="4" required
                                   placeholder="Synthèse de l'avis reçu..."></textarea>
                     </div>
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">📅 Date de la demande</label>
+                            <label class="form-label fw-bold">Date de la demande</label>
                             <input type="datetime-local" name="date_demande" class="form-control">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">📅 Date de réception</label>
+                            <label class="form-label fw-bold">Date de réception</label>
                             <input type="datetime-local" name="date_reception" class="form-control">
                         </div>
                     </div>
@@ -631,10 +1172,95 @@
         </div>
     </div>
 </div>
+
+
+<!-- ============================================================ -->
+<!-- ⭐ MODAL NOUVELLE NOTE (RÉÉVALUATION)                         -->
+<!-- ============================================================ -->
+<div class="modal fade" id="nouvelleNoteModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-medical-alt me-2"></i>
+                    Nouvelle note de réévaluation
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('ajouter_note_admission', id=hospitalisation.id) }}">
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Vous créez une <strong>nouvelle version</strong> de la note d'admission.
+                        {% if note_active %}
+                        <br>La version précédente (v{{ note_active.version }}) restera consultable dans l'historique.
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Réutilisation du même formulaire que pour la note initiale -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold"><span class="text-danger">*</span> Motif d'hospitalisation</label>
+                                <textarea name="note_motif" class="form-control" rows="2" required placeholder="Raison principale..."></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold"><span class="text-danger">*</span> Contexte et Antécédents</label>
+                                <textarea name="note_contexte" class="form-control" rows="3" required placeholder="Antécédents, traitements en cours..."></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold"><span class="text-danger">*</span> Examen clinique initial</label>
+                                <textarea name="note_examen_clinique" class="form-control" rows="3" required placeholder="Constantes, symptômes observés..."></textarea>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold"><span class="text-danger">*</span> Diagnostic présumé</label>
+                                <textarea name="note_diagnostic" class="form-control" rows="2" required placeholder="Hypothèses diagnostiques..."></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Examens complémentaires</label>
+                                <textarea name="note_examens" class="form-control" rows="2" placeholder="Analyses, imagerie..."></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold"><span class="text-danger">*</span> Traitement initial</label>
+                                <textarea name="note_traitement" class="form-control" rows="2" required placeholder="Médicaments prescrits..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Évolution prévue / Objectifs</label>
+                                <textarea name="note_evolution_prevue" class="form-control" rows="2" placeholder="Objectifs, prochaines étapes..."></textarea>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold"><span class="text-danger">*</span> Conclusion du médecin</label>
+                                <textarea name="note_conclusion" class="form-control" rows="2" required placeholder="Synthèse, recommandations..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="hidden" name="est_initial" value="false">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-warning text-dark">
+                        <i class="fas fa-save me-2"></i>Créer la nouvelle note
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 
-<!-- ========== BLOCK EXTRA_JS ========== -->
+
+<!-- ============================================================ -->
+<!-- SCRIPTS                                                      -->
+<!-- ============================================================ -->
 {% block extra_js %}
 <!-- Graphique -->
 {% if evolutions %}
@@ -737,43 +1363,482 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endif %}
 
-<!-- Script pour afficher/masquer les zones du modal -->
+<!-- Script pour le modal Protocole -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const typeSortie = document.getElementById('typeSortie');
-    const zoneTransfert = document.getElementById('zoneTransfert');
-    const zoneAutres = document.getElementById('zoneAutres');
+    const select = document.querySelector('#protocoleModal select[name="protocole_id"]');
+    const preview = document.getElementById('protocolePreview');
     
-    if (!typeSortie) return;
-    
-    function toggleZones() {
-        const valeur = typeSortie.value;
-        
-        // Cacher toutes les zones
-        zoneTransfert.style.display = 'none';
-        zoneAutres.style.display = 'none';
-        
-        // Enlever les attributs required
-        zoneTransfert.querySelectorAll('input, textarea').forEach(el => el.required = false);
-        zoneAutres.querySelectorAll('textarea').forEach(el => el.required = false);
-        
-        // Afficher la zone appropriée
-        if (valeur === 'transfere') {
-            zoneTransfert.style.display = 'block';
-            zoneTransfert.querySelectorAll('input, textarea').forEach(el => {
-                if (el.name !== 'date_transfert') el.required = true;
-            });
-        } else if (valeur === 'autres') {
-            zoneAutres.style.display = 'block';
-            zoneAutres.querySelectorAll('textarea').forEach(el => el.required = true);
-        }
+    if (select) {
+        select.addEventListener('change', function() {
+            const selected = this.options[this.selectedIndex];
+            if (this.value) {
+                // Charger les détails du protocole via AJAX
+                fetch(`/api/protocole/${this.value}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        preview.innerHTML = `
+                            <div class="alert alert-light">
+                                <strong>${data.nom}</strong>
+                                <hr>
+                                <div style="white-space: pre-line;">${data.description}</div>
+                                ${data.ordonnance_type ? `<p class="mt-2"><span class="badge bg-success">Ordonnance: ${data.ordonnance_type}</span></p>` : ''}
+                                ${data.examen_type ? `<p><span class="badge bg-info">Examens: ${data.examen_type}</span></p>` : ''}
+                            </div>
+                        `;
+                    })
+                    .catch(() => {
+                        preview.innerHTML = `<p class="text-danger">Erreur de chargement</p>`;
+                    });
+            } else {
+                preview.innerHTML = `<p class="text-muted">Selectionnez un protocole pour voir les détails.</p>`;
+            }
+        });
+    }
+});
+
+
+// ============================================================ //
+// RECHERCHE DE MÉDICAMENTS POUR ORDONNANCE
+// ============================================================ //
+
+var medicamentsDisponibles = [];
+var medicamentTimeoutOrdonnance = null;
+
+function chargerMedicamentsDisponibles() {
+    fetch('/api/medicamentos/disponibles')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            medicamentsDisponibles = data;
+            console.log(data.length + ' medicaments disponibles charges');
+        })
+        .catch(function(error) { console.error('Erreur:', error); });
+}
+
+function rechercherMedicamentsOrdonnance(term) {
+    var resultsDiv = document.getElementById('medicamentResultsOrdonnance');
+    if (term.length < 2) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+        return;
     }
     
-    // Écouter les changements
-    typeSortie.addEventListener('change', toggleZones);
+    var results = medicamentsDisponibles.filter(function(m) {
+        return m.nom.toLowerCase().includes(term.toLowerCase());
+    });
     
-    // Appliquer au chargement
-    toggleZones();
+    resultsDiv.innerHTML = '';
+    if (results.length === 0) {
+        resultsDiv.innerHTML = '<div class="list-group-item text-muted">Aucun medicament trouve. <span class="text-primary" style="cursor:pointer;" onclick="ajouterMedicamentManuelOrdonnance()"><i class="fas fa-plus"></i> Ajouter "' + term + '"</span></div>';
+        resultsDiv.style.display = 'block';
+        return;
+    }
+    
+    results.forEach(function(m) {
+        var div = document.createElement('div');
+        div.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+        var stockStatus = m.quantite_stock === 0 ? '<span class="badge bg-danger">Rupture</span>' : '<span class="badge bg-success">Stock: ' + m.quantite_stock + '</span>';
+        div.innerHTML = '<div><strong>' + m.nom + '</strong></div><div>' + stockStatus + ' <button class="btn btn-sm btn-success" onclick="selectionnerMedicamentOrdonnance(\'' + m.nom + '\')"><i class="fas fa-plus"></i></button></div>';
+        div.onclick = function() { selectionnerMedicamentOrdonnance(m.nom); };
+        resultsDiv.appendChild(div);
+    });
+    resultsDiv.style.display = 'block';
+}
+
+function selectionnerMedicamentOrdonnance(nom) {
+    document.getElementById('medicamentSearchOrdonnance').value = '';
+    document.getElementById('medicamentResultsOrdonnance').style.display = 'none';
+    ajouterMedicamentOrdonnance({ medicament: nom, dosage: '', posologie: '', duree: '7' });
+    showToast('"' + nom + '" ajoute', 'success');
+}
+
+function ajouterMedicamentManuelOrdonnance() {
+    var input = document.getElementById('medicamentManualOrdonnance');
+    var nom = input.value.trim() || document.getElementById('medicamentSearchOrdonnance').value.trim();
+    if (!nom) { showToast('Veuillez saisir un nom', 'warning'); return; }
+    selectionnerMedicamentOrdonnance(nom);
+    input.value = '';
+    document.getElementById('medicamentSearchOrdonnance').value = '';
+}
+
+
+
+// ============================================================ //
+// GESTION DES PRESCRIPTIONS (NOUVELLE / MODIFICATION)          //
+// ============================================================ //
+
+// Ouvrir le modal en mode NOUVELLE PRESCRIPTION
+function ouvrirNouvellePrescription() {
+    // ⭐ METTRE À JOUR LE TITRE
+    document.getElementById('ordonnanceModalTitle').textContent = 'Nouvelle prescription';
+    
+    // ⭐ METTRE À JOUR LE MESSAGE
+    document.getElementById('ordonnanceModalAlert').innerHTML = '<i class="fas fa-info-circle me-2"></i>Remplissez les champs pour créer une nouvelle prescription.';
+    
+    // ⭐ METTRE À JOUR LE TYPE D'ACTION
+    document.getElementById('ordonnanceActionType').value = 'nouvelle';
+    
+    // ⭐ CACHER LE CHAMP MOTIF DE MODIFICATION
+    document.getElementById('ordonnanceMotifModification').style.display = 'none';
+    
+    // ⭐ METTRE À JOUR LE BOUTON
+    document.getElementById('ordonnanceSubmitBtn').innerHTML = '<i class="fas fa-save me-2"></i>Prescrire';
+    
+    // ⭐ METTRE À JOUR L'ACTION DU FORMULAIRE
+    document.getElementById('ordonnanceForm').action = "{{ url_for('creer_ordonnance_hospitalisation', id=hospitalisation.id) }}";
+    
+    // ⭐ VIDER LA LISTE DES MÉDICAMENTS
+    document.getElementById('medicaments-list').innerHTML = '';
+    ajouterMedicamentOrdonnance();
+    updateOrdonnanceJson();
+    
+    // ⭐ RÉINITIALISER LE CHAMP JSON
+    document.getElementById('medicaments_json_ordonnance').value = '[]';
+    
+    // ⭐ OUVRIR LE MODAL
+    var modal = new bootstrap.Modal(document.getElementById('ordonnanceModal'));
+    modal.show();
+}
+
+// Ouvrir le modal en mode MODIFICATION
+function ouvrirModificationPrescription() {
+    // ⭐ METTRE À JOUR LE TITRE
+    document.getElementById('ordonnanceModalTitle').textContent = 'Modifier la prescription';
+    
+    // ⭐ METTRE À JOUR LE MESSAGE
+    document.getElementById('ordonnanceModalAlert').innerHTML = '<i class="fas fa-info-circle me-2"></i>Une nouvelle version sera créée. L\'ancienne version reste dans l\'historique.';
+    
+    // ⭐ METTRE À JOUR LE TYPE D'ACTION
+    document.getElementById('ordonnanceActionType').value = 'modification';
+    
+    // ⭐ AFFICHER LE CHAMP MOTIF DE MODIFICATION
+    document.getElementById('ordonnanceMotifModification').style.display = 'block';
+    
+    // ⭐ METTRE À JOUR LE BOUTON
+    document.getElementById('ordonnanceSubmitBtn').innerHTML = '<i class="fas fa-save me-2"></i>Modifier';
+    
+    // ⭐ METTRE À JOUR L'ACTION DU FORMULAIRE
+    document.getElementById('ordonnanceForm').action = "{{ url_for('modifier_ordonnance_hospitalisation', id=hospitalisation.id) }}";
+    
+    // ⭐ CHARGER LES MÉDICAMENTS EXISTANTS
+    chargerMedicamentsExistants();
+    
+    // ⭐ OUVRIR LE MODAL
+    var modal = new bootstrap.Modal(document.getElementById('ordonnanceModal'));
+    modal.show();
+}
+
+// Charger les médicaments existants pour modification
+function chargerMedicamentsExistants() {
+    var list = document.getElementById('medicaments-list');
+    list.innerHTML = '';
+    
+    var existing = document.getElementById('medicaments_json_ordonnance').value;
+    if (existing) {
+        try {
+            var data = JSON.parse(existing);
+            data.forEach(function(m) {
+                ajouterMedicamentOrdonnance(m);
+            });
+        } catch(e) {
+            console.error('Erreur:', e);
+        }
+    }
+    if (document.querySelectorAll('#medicaments-list .row').length === 0) {
+        ajouterMedicamentOrdonnance();
+    }
+    updateOrdonnanceJson();
+}
+
+
+// ============================================================ //
+// RECHERCHE D'ANALYSES POUR EXAMENS
+// ============================================================ //
+
+var analyseTimeoutExamen = null;
+
+function rechercherAnalysesExamen(term) {
+    var resultsDiv = document.getElementById('analyseResultsExamen');
+    if (term.length < 2) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+        return;
+    }
+    
+    fetch('/api/analyses/search?term=' + encodeURIComponent(term))
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            resultsDiv.innerHTML = '';
+            if (data.length === 0) {
+                resultsDiv.innerHTML = '<div class="list-group-item text-muted">Aucune analyse trouvee. <span class="text-primary" style="cursor:pointer;" onclick="ajouterAnalyseManuelleExamen()"><i class="fas fa-plus"></i> Ajouter "' + term + '"</span></div>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            data.forEach(function(item) {
+                var div = document.createElement('div');
+                div.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+                div.innerHTML = '<div><strong>' + item.nom + '</strong></div><div><button class="btn btn-sm btn-success" onclick="selectionnerAnalyseExamen(\'' + item.nom + '\')"><i class="fas fa-plus"></i></button></div>';
+                div.onclick = function() { selectionnerAnalyseExamen(item.nom); };
+                resultsDiv.appendChild(div);
+            });
+            resultsDiv.style.display = 'block';
+        })
+        .catch(function(error) {
+            console.error('Erreur:', error);
+            resultsDiv.innerHTML = '<div class="list-group-item text-danger">Erreur de recherche</div>';
+            resultsDiv.style.display = 'block';
+        });
+}
+
+function selectionnerAnalyseExamen(nom) {
+    document.getElementById('analyseSearchExamen').value = '';
+    document.getElementById('analyseResultsExamen').style.display = 'none';
+    ajouterExamenModal(nom);
+    showToast('"' + nom + '" ajoute', 'success');
+}
+
+function ajouterAnalyseManuelleExamen() {
+    var input = document.getElementById('analyseManualExamen');
+    var nom = input.value.trim() || document.getElementById('analyseSearchExamen').value.trim();
+    if (!nom) { showToast('Veuillez saisir un nom', 'warning'); return; }
+    selectionnerAnalyseExamen(nom);
+    input.value = '';
+    document.getElementById('analyseSearchExamen').value = '';
+}
+
+// ============================================================ //
+// INITIALISATION
+// ============================================================ //
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Charger les medicaments disponibles
+    chargerMedicamentsDisponibles();
+    
+    // Recherche medicaments
+    var searchMed = document.getElementById('medicamentSearchOrdonnance');
+    if (searchMed) {
+        searchMed.addEventListener('input', function() {
+            clearTimeout(medicamentTimeoutOrdonnance);
+            var term = this.value.trim();
+            if (term.length < 2) {
+                document.getElementById('medicamentResultsOrdonnance').style.display = 'none';
+                return;
+            }
+            medicamentTimeoutOrdonnance = setTimeout(function() { 
+                rechercherMedicamentsOrdonnance(term); 
+            }, 300);
+        });
+    }
+    
+    // Recherche analyses
+    var searchAna = document.getElementById('analyseSearchExamen');
+    if (searchAna) {
+        searchAna.addEventListener('input', function() {
+            clearTimeout(analyseTimeoutExamen);
+            var term = this.value.trim();
+            if (term.length < 2) {
+                document.getElementById('analyseResultsExamen').style.display = 'none';
+                return;
+            }
+            analyseTimeoutExamen = setTimeout(function() { 
+                rechercherAnalysesExamen(term); 
+            }, 300);
+        });
+    }
+});
+
+// Script pour l'ordonnance
+function ajouterMedicamentOrdonnance(medicament = null) {
+    const list = document.getElementById('medicaments-list');
+    const row = document.createElement('div');
+    row.className = 'row mb-2 align-items-center';
+    row.dataset.index = list.children.length;
+
+    if (medicament) {
+        row.innerHTML = `
+            <div class="col-4">
+                <input type="text" class="form-control form-control-sm med-nom" value="${medicament.medicament || ''}" placeholder="Nom">
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control form-control-sm med-dosage" value="${medicament.dosage || ''}" placeholder="Dosage">
+            </div>
+            <div class="col-3">
+                <input type="text" class="form-control form-control-sm med-posologie" value="${medicament.posologie || ''}" placeholder="Posologie">
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control form-control-sm med-duree" value="${medicament.duree || ''}" placeholder="Durée">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="supprimerMedicamentOrdonnance(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    } else {
+        row.innerHTML = `
+            <div class="col-4">
+                <input type="text" class="form-control form-control-sm med-nom" placeholder="Nom">
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control form-control-sm med-dosage" placeholder="Dosage">
+            </div>
+            <div class="col-3">
+                <input type="text" class="form-control form-control-sm med-posologie" placeholder="Posologie">
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control form-control-sm med-duree" placeholder="Durée">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="supprimerMedicamentOrdonnance(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    list.appendChild(row);
+    updateOrdonnanceJson();
+}
+
+function supprimerMedicamentOrdonnance(btn) {
+    const row = btn.closest('.row');
+    row.remove();
+    updateOrdonnanceJson();
+}
+
+function updateOrdonnanceJson() {
+    const rows = document.querySelectorAll('#medicaments-list .row');
+    const data = [];
+    rows.forEach(row => {
+        data.push({
+            'medicament': row.querySelector('.med-nom').value,
+            'dosage': row.querySelector('.med-dosage').value,
+            'posologie': row.querySelector('.med-posologie').value,
+            'duree': row.querySelector('.med-duree').value
+        });
+    });
+    document.getElementById('medicaments_json_ordonnance').value = JSON.stringify(data);
+}
+
+document.addEventListener('input', function(e) {
+    if (e.target.closest('#medicaments-list')) {
+        updateOrdonnanceJson();
+    }
+});
+
+// Script pour les examens
+function ajouterExamenModal(examen = null) {
+    const list = document.getElementById('examens-list-modal');
+    const row = document.createElement('div');
+    row.className = 'row mb-2 align-items-center';
+    row.dataset.index = list.children.length;
+
+    if (examen) {
+        row.innerHTML = `
+            <div class="col-11">
+                <input type="text" class="form-control form-control-sm examen-nom-modal" value="${examen}" placeholder="Nom de l'examen">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="supprimerExamenModal(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    } else {
+        row.innerHTML = `
+            <div class="col-11">
+                <input type="text" class="form-control form-control-sm examen-nom-modal" placeholder="Nom de l'examen">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm" onclick="supprimerExamenModal(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    list.appendChild(row);
+    updateExamenJson();
+}
+
+function supprimerExamenModal(btn) {
+    const row = btn.closest('.row');
+    row.remove();
+    updateExamenJson();
+}
+
+function updateExamenJson() {
+    const rows = document.querySelectorAll('#examens-list-modal .row');
+    const data = [];
+    rows.forEach(row => {
+        const val = row.querySelector('.examen-nom-modal').value.trim();
+        if (val) {
+            data.push(val);
+        }
+    });
+    document.getElementById('examens_json_modal').value = JSON.stringify(data);
+}
+
+document.addEventListener('input', function(e) {
+    if (e.target.closest('#examens-list-modal')) {
+        updateExamenJson();
+    }
+});
+
+// Charger les données existantes
+document.addEventListener('DOMContentLoaded', function() {
+    // Charger l'ordonnance existante
+    const ordonnanceJson = document.getElementById('medicaments_json_ordonnance');
+    if (ordonnanceJson && ordonnanceJson.value) {
+        try {
+            const data = JSON.parse(ordonnanceJson.value);
+            data.forEach(m => {
+                ajouterMedicamentOrdonnance(m);
+            });
+        } catch(e) {
+            console.error('Erreur chargement ordonnance:', e);
+        }
+    }
+    if (document.querySelectorAll('#medicaments-list .row').length === 0) {
+        ajouterMedicamentOrdonnance();
+    }
+
+    // Charger les examens pour le modal
+    // On initialise avec une ligne vide
+    if (document.querySelectorAll('#examens-list-modal .row').length === 0) {
+        ajouterExamenModal();
+    }
+});
+
+// Autocomplete examen type
+document.addEventListener('DOMContentLoaded', function() {
+    const select = document.getElementById('examenTypeSelect');
+    if (select) {
+        select.addEventListener('change', function() {
+            if (this.value) {
+                fetch(`/api/examen-type/${this.value}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.querySelector('[name="nature"]').value = data.nature;
+                        document.querySelector('[name="motif"]').value = data.motif || '';
+                        document.querySelector('[name="description"]').value = data.description || '';
+                        
+                        // Remplacer la liste des examens
+                        const list = document.getElementById('examens-list-modal');
+                        list.innerHTML = '';
+                        data.examens.forEach(e => {
+                            ajouterExamenModal(e);
+                        });
+                        if (data.examens.length === 0) {
+                            ajouterExamenModal();
+                        }
+                    })
+                    .catch(() => {
+                        console.error('Erreur chargement examen type');
+                    });
+            }
+        });
+    }
 });
 </script>
 {% endblock %}
