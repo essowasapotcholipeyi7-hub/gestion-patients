@@ -1,21 +1,264 @@
 {% extends "base.html" %}
 
 {% block content_public %}
-<div class="container">
-    <div class="row min-vh-100 align-items-center">
-        <div class="col-md-6 mx-auto text-center">
-            <div class="card">
-                <div class="card-body p-5">
-                    <i class="fas fa-hospital-user fa-5x text-primary mb-4"></i>
-                    <h1 class="display-4 mb-4">MediLogic - Gestion des Patients</h1>
-                    <p class="lead mb-4">Plateforme complète de gestion médicale pour les structures de santé</p>
-                    <div class="d-grid gap-3">
-                        <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg">
-                            <i class="fas fa-sign-in-alt me-2"></i> Connexion
-                        </a>
-                        <a href="{{ url_for('register_structure') }}" class="btn btn-outline-secondary btn-lg">
-                            <i class="fas fa-building me-2"></i> Inscription structure
-                        </a>
+<style>
+    .hero-section {
+        background: linear-gradient(135deg, #0e7490 0%, #0a5a70 50%, #064e60 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 600px;
+        height: 600px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 50%;
+        animation: float 8s ease-in-out infinite;
+    }
+    
+    .hero-section::after {
+        content: '';
+        position: absolute;
+        bottom: -30%;
+        left: -10%;
+        width: 400px;
+        height: 400px;
+        background: rgba(255,255,255,0.03);
+        border-radius: 50%;
+        animation: float 10s ease-in-out infinite reverse;
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(30px, -30px) scale(1.05); }
+    }
+    
+    .hero-card {
+        background: rgba(255,255,255,0.95);
+        backdrop-filter: blur(20px);
+        border: none;
+        border-radius: 24px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+        position: relative;
+        z-index: 1;
+        transition: transform 0.3s ease;
+    }
+    
+    .hero-card:hover {
+        transform: translateY(-4px);
+    }
+    
+    .hero-icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #0e7490, #0a5a70);
+        border-radius: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 8px 32px rgba(14, 116, 144, 0.3);
+    }
+    
+    .hero-icon i {
+        font-size: 2.5rem;
+        color: #fff;
+    }
+    
+    .hero-title {
+        font-size: 2.8rem;
+        font-weight: 800;
+        color: #0a5a70;
+        letter-spacing: -0.5px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .hero-title span {
+        background: linear-gradient(135deg, #0e7490, #2f9e5b);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .hero-subtitle {
+        font-size: 1.15rem;
+        color: #5a7a8a;
+        font-weight: 400;
+        max-width: 450px;
+        margin: 0 auto 2rem;
+        line-height: 1.7;
+    }
+    
+    .btn-hero-primary {
+        background: linear-gradient(135deg, #0e7490, #0a5a70);
+        border: none;
+        padding: 0.9rem 2.5rem;
+        border-radius: 16px;
+        font-weight: 600;
+        font-size: 1.05rem;
+        color: #fff;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 32px rgba(14, 116, 144, 0.35);
+        width: 100%;
+    }
+    
+    .btn-hero-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 48px rgba(14, 116, 144, 0.45);
+        color: #fff;
+        background: linear-gradient(135deg, #0a5a70, #064e60);
+    }
+    
+    .btn-hero-secondary {
+        background: transparent;
+        border: 2px solid #e2e8f0;
+        padding: 0.9rem 2.5rem;
+        border-radius: 16px;
+        font-weight: 600;
+        font-size: 1.05rem;
+        color: #4a6a7a;
+        transition: all 0.3s ease;
+        width: 100%;
+    }
+    
+    .btn-hero-secondary:hover {
+        background: #f8fafc;
+        border-color: #0e7490;
+        color: #0e7490;
+        transform: translateY(-2px);
+    }
+    
+    .hero-features {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid #edf2f7;
+    }
+    
+    .hero-feature {
+        text-align: center;
+        padding: 0.5rem;
+    }
+    
+    .hero-feature i {
+        font-size: 1.5rem;
+        color: #0e7490;
+        margin-bottom: 0.25rem;
+        display: block;
+    }
+    
+    .hero-feature span {
+        font-size: 0.8rem;
+        color: #5a7a8a;
+        font-weight: 500;
+    }
+    
+    /* Version mobile */
+    @media (max-width: 768px) {
+        .hero-title {
+            font-size: 2rem;
+        }
+        
+        .hero-card {
+            margin: 1rem;
+            padding: 1rem !important;
+        }
+        
+        .hero-card .card-body {
+            padding: 2rem 1.5rem !important;
+        }
+        
+        .hero-features {
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        
+        .hero-icon {
+            width: 64px;
+            height: 64px;
+        }
+        
+        .hero-icon i {
+            font-size: 2rem;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .hero-features {
+            grid-template-columns: 1fr;
+        }
+        
+        .hero-title {
+            font-size: 1.6rem;
+        }
+        
+        .hero-subtitle {
+            font-size: 0.95rem;
+        }
+        
+        .btn-hero-primary,
+        .btn-hero-secondary {
+            padding: 0.7rem 1.5rem;
+            font-size: 0.95rem;
+        }
+    }
+</style>
+
+<div class="hero-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8">
+                <div class="card hero-card">
+                    <div class="card-body p-5 text-center">
+                        <!-- Icône -->
+                        <div class="hero-icon">
+                            <i class="fas fa-stethoscope"></i>
+                        </div>
+                        
+                        <!-- Titre -->
+                        <h1 class="hero-title">
+                            SSoftOneV10<span>ConsulT</span>
+                        </h1>
+                        
+                        <!-- Sous-titre -->
+                        <p class="hero-subtitle">
+                            Plateforme complète de gestion médicale pour les structures de santé
+                        </p>
+                        
+                        <!-- Boutons -->
+                        <div class="d-grid gap-3">
+                            <a href="{{ url_for('login') }}" class="btn-hero-primary">
+                                <i class="fas fa-sign-in-alt me-2"></i> Connexion
+                            </a>
+                            <a href="{{ url_for('register_structure') }}" class="btn-hero-secondary">
+                                <i class="fas fa-building me-2"></i> Inscription structure
+                            </a>
+                        </div>
+                        
+                        <!-- Features -->
+                        <div class="hero-features">
+                            <div class="hero-feature">
+                                <i class="fas fa-users"></i>
+                                <span>Gestion patients</span>
+                            </div>
+                            <div class="hero-feature">
+                                <i class="fas fa-stethoscope"></i>
+                                <span>Consultations</span>
+                            </div>
+                            <div class="hero-feature">
+                                <i class="fas fa-flask"></i>
+                                <span>Analyses & Radiologie</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
