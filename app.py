@@ -5330,9 +5330,17 @@ def ajouter_antecedent(patient_id):
     db.session.add(antecedent)
     db.session.commit()
     
+    # ⭐ AJOUTER UN PARAMÈTRE POUR DIFFÉRENCIER AJAX
+    format = request.args.get('format')
+    if format == 'json':
+        return jsonify({
+            'success': True,
+            'message': 'Antécédent ajouté avec succès',
+            'antecedent_id': antecedent.id
+        })
+    
     flash('✅ Antécédent ajouté avec succès', 'success')
     
-    # ⭐ REDIRECTION : Si on vient de la pré-consultation (infirmier)
     return_to = request.form.get('return_to')
     if return_to == 'pre_consultation' or current_user.role == 'infirmier':
         return redirect(url_for('infirmier_pre_consultation', patient_id=patient_id))
