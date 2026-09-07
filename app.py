@@ -6838,25 +6838,35 @@ def api_sync_prescriptions_to_ghp():
     """
     Envoie les prescriptions vers GHP
     """
-    from models import Prescription, StructureMapping
+    from models import Prescription, Patient, StructureMapping
     from datetime import datetime
     import requests
-    
+
     try:
         # ⭐ Récupérer le mapping GHP
         mapping = StructureMapping.query.filter_by(
             local_structure_id=current_user.id_structure,
             actif=True
         ).first()
-        
+
         if not mapping:
             return jsonify({'success': False, 'message': 'Configuration GHP non trouvée'}), 400
-        
-        # ⭐ Récupérer les prescriptions non synchronisées
-        prescriptions = Prescription.query.filter_by(
-            synced_at=None,
-            statut='active'
-        ).all()
+
+        # ⭐ Récupérer les prescriptions non synchronisées — UNIQUEMENT
+        # celles dont le patient appartient à la structure de cet
+        # utilisateur (sinon, avec plusieurs structures actives sur ce
+        # déploiement, on enverrait aussi les prescriptions des AUTRES
+        # structures avec le mapping/token de celle-ci).
+        prescriptions = (
+            Prescription.query
+            .join(Patient, Prescription.id_patient == Patient.id)
+            .filter(
+                Prescription.synced_at.is_(None),
+                Prescription.statut == 'active',
+                Patient.id_structure == current_user.id_structure,
+            )
+            .all()
+        )
         
         if not prescriptions:
             return jsonify({'success': True, 'message': 'Aucune prescription à synchroniser'})
