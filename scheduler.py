@@ -56,6 +56,20 @@ def scheduled_sync_prescriptions():
         logger.error(f"❌ Erreur sync prescriptions: {e}")
 
 
+def scheduled_sync_actes_poses():
+    """
+    Synchronisation automatique des actes posés toutes les 5 minutes
+    (rattrapage si l'envoi automatique a échoué)
+    """
+    try:
+        from tasks import sync_actes_poses_to_ghp
+        result = sync_actes_poses_to_ghp()
+        if result.get('success'):
+            logger.info(f"🔄 Sync actes posés: {result.get('message')}")
+    except Exception as e:
+        logger.error(f"❌ Erreur sync actes posés: {e}")
+
+
 def start_scheduler():
     """Démarre le planificateur de tâches"""
     global scheduler
@@ -91,7 +105,16 @@ def start_scheduler():
             replace_existing=True
         )
         logger.info("🔄 Prescriptions: Synchronisation toutes les 5 minutes")
-        
+
+        # ---- 4. SYNCHRONISATION ACTES POSÉS (toutes les 5 minutes) ----
+        scheduler.add_job(
+            func=scheduled_sync_actes_poses,
+            trigger=IntervalTrigger(minutes=5),
+            id='sync_actes_poses',
+            replace_existing=True
+        )
+        logger.info("🔄 Actes posés: Synchronisation toutes les 5 minutes")
+
         # ---- DÉMARRAGE ----
         scheduler.start()
         logger.info(f"✅ Scheduler démarré - Mode: {env}")

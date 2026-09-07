@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+
+{% block title %}Actes posés{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-notes-medical me-2" style="color: var(--hp-primary);"></i>
+            Consigner un acte posé
+            <span class="badge bg-success ms-2" id="acteCount">0</span>
+        </h1>
+        <div>
+            <a href="{{ url_for('actes_poses_liste') }}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-list me-2"></i>Historique
+            </a>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        Un <strong>acte posé</strong> est un soin réalisé directement (pansement, injection, suture...) —
+        pas un examen prescrit à faire réaliser ailleurs (labo/radio, ça reste dans "Prescriptions").
+        Il part directement en facturation côté GHP, pour que la caissière n'ait plus qu'à encaisser.
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="POST" id="actePoseForm" onsubmit="return validerFormulaire()">
+                <!-- Patient avec recherche -->
+                <div class="mb-3">
+                    <label class="form-label">Patient *</label>
+                    <div class="input-group">
+                        <input type="text" id="patientSearch" class="form-control"
+                               placeholder="Rechercher un patient par nom, prénom ou téléphone..." autocomplete="off">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearPatientSearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div id="patientResults" class="list-group mt-1" style="max-height: 200px; overflow-y: auto; display: none;"></div>
+                    <select name="id_patient" id="patientSelect" class="form-select mt-2" required style="display: none;">
+                        <option value="">Sélectionner un patient</option>
+                        {% for patient in patients %}
+                        <option value="{{ patient.id }}" data-nom="{{ patient.nom }}" data-prenom="{{ patient.prenom }}" data-telephone="{{ patient.telephone }}">
+                            {{ patient.prenom }} {{ patient.nom }} - {{ patient.telephone or 'Pas de téléphone' }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div id="selectedPatientDisplay" class="mt-2" style="display: none;">
+                        <div class="alert alert-success mb-0">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Patient sélectionné : <strong id="selectedPatientName"></strong>
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="clearPatientSelection()">
+                                <i class="fas fa-times"></i> Changer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- RECHERCHE D'ACTES -->
+                <!-- ═══════════════════════════════════════════ -->
+                <h5 class="mt-3 mb-3">
+                    <i class="fas fa-search me-2" style="color: var(--hp-primary);"></i>
+                    Rechercher un acte
+                </h5>
+                <hr>
+
+                <div class="alert alert-light border">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Tapez le nom de l'acte posé. Si l'acte n'existe pas encore dans le catalogue de la
+                    structure, vous pouvez l'ajouter manuellement — il sera proposé la prochaine fois.
+                </div>
+
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label class="form-label">Rechercher un acte</label>
+                        <div class="input-group">
+                            <input type="text" id="acteSearch" class="form-control"
+                                   placeholder="Tapez le nom de l'acte..." autocomplete="off">
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearActeSearch()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="acteResults" class="list-group mt-1" style="max-height: 200px; overflow-y: auto; display: none;"></div>
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Ajouter manuellement</label>
+                        <div class="input-group">
+                            <input type="text" id="acteManual" class="form-control"
+                                   placeholder="Nom non trouvé...">
+                            <button class="btn btn-primary" type="button" onclick="ajouterActeManuel()">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Quantité</label>
+                        <input type="number" id="acteQuantite" class="form-control" value="1" min="1">
+                    </div>
+                    <div class="col-md-7 mb-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="form-text mb-1">L'acte recherché/ajouté apparaît ici avant confirmation :
+                            <strong id="acteChoisiLabel" class="text-muted">aucun</strong></div>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-success w-100" type="button" onclick="ajouterActeAuPanier()">
+                            <i class="fas fa-plus me-1"></i> Ajouter
+                        </button>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- PANIER DES ACTES POSÉS -->
+                <!-- ═══════════════════════════════════════════ -->
+                <h5 class="mt-3 mb-3">
+                    <i class="fas fa-clipboard-list me-2 text-warning"></i>
+                    Actes à consigner
+                    <button class="btn btn-sm btn-danger ms-2" type="button" onclick="viderPanierActes()">
+                        <i class="fas fa-trash-alt"></i> Vider
+                    </button>
+                </h5>
+                <hr>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="acteTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 55%">Acte</th>
+                                <th style="width: 20%">Quantité</th>
+                                <th style="width: 25%">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="acteBody">
+                            <tr><td colspan="3" class="text-center text-muted">Aucun acte consigné</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <input type="hidden" name="actes_poses_json" id="actesHidden">
+
+                <div class="mb-3 mt-3">
+                    <label class="form-label">Notes</label>
+                    <textarea name="notes" class="form-control" rows="2"
+                              placeholder="Informations complémentaires..."></textarea>
+                </div>
+
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <i class="fas fa-save me-2"></i>Enregistrer et envoyer en facturation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// GESTION DES PATIENTS (identique au formulaire de prescription)
+// ============================================================
+let patientsList = [];
+let selectedPatientId = null;
+
+function initPatients() {
+    const select = document.getElementById('patientSelect');
+    const options = select.querySelectorAll('option');
+    patientsList = [];
+    options.forEach(opt => {
+        if (opt.value) {
+            patientsList.push({
+                id: parseInt(opt.value),
+                nom: opt.dataset.nom || '',
+                prenom: opt.dataset.prenom || '',
+                telephone: opt.dataset.telephone || '',
+                display: opt.textContent.trim()
+            });
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    initPatients();
+    chargerActesDisponibles();
+
+    const patientSearch = document.getElementById('patientSearch');
+    const patientResults = document.getElementById('patientResults');
+
+    if (patientSearch) {
+        patientSearch.addEventListener('input', function() {
+            const term = this.value.trim().toLowerCase();
+
+            if (term.length < 2) {
+                patientResults.style.display = 'none';
+                patientResults.innerHTML = '';
+                return;
+            }
+
+            const results = patientsList.filter(p =>
+                p.nom.toLowerCase().includes(term) ||
+                p.prenom.toLowerCase().includes(term) ||
+                p.telephone.includes(term)
+            );
+
+            patientResults.innerHTML = '';
+            if (results.length === 0) {
+                patientResults.innerHTML = `
+                    <div class="list-group-item text-muted">
+                        <i class="fas fa-search me-2"></i>
+                        Aucun patient trouvé pour "<strong>${term}</strong>"
+                    </div>
+                `;
+                patientResults.style.display = 'block';
+                return;
+            }
+
+            results.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'list-group-item list-group-item-action';
+                div.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${p.prenom} ${p.nom}</strong>
+                            ${p.telephone ? `<br><small class="text-muted"><i class="fas fa-phone me-1"></i>${p.telephone}</small>` : ''}
+                        </div>
+                        <button class="btn btn-sm btn-success" onclick="selectionnerPatient(${p.id})">
+                            <i class="fas fa-check"></i> Sélectionner
+                        </button>
+                    </div>
+                `;
+                div.onclick = function() { selectionnerPatient(p.id); };
+                patientResults.appendChild(div);
+            });
+            patientResults.style.display = 'block';
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#patientSearch') && !e.target.closest('#patientResults')) {
+                patientResults.style.display = 'none';
+            }
+        });
+    }
+});
+
+function selectionnerPatient(id) {
+    const patient = patientsList.find(p => p.id === id);
+    if (!patient) return;
+
+    selectedPatientId = id;
+    document.getElementById('patientSelect').value = id;
+    document.getElementById('patientSearch').value = `${patient.prenom} ${patient.nom}`;
+    document.getElementById('selectedPatientName').textContent = `${patient.prenom} ${patient.nom} ${patient.telephone ? ' - ' + patient.telephone : ''}`;
+    document.getElementById('selectedPatientDisplay').style.display = 'block';
+    document.getElementById('patientResults').style.display = 'none';
+    document.getElementById('patientResults').innerHTML = '';
+
+    showToast(`✅ Patient sélectionné : ${patient.prenom} ${patient.nom}`, 'success');
+}
+
+function clearPatientSearch() {
+    document.getElementById('patientSearch').value = '';
+    document.getElementById('patientResults').style.display = 'none';
+    document.getElementById('patientResults').innerHTML = '';
+}
+
+function clearPatientSelection() {
+    selectedPatientId = null;
+    document.getElementById('patientSelect').value = '';
+    document.getElementById('patientSearch').value = '';
+    document.getElementById('selectedPatientDisplay').style.display = 'none';
+    document.getElementById('patientResults').style.display = 'none';
+}
+
+// ============================================================
+// GESTION DES ACTES — recherche dans le catalogue réel de GHP
+// (comme pour les médicaments), + repli sur le catalogue local si GHP
+// est injoignable ou si l'acte vient d'être créé ici.
+// ============================================================
+let actesPanier = [];
+let actesDisponibles = [];
+let acteTimeout = null;
+let acteChoisi = '';
+
+function chargerActesDisponibles() {
+    fetch('/api/actes-types/disponibles')
+        .then(r => r.ok ? r.json() : [])
+        .then(data => {
+            actesDisponibles = data || [];
+            console.log(`✅ ${actesDisponibles.length} actes disponibles chargés (catalogue GHP)`);
+        })
+        .catch(() => { actesDisponibles = []; });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('acteSearch');
+    const resultsDiv = document.getElementById('acteResults');
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(acteTimeout);
+        const term = this.value.trim().toLowerCase();
+
+        if (term.length < 2) {
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+            return;
+        }
+
+        acteTimeout = setTimeout(() => {
+            const results = actesDisponibles.filter(a => a.nom.toLowerCase().includes(term));
+
+            resultsDiv.innerHTML = '';
+            if (results.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="list-group-item text-muted">
+                        <i class="fas fa-search me-2"></i>
+                        Aucun acte trouvé pour "<strong>${term}</strong>" dans le catalogue de la structure.
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="ajouterActeManuel()">
+                                <i class="fas fa-plus me-1"></i> Ajouter "${term}" manuellement
+                            </button>
+                        </div>
+                    </div>
+                `;
+                resultsDiv.style.display = 'block';
+                return;
+            }
+
+            results.forEach(a => {
+                const div = document.createElement('div');
+                div.className = 'list-group-item list-group-item-action';
+                div.innerHTML = `<strong>${a.nom}</strong>`;
+                div.onclick = function() { selectionnerActe(a.nom); };
+                resultsDiv.appendChild(div);
+            });
+            resultsDiv.style.display = 'block';
+        }, 300);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#acteSearch') && !e.target.closest('#acteResults')) {
+            resultsDiv.style.display = 'none';
+        }
+    });
+});
+
+function clearActeSearch() {
+    document.getElementById('acteSearch').value = '';
+    document.getElementById('acteResults').style.display = 'none';
+    document.getElementById('acteResults').innerHTML = '';
+}
+
+function selectionnerActe(nom) {
+    acteChoisi = nom;
+    document.getElementById('acteSearch').value = nom;
+    document.getElementById('acteChoisiLabel').textContent = nom;
+    document.getElementById('acteResults').style.display = 'none';
+    document.getElementById('acteResults').innerHTML = '';
+}
+
+function ajouterActeManuel() {
+    const input = document.getElementById('acteManual');
+    const nom = input.value.trim() || document.getElementById('acteSearch').value.trim();
+
+    if (!nom) {
+        showToast('Veuillez saisir un nom d\'acte', 'warning');
+        return;
+    }
+
+    const existant = actesDisponibles.find(a => a.nom.toLowerCase() === nom.toLowerCase());
+    if (existant) {
+        selectionnerActe(existant.nom);
+        input.value = '';
+        return;
+    }
+
+    if (!confirm(`⚠️ "${nom}" n'existe pas encore dans le catalogue de la structure.\n\nL'ajouter ?`)) {
+        return;
+    }
+
+    selectionnerActe(nom);
+    input.value = '';
+    showToast(`✅ "${nom}" sera ajouté au catalogue`, 'info');
+}
+
+function ajouterActeAuPanier() {
+    const nom = acteChoisi || document.getElementById('acteSearch').value.trim();
+    const quantite = parseInt(document.getElementById('acteQuantite').value) || 1;
+
+    if (!nom) {
+        showToast('Veuillez rechercher ou saisir un acte', 'warning');
+        return;
+    }
+
+    const existant = actesPanier.find(a => a.nom === nom);
+    if (existant) {
+        existant.quantite += quantite;
+    } else {
+        actesPanier.push({ nom: nom, quantite: quantite });
+    }
+
+    afficherPanierActes();
+
+    acteChoisi = '';
+    document.getElementById('acteSearch').value = '';
+    document.getElementById('acteChoisiLabel').textContent = 'aucun';
+    document.getElementById('acteQuantite').value = '1';
+    document.getElementById('acteResults').style.display = 'none';
+
+    showToast(`✅ "${nom}" ajouté (${quantite})`, 'success');
+}
+
+function afficherPanierActes() {
+    const tbody = document.getElementById('acteBody');
+    const count = document.getElementById('acteCount');
+    const hidden = document.getElementById('actesHidden');
+
+    hidden.value = JSON.stringify(actesPanier);
+
+    if (actesPanier.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Aucun acte consigné</td></tr>';
+        if (count) count.textContent = '0';
+        return;
+    }
+
+    let html = '';
+    actesPanier.forEach((item, index) => {
+        html += `
+            <tr>
+                <td>
+                    <input type="text" class="form-control form-control-sm" value="${item.nom}"
+                           onchange="modifierNomActe(${index}, this.value)">
+                </td>
+                <td>
+                    <div class="input-group input-group-sm">
+                        <button class="btn btn-outline-secondary" type="button" onclick="modifierQuantiteActe(${index}, -1)">-</button>
+                        <input type="number" class="form-control text-center" value="${item.quantite}"
+                               style="width: 60px;" min="1" onchange="modifierQuantiteActe(${index}, 0, this.value)">
+                        <button class="btn btn-outline-secondary" type="button" onclick="modifierQuantiteActe(${index}, 1)">+</button>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-danger" type="button" onclick="supprimerActePanier(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+    if (count) count.textContent = actesPanier.length;
+}
+
+function modifierNomActe(index, valeur) {
+    const item = actesPanier[index];
+    if (!item) return;
+    item.nom = valeur.trim() || item.nom;
+    afficherPanierActes();
+}
+
+function modifierQuantiteActe(index, delta, nouvelleValeur) {
+    const item = actesPanier[index];
+    if (!item) return;
+    let qte = nouvelleValeur !== undefined ? parseInt(nouvelleValeur) : item.quantite + delta;
+    if (isNaN(qte) || qte < 1) qte = 1;
+    item.quantite = qte;
+    afficherPanierActes();
+}
+
+function supprimerActePanier(index) {
+    const item = actesPanier[index];
+    if (!item) return;
+    actesPanier.splice(index, 1);
+    afficherPanierActes();
+    showToast(`"${item.nom}" retiré`, 'info');
+}
+
+function viderPanierActes() {
+    if (actesPanier.length === 0) return;
+    if (confirm('Vider tous les actes consignés ?')) {
+        actesPanier = [];
+        afficherPanierActes();
+        showToast('🗑️ Panier vidé', 'info');
+    }
+}
+
+// ============================================================
+// VALIDATION
+// ============================================================
+function validerFormulaire() {
+    if (!selectedPatientId) {
+        showToast('⚠️ Veuillez sélectionner un patient', 'warning');
+        return false;
+    }
+    if (actesPanier.length === 0) {
+        showToast('⚠️ Veuillez ajouter au moins un acte', 'warning');
+        return false;
+    }
+    document.getElementById('actesHidden').value = JSON.stringify(actesPanier);
+    return true;
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(message, type = 'info') {
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast show bg-${type} text-white`;
+    toast.innerHTML = `
+        <div class="toast-body d-flex justify-content-between align-items-center">
+            <span>${message}</span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" onclick="this.closest('.toast').remove()"></button>
+        </div>
+    `;
+    toastContainer.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+</script>
+
+<style>
+.list-group-item-action { cursor: pointer; }
+.list-group-item-action:hover { background-color: #f8f9fa; }
+#patientResults, #acteResults { position: relative; z-index: 1000; }
+</style>
+{% endblock %}

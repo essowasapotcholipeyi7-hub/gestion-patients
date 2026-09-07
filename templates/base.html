@@ -435,6 +435,13 @@
             </a>
             {% endif %}
 
+            <!-- ========== ACTES POSÉS ========== -->
+            {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
+            <a class="nav-link" href="{{ url_for('acte_pose_ajouter') }}" title="Actes posés">
+                <i class="fas fa-notes-medical"></i><span class="nav-text">Actes posés</span>
+            </a>
+            {% endif %}
+
             <!-- ========== SALLES ========== -->
             {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
             <a class="nav-link" href="{{ url_for('liste_salles') }}" title="Salles">

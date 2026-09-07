@@ -104,6 +104,57 @@ class Prescription(db.Model):
     medecin = db.relationship('Utilisateur', foreign_keys=[id_medecin], backref='prescriptions_redigees')
 
 
+# ==================== ACTES POSÉS ====================
+# ⭐ Distinct de Prescription (type='acte') : un ACTE POSÉ est réalisé
+# directement par le médecin/infirmier sur place (pansement, injection,
+# suture, petit soin...), pas un examen PRESCRIT à faire réaliser ailleurs
+# (labo/radio — ça reste Prescription). Synchronisé vers GHP pour
+# facturation, comme les prescriptions (même pipeline /api/prescriptions).
+
+class ActeType(db.Model):
+    """Catalogue des actes posés, par structure — recherché par nom au
+    moment de consigner un acte ; complété à la volée (comme pour les
+    médicaments) si l'acte n'existe pas encore dans la liste."""
+    __tablename__ = 'actes_types'
+
+    id = db.Column(db.Integer, primary_key=True)
+    structure_id = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False)
+    nom = db.Column(db.String(200), nullable=False)
+    actif = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ActePose(db.Model):
+    """Un acte réellement effectué, consigné pour un patient donné."""
+    __tablename__ = 'actes_poses'
+
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    consultation_id = db.Column(db.Integer, db.ForeignKey('consultations.id'), nullable=True)
+    hospitalisation_id = db.Column(db.Integer, db.ForeignKey('hospitalisations.id'), nullable=True)
+    acte_type_id = db.Column(db.Integer, db.ForeignKey('actes_types.id'), nullable=True)
+
+    # ⭐ Dénormalisé, toujours rempli (même principe que Prescription.medicament)
+    # — permet d'envoyer le libellé à GHP sans jointure, et de garder une
+    # trace même si le catalogue est modifié/supprimé ensuite.
+    nom = db.Column(db.String(200), nullable=False)
+    quantite = db.Column(db.String(50), default='1')
+    notes = db.Column(db.Text, nullable=True)
+
+    date_pose = db.Column(db.DateTime, default=datetime.utcnow)
+    pose_par_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
+    statut = db.Column(db.String(20), default='actif')  # 'actif' | 'annule'
+
+    synced_at = db.Column(db.DateTime, nullable=True)
+
+    patient = db.relationship('Patient', foreign_keys=[patient_id], backref='actes_poses')
+    consultation = db.relationship('Consultation', foreign_keys=[consultation_id], backref='actes_poses_consultation')
+    hospitalisation = db.relationship('Hospitalisation', foreign_keys=[hospitalisation_id], backref='actes_poses_hospitalisation')
+    acte_type = db.relationship('ActeType', foreign_keys=[acte_type_id])
+    pose_par = db.relationship('Utilisateur', foreign_keys=[pose_par_id], backref='actes_poses_realises')
+
+
 # ==================== CONSULTATIONS ====================
 class Consultation(db.Model):
     __tablename__ = 'consultations'

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Actes posés — Historique{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-notes-medical me-2" style="color: var(--hp-primary);"></i>
+            Actes posés — Historique
+        </h1>
+        <div>
+            <a href="{{ url_for('acte_pose_ajouter') }}" class="btn btn-primary me-2">
+                <i class="fas fa-plus me-2"></i>Consigner un acte
+            </a>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Patient</th>
+                            <th>Acte</th>
+                            <th>Qté</th>
+                            <th>Posé par</th>
+                            <th>Facturation GHP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in actes %}
+                        <tr>
+                            <td>{{ a.date_pose.strftime('%d/%m/%Y %H:%M') if a.date_pose else '-' }}</td>
+                            <td>
+                                {% if a.patient %}
+                                    <strong>{{ a.patient.prenom }} {{ a.patient.nom }}</strong>
+                                {% else %}
+                                    <span class="text-muted">Patient inconnu</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ a.nom }}</td>
+                            <td>{{ a.quantite }}</td>
+                            <td>
+                                {% if a.pose_par %}
+                                    {{ a.pose_par.prenom }} {{ a.pose_par.nom }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if a.synced_at %}
+                                    <span class="badge bg-success"><i class="fas fa-check me-1"></i>Envoyé</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>En attente</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-4">Aucun acte posé consigné pour l'instant</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

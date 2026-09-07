@@ -1807,6 +1807,158 @@ def prescription_ajouter():
     
     return render_template('prescriptions/ajouter.html', patients=patients)
 
+
+# ==================== ACTES POSÉS ====================
+# ⭐ Un acte posé est réalisé directement par le médecin/infirmier
+# (pansement, injection, suture, petit soin...) — pas un examen prescrit à
+# faire réaliser ailleurs (ça reste Prescription). Synchronisé vers GHP
+# pour facturation, comme les prescriptions.
+
+@app.route('/actes-poses/ajouter', methods=['GET', 'POST'])
+@login_required
+def acte_pose_ajouter():
+    from models import Patient, ActeType, ActePose
+    from datetime import datetime
+    import json
+
+    try:
+        db.session.expire_all()
+        if current_user.role == 'medecin':
+            patients = Patient.query.filter_by(
+                id_structure=current_user.id_structure,
+                id_medecin_referent=current_user.id,
+                archived=False
+            ).all()
+        else:
+            patients = Patient.query.filter_by(
+                id_structure=current_user.id_structure,
+                archived=False
+            ).all()
+    except Exception as e:
+        print(f"❌ Erreur récupération patients: {e}")
+        patients = []
+        flash('Erreur de chargement des patients', 'danger')
+
+    if request.method == 'POST':
+        try:
+            id_patient = request.form.get('id_patient')
+            notes = request.form.get('notes', '')
+            actes_poses_json = request.form.get('actes_poses_json')
+
+            if not id_patient:
+                flash('Veuillez sélectionner un patient', 'danger')
+                return redirect(url_for('acte_pose_ajouter'))
+
+            if not actes_poses_json:
+                flash('Veuillez ajouter au moins un acte', 'danger')
+                return redirect(url_for('acte_pose_ajouter'))
+
+            actes_data = json.loads(actes_poses_json)
+            actes_valides = [a for a in actes_data if a.get('nom', '').strip()]
+
+            if not actes_valides:
+                flash('Aucun acte valide', 'danger')
+                return redirect(url_for('acte_pose_ajouter'))
+
+            actes_crees = []
+            for a in actes_valides:
+                nom = a['nom'].strip()
+
+                # ⭐ Si l'acte n'existe pas encore dans le catalogue de la
+                # structure, on le crée à la volée (comme pour un
+                # médicament ajouté manuellement).
+                acte_type = ActeType.query.filter_by(
+                    structure_id=current_user.id_structure, nom=nom
+                ).first()
+                if not acte_type:
+                    acte_type = ActeType(
+                        structure_id=current_user.id_structure,
+                        nom=nom,
+                        created_by=current_user.id
+                    )
+                    db.session.add(acte_type)
+                    db.session.flush()
+
+                acte_pose = ActePose(
+                    patient_id=int(id_patient),
+                    acte_type_id=acte_type.id,
+                    nom=nom,
+                    quantite=str(a.get('quantite', 1)),
+                    notes=notes,
+                    date_pose=datetime.utcnow(),
+                    pose_par_id=current_user.id,
+                    statut='actif'
+                )
+                db.session.add(acte_pose)
+                actes_crees.append(acte_pose)
+
+            db.session.commit()
+
+            # ⭐ Synchronisation immédiate vers GHP (comme après une
+            # consultation) — le rattrapage périodique (5 min) reste le
+            # filet de sécurité si celle-ci échoue.
+            try:
+                from tasks import sync_actes_poses_to_ghp
+                result = sync_actes_poses_to_ghp()
+                if result.get('success'):
+                    print(f"✅ {result.get('message')}")
+                else:
+                    print(f"⚠️ {result.get('message')}")
+            except Exception as e:
+                print(f"⚠️ Erreur sync auto actes posés: {e}")
+
+            flash(f'✅ {len(actes_crees)} acte(s) posé(s) enregistré(s)', 'success')
+            return redirect(url_for('patients_list'))
+
+        except Exception as e:
+            print(f"❌ Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            db.session.rollback()
+            flash(f'Erreur: {str(e)}', 'danger')
+            return redirect(url_for('acte_pose_ajouter'))
+
+    return render_template('actes_poses/ajouter.html', patients=patients)
+
+
+@app.route('/actes-poses')
+@login_required
+def actes_poses_liste():
+    from models import ActePose, Patient
+
+    actes = (
+        ActePose.query
+        .join(Patient, ActePose.patient_id == Patient.id)
+        .filter(Patient.id_structure == current_user.id_structure)
+        .order_by(ActePose.date_pose.desc())
+        .limit(200)
+        .all()
+    )
+    return render_template('actes_poses/liste.html', actes=actes)
+
+
+@app.route('/api/actes-types/rechercher')
+@login_required
+def api_actes_types_rechercher():
+    """Recherche dans le catalogue LOCAL déjà créé pour cette structure
+    (complète la recherche live sur GHP côté client — utile pour retrouver
+    tout de suite un acte créé manuellement la veille, avant qu'il ait pu
+    être resynchronisé)."""
+    from models import ActeType
+
+    terme = request.args.get('q', '').strip()
+    if len(terme) < 2:
+        return jsonify([])
+
+    actes = ActeType.query.filter(
+        ActeType.structure_id == current_user.id_structure,
+        ActeType.actif == True,
+        ActeType.nom.ilike(f'%{terme}%')
+    ).order_by(ActeType.nom).limit(20).all()
+
+    return jsonify([{'id': a.id, 'nom': a.nom} for a in actes])
+
+
 # ==================== RECHERCHE ====================
 
 @app.route('/recherche', methods=['GET', 'POST'])
@@ -6767,6 +6919,55 @@ def api_medicaments_disponibles():
     except Exception as e:
         print(f"❌ Erreur récupération médicaments: {e}")
         return jsonify([])
+
+@app.route('/api/actes-types/disponibles')
+@login_required
+def api_actes_types_disponibles():
+    """
+    Récupère le catalogue d'actes depuis GHP (même principe que
+    /api/medicamentos/disponibles) — pour la recherche d'actes posés.
+    """
+    from models import StructureMapping
+    import requests
+
+    mapping = StructureMapping.query.filter_by(
+        local_structure_id=current_user.id_structure,
+        actif=True
+    ).first()
+
+    if not mapping:
+        print(f"⚠️ Aucun mapping GHP trouvé pour la structure {current_user.id_structure}")
+        return jsonify([])
+
+    try:
+        url = f"{mapping.api_url}/api/actes/disponibles"
+        params = {'token': mapping.api_key}
+
+        response = requests.get(url, params=params, timeout=15)
+        if response.status_code != 200:
+            print(f"❌ Erreur GHP (actes): {response.status_code} - {response.text[:100]}")
+            return jsonify([])
+
+        data = response.json()
+        actes = data.get('actes', [])
+        result = [{'nom': a.get('nom', '')} for a in actes if a.get('nom')]
+        result.sort(key=lambda x: x['nom'])
+
+        print(f"✅ {len(result)} actes disponibles chargés")
+        return jsonify(result)
+
+    except requests.exceptions.Timeout:
+        print("❌ Timeout lors de la récupération des actes")
+        return jsonify([])
+    except requests.exceptions.ConnectionError:
+        print("❌ Erreur de connexion à GHP")
+        return jsonify([])
+    except Exception as e:
+        print(f"❌ Erreur récupération actes: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify([])
+
 
 @app.route('/api/medicamentos/disponibles')
 @login_required
