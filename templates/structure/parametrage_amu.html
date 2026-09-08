@@ -14,11 +14,13 @@
     <div class="alert alert-info">
         <i class="fas fa-info-circle me-2"></i>
         À la clôture d'une hospitalisation, le nombre de jours est réparti en
-        <strong>paliers</strong> (semaine 1 / semaine 2 / 15 jours et plus), chacun
-        facturé au tarif GHP correspondant pour la salle occupée. Le taux AMU n'est
-        utilisé ici que pour l'<strong>estimation</strong> affichée à la clôture — le
-        montant réellement remboursé est calculé par GHP au moment de la vente, avec
-        le taux propre au patient.
+        <strong>paliers</strong> (semaine 1 / semaine 2 / 15 jours et plus). Le prix
+        facturé au patient ne change pas selon le palier — seule la part que
+        l'assurance rembourse en dépend (le catalogue GHP a un tarif fixe et un PBR
+        différent par palier). Le taux AMU réglé ici n'est utilisé que pour
+        l'<strong>estimation</strong> affichée à la clôture — le montant réellement
+        remboursé est calculé par GHP au moment de la vente, avec le taux propre au
+        patient.
     </div>
 
     <!-- ===== SEUILS + TAUX ===== -->
@@ -58,30 +60,31 @@
         </div>
     </div>
 
-    <!-- ===== MAPPING PAR SALLE ===== -->
+    <!-- ===== RÉSUMÉ TARIFS GHP PAR SALLE ===== -->
     <div class="card">
         <div class="card-header">
             <i class="fas fa-bed me-2"></i>Tarifs GHP par salle
         </div>
         <div class="card-body">
             {% if not salles %}
-            <p class="text-muted mb-0">Aucune salle configurée pour votre structure.</p>
+            <p class="text-muted mb-0">
+                Aucune salle configurée pour votre structure —
+                <a href="{{ url_for('ajouter_salle') }}">créez-en une</a>.
+            </p>
             {% else %}
             <p class="text-muted">
-                Pour chaque salle, indiquez le nom <strong>exact</strong> de l'acte
-                correspondant dans le catalogue GHP (recherche assistée ci-dessous).
-                Un palier laissé vide ne sera pas facturé pour ce palier — utile si un
-                séjour aussi long est en pratique impossible dans cette salle.
+                Le tarif GHP (les 3 paliers d'hospitalisation) se configure désormais
+                directement sur chaque salle — un seul sélecteur choisit le type de
+                salle dans le vrai catalogue GHP et renseigne les 3 paliers d'un coup,
+                fini la saisie libre. Cliquez sur une salle pour la configurer.
             </p>
             <div class="table-responsive">
-                <table class="table table-bordered align-middle">
+                <table class="table table-bordered align-middle mb-0">
                     <thead>
                         <tr>
-                            <th style="min-width:160px">Salle</th>
-                            <th>Acte GHP — Palier 1 (semaine 1)</th>
-                            <th>Acte GHP — Palier 2 (8e-14e j.)</th>
-                            <th>Acte GHP — Palier 3 (15j et +)</th>
-                            <th style="width:80px">Action</th>
+                            <th>Salle</th>
+                            <th>Tarif GHP</th>
+                            <th style="width:100px">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -92,37 +95,16 @@
                                 <small class="text-muted">{{ salle.type_salle }} · {{ salle.nombre_lits }} lit(s)</small>
                             </td>
                             <td>
-                                <input type="text" class="form-control form-control-sm acte-input"
-                                       form="form-salle-{{ salle.id }}"
-                                       list="datalistActesGHP" name="acte_ghp_semaine1"
-                                       value="{{ salle.acte_ghp_semaine1 or '' }}"
-                                       placeholder="Nom exact de l'acte GHP...">
-                                <small class="text-muted tarif-preview"></small>
+                                {% if salle.acte_ghp_semaine1 %}
+                                <span class="badge bg-success"><i class="fas fa-check me-1"></i>Configuré</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Non configuré</span>
+                                {% endif %}
                             </td>
                             <td>
-                                <input type="text" class="form-control form-control-sm acte-input"
-                                       form="form-salle-{{ salle.id }}"
-                                       list="datalistActesGHP" name="acte_ghp_semaine2"
-                                       value="{{ salle.acte_ghp_semaine2 or '' }}"
-                                       placeholder="Nom exact de l'acte GHP...">
-                                <small class="text-muted tarif-preview"></small>
-                            </td>
-                            <td>
-                                <input type="text" class="form-control form-control-sm acte-input"
-                                       form="form-salle-{{ salle.id }}"
-                                       list="datalistActesGHP" name="acte_ghp_semaine3"
-                                       value="{{ salle.acte_ghp_semaine3 or '' }}"
-                                       placeholder="Nom exact de l'acte GHP...">
-                                <small class="text-muted tarif-preview"></small>
-                            </td>
-                            <td>
-                                <form method="POST" id="form-salle-{{ salle.id }}">
-                                    <input type="hidden" name="form_type" value="salle">
-                                    <input type="hidden" name="salle_id" value="{{ salle.id }}">
-                                    <button type="submit" class="btn btn-sm btn-success">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                </form>
+                                <a href="{{ url_for('modifier_salle', id=salle.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
                             </td>
                         </tr>
                         {% endfor %}
@@ -133,49 +115,4 @@
         </div>
     </div>
 </div>
-
-<datalist id="datalistActesGHP"></datalist>
-
-<script>
-// Charge le catalogue d'actes GHP (avec prix/pbr) pour l'autocomplétion
-// et l'aperçu tarifaire — même endpoint que l'onglet "Actes posés".
-let actesGHPCatalogue = {};
-
-function afficherApercuTarif(input) {
-    const preview = input.parentElement.querySelector('.tarif-preview');
-    const val = input.value.trim().toLowerCase();
-    if (!val) { preview.textContent = ''; return; }
-    const acte = actesGHPCatalogue[val];
-    if (acte) {
-        preview.innerHTML = `<i class="fas fa-check-circle text-success"></i> ${acte.prix} FCFA/jour (PBR ${acte.pbr})`;
-    } else {
-        preview.innerHTML = `<i class="fas fa-exclamation-triangle text-warning"></i> Non trouvé dans le catalogue GHP`;
-    }
-}
-
-// Écouteurs posés tout de suite (l'input peut changer avant la fin du
-// chargement), mais l'aperçu INITIAL n'est affiché qu'une fois le
-// catalogue chargé — sinon toute valeur déjà saisie apparaît à tort
-// "non trouvée" pendant la fraction de seconde où actesGHPCatalogue est
-// encore vide (même bug de course que pharma_vente.html côté GHP).
-document.querySelectorAll('.acte-input').forEach(input => {
-    input.addEventListener('input', () => afficherApercuTarif(input));
-    input.addEventListener('change', () => afficherApercuTarif(input));
-});
-
-fetch('/api/actes-types/disponibles')
-    .then(r => r.ok ? r.json() : [])
-    .then(data => {
-        const datalist = document.getElementById('datalistActesGHP');
-        (data || []).forEach(a => {
-            if (!a.nom) return;
-            actesGHPCatalogue[a.nom.toLowerCase().trim()] = a;
-            const opt = document.createElement('option');
-            opt.value = a.nom;
-            datalist.appendChild(opt);
-        });
-        document.querySelectorAll('.acte-input').forEach(afficherApercuTarif);
-    })
-    .catch(() => {});
-</script>
 {% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Nouvelle salle{% endblock %}
+{% block title %}Modifier {{ salle.nom }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -8,50 +8,51 @@
         <div class="col-md-8">
             <div class="card shadow">
                 <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-bed me-2 text-success"></i>Nouvelle salle</h5>
+                    <h5 class="mb-0"><i class="fas fa-bed me-2 text-success"></i>Modifier {{ salle.nom }}</h5>
                 </div>
                 <div class="card-body">
                     <form method="POST">
                         <div class="mb-3">
                             <label class="form-label">Service *</label>
                             <select name="service_id" class="form-select" required>
-                                <option value="">Sélectionner un service</option>
                                 {% for service in services %}
-                                <option value="{{ service.id }}">{{ service.nom }}</option>
+                                <option value="{{ service.id }}" {% if service.id == salle.service_id %}selected{% endif %}>{{ service.nom }}</option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Nom de la salle *</label>
-                                <input type="text" name="nom" class="form-control" required placeholder="Ex: VIP-101">
+                                <input type="text" name="nom" class="form-control" required value="{{ salle.nom }}">
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Type de salle *</label>
                                 <select name="type_salle" class="form-select" required>
-                                    <option value="">Sélectionner</option>
-                                    <option value="VIP">VIP</option>
-                                    <option value="Standard">Standard</option>
-                                    <option value="Soins intensifs">Soins intensifs</option>
-                                    <option value="Réanimation">Réanimation</option>
-                                    <option value="Isolation">Isolation</option>
+                                    {% set types_connus = ['VIP', 'Standard', 'Soins intensifs', 'Réanimation', 'Isolation'] %}
+                                    {% for t in types_connus %}
+                                    <option value="{{ t }}" {% if salle.type_salle == t %}selected{% endif %}>{{ t }}</option>
+                                    {% endfor %}
+                                    {% if salle.type_salle and salle.type_salle not in types_connus %}
+                                    <option value="{{ salle.type_salle }}" selected>{{ salle.type_salle }}</option>
+                                    {% endif %}
                                 </select>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Nombre de lits *</label>
-                                <input type="number" name="nombre_lits" class="form-control" required min="1" max="10" value="1">
+                                <label class="form-label">Nombre de lits</label>
+                                <input type="text" class="form-control" value="{{ salle.nombre_lits }}" disabled>
+                                <div class="form-text">Non modifiable ici (gestion des lits individuels depuis la fiche de la salle).</div>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Prix journalier (CFA)</label>
-                                <input type="number" name="prix_journalier" id="prixJournalier" class="form-control" placeholder="25000">
+                                <input type="number" name="prix_journalier" id="prixJournalier" class="form-control" value="{{ salle.prix_journalier|int if salle.prix_journalier else '' }}" placeholder="25000">
                                 <div class="form-text">Pré-rempli automatiquement selon le tarif GHP choisi ci-dessous — modifiable.</div>
                             </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Description</label>
-                            <textarea name="description" class="form-control" rows="2" placeholder="Description de la salle..."></textarea>
+                            <textarea name="description" class="form-control" rows="2">{{ salle.description or '' }}</textarea>
                         </div>
 
                         <hr>
@@ -68,18 +69,31 @@
                                 changent que la part remboursée par l'assurance ; le prix facturé au patient reste
                                 le même quel que soit le palier.
                             </div>
+                            {% if salle.acte_ghp_semaine1 %}
+                            <div class="alert alert-light border mt-2 mb-0 small" id="mappingActuel">
+                                <strong>Actuellement configuré :</strong><br>
+                                Semaine 1 : {{ salle.acte_ghp_semaine1 }}<br>
+                                Semaine 2 : {{ salle.acte_ghp_semaine2 or '—' }}<br>
+                                15j et + : {{ salle.acte_ghp_semaine3 or '—' }}
+                            </div>
+                            {% else %}
+                            <div class="alert alert-warning mt-2 mb-0 small">
+                                <i class="fas fa-exclamation-triangle me-1"></i>Aucun tarif GHP configuré — la
+                                facturation automatique à la clôture d'hospitalisation ne fonctionnera pas.
+                            </div>
+                            {% endif %}
                             <!-- Champs réellement soumis, renseignés par JS -->
-                            <input type="hidden" name="acte_ghp_semaine1" id="acteGhpSemaine1">
-                            <input type="hidden" name="acte_ghp_semaine2" id="acteGhpSemaine2">
-                            <input type="hidden" name="acte_ghp_semaine3" id="acteGhpSemaine3">
+                            <input type="hidden" name="acte_ghp_semaine1" id="acteGhpSemaine1" value="{{ salle.acte_ghp_semaine1 or '' }}">
+                            <input type="hidden" name="acte_ghp_semaine2" id="acteGhpSemaine2" value="{{ salle.acte_ghp_semaine2 or '' }}">
+                            <input type="hidden" name="acte_ghp_semaine3" id="acteGhpSemaine3" value="{{ salle.acte_ghp_semaine3 or '' }}">
                         </div>
 
                         <div class="d-flex justify-content-between">
-                            <a href="{{ url_for('liste_salles') }}" class="btn btn-secondary">
+                            <a href="{{ url_for('detail_salle', id=salle.id) }}" class="btn btn-secondary">
                                 <i class="fas fa-arrow-left me-2"></i>Annuler
                             </a>
                             <button type="submit" class="btn btn-success">
-                                <i class="fas fa-save me-2"></i>Créer la salle
+                                <i class="fas fa-save me-2"></i>Enregistrer
                             </button>
                         </div>
                     </form>
@@ -90,13 +104,12 @@
 </div>
 
 <script>
-// Charge les familles de tarifs d'hospitalisation GHP (regroupées par
-// palier — voir /api/hospitalisation/familles-salles-ghp côté serveur) et
-// pré-remplit automatiquement les 3 paliers + le prix journalier dès
-// qu'un type de salle GHP est choisi. Plus de saisie libre possible pour
-// ces 3 champs : soit une vraie famille du catalogue est choisie, soit
-// aucune — jamais de mismatch/typo.
+// Même logique que la création (voir ajouter_salle.html) — en plus, on
+// pré-sélectionne dans la liste la famille qui correspond déjà à la salle
+// (comparaison sur le nom exact du palier "semaine 1", seule clé stable
+// qu'on ait — la salle ne stocke pas d'identifiant de famille).
 let famillesGHP = [];
+const acteSemaine1Actuel = document.getElementById('acteGhpSemaine1').value;
 
 fetch('{{ url_for("api_familles_salles_ghp") }}')
     .then(r => r.ok ? r.json() : {familles: []})
@@ -108,23 +121,32 @@ fetch('{{ url_for("api_familles_salles_ghp") }}')
         const optionVide = document.createElement('option');
         optionVide.value = '';
         optionVide.textContent = famillesGHP.length
-            ? '— Sélectionner un type de salle GHP —'
+            ? '— Changer de type de salle GHP —'
             : '— Aucun tarif d\'hospitalisation trouvé dans le catalogue GHP —';
         select.appendChild(optionVide);
 
+        let indexActuel = null;
         famillesGHP.forEach((f, i) => {
             const opt = document.createElement('option');
             opt.value = i;
             opt.textContent = `${f.famille} (${Math.round(f.prix).toLocaleString('fr-FR')} FCFA/jour)`;
             select.appendChild(opt);
+            if (acteSemaine1Actuel && f.semaine1 === acteSemaine1Actuel) {
+                indexActuel = i;
+            }
         });
+
+        if (indexActuel !== null) {
+            select.value = indexActuel;
+        }
     })
     .catch(() => {
         document.getElementById('familleGHPHint').innerHTML =
-            '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Catalogue GHP injoignable pour le moment — réessayez, ou laissez vide et configurez plus tard depuis la fiche de la salle.</span>';
+            '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Catalogue GHP injoignable pour le moment — réessayez plus tard. Le tarif déjà configuré (ci-dessus) reste inchangé tant que vous ne touchez pas à ce sélecteur.</span>';
     });
 
 document.getElementById('familleGHP').addEventListener('change', function() {
+    if (this.value === '') return; // rien touché : on garde le mapping actuel tel quel
     const f = famillesGHP[this.value];
     document.getElementById('acteGhpSemaine1').value = f ? f.semaine1 : '';
     document.getElementById('acteGhpSemaine2').value = f ? f.semaine2 : '';

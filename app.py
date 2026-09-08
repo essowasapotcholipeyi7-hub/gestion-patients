@@ -1176,8 +1176,15 @@ def structure_utilisateurs():
 @login_required
 def parametrage_amu():
     """Paramétrage AMU hospitalisation : seuils de jours par palier (semaine 1
-    / semaine 2 / 15j et plus) + mapping, par salle, vers le nom exact de
-    l'acte GHP correspondant à chaque palier (tarifs différents par salle)."""
+    / semaine 2 / 15j et plus), commun à toute la structure.
+
+    ⭐ Le mapping par salle vers le catalogue GHP (Salle.acte_ghp_semaine1/2/3)
+    ne se fait plus ici — il se configure directement à la création/
+    modification de la salle (voir ajouter_salle/modifier_salle), avec un
+    sélecteur qui choisit les 3 paliers d'un coup depuis le vrai catalogue
+    GHP (fini la saisie libre risquant un mismatch). Cet écran ne montre
+    plus qu'un résumé (salles non configurées) qui pointe vers leur fiche.
+    """
     if current_user.role != 'admin_structure':
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
@@ -1191,42 +1198,23 @@ def parametrage_amu():
         db.session.commit()
 
     if request.method == 'POST':
-        form_type = request.form.get('form_type')
+        try:
+            s1 = int(request.form.get('seuil_jours_semaine1', 7))
+            s2 = int(request.form.get('seuil_jours_semaine2', 14))
+            taux = float(request.form.get('taux_amu_info', 90))
+        except (TypeError, ValueError):
+            flash('Valeurs invalides', 'danger')
+            return redirect(url_for('parametrage_amu'))
 
-        if form_type == 'seuils':
-            try:
-                s1 = int(request.form.get('seuil_jours_semaine1', 7))
-                s2 = int(request.form.get('seuil_jours_semaine2', 14))
-                taux = float(request.form.get('taux_amu_info', 90))
-            except (TypeError, ValueError):
-                flash('Valeurs invalides', 'danger')
-                return redirect(url_for('parametrage_amu'))
+        if s1 < 1 or s2 <= s1:
+            flash('Le palier 2 doit se terminer après le palier 1', 'danger')
+            return redirect(url_for('parametrage_amu'))
 
-            if s1 < 1 or s2 <= s1:
-                flash('Le palier 2 doit se terminer après le palier 1', 'danger')
-                return redirect(url_for('parametrage_amu'))
-
-            parametrage.seuil_jours_semaine1 = s1
-            parametrage.seuil_jours_semaine2 = s2
-            parametrage.taux_amu_info = taux
-            db.session.commit()
-            flash('Paramétrage AMU mis à jour', 'success')
-
-        elif form_type == 'salle':
-            salle_id = request.form.get('salle_id', type=int)
-            salle = Salle.query.join(Service).filter(
-                Salle.id == salle_id,
-                Service.structure_id == current_user.id_structure
-            ).first()
-            if salle:
-                salle.acte_ghp_semaine1 = request.form.get('acte_ghp_semaine1', '').strip() or None
-                salle.acte_ghp_semaine2 = request.form.get('acte_ghp_semaine2', '').strip() or None
-                salle.acte_ghp_semaine3 = request.form.get('acte_ghp_semaine3', '').strip() or None
-                db.session.commit()
-                flash(f'Tarifs GHP de la salle "{salle.nom}" mis à jour', 'success')
-            else:
-                flash('Salle non trouvée', 'danger')
-
+        parametrage.seuil_jours_semaine1 = s1
+        parametrage.seuil_jours_semaine2 = s2
+        parametrage.taux_amu_info = taux
+        db.session.commit()
+        flash('Paramétrage AMU mis à jour', 'success')
         return redirect(url_for('parametrage_amu'))
 
     salles = Salle.query.join(Service).filter(
@@ -4679,6 +4667,76 @@ def _tarifs_ghp_structure(structure_id):
         return {}
 
 
+# ⭐ Regex des 3 paliers du catalogue GHP hospitalisation, ex :
+# "P160 Hospi Cabine climatisee avec 1 lit Premiere Semaine"
+# "P160 Hospi Cabine climatisee avec 1 lit 8e jour au 14e jour"
+# "P160 Hospi Cabine climatisee avec 1 lit 15 jours et plus"
+# — même préfixe "P160 Hospi <type de salle>", seul le palier change. Le
+# prix (cash, clinique) est identique sur les 3 paliers d'une même famille —
+# seul le PBR (base de remboursement AMU) diffère par palier. Voir
+# _familles_ghp_hospitalisation() : on regroupe donc par famille pour que
+# choisir UN type de salle GHP renseigne les 3 paliers d'un coup, sans
+# jamais pouvoir les dépareiller (fini la saisie libre au risque de
+# mismatch/typo).
+import re as _re
+_RE_PALIER_GHP = _re.compile(
+    r'^P160\s+Hospi(?:talisation)?\s+(.+?)\s+'
+    r'(Premiere\s+Semaine|8e\s+jour\s+au\s+14e\s+jour|15\s+jours\s+et\s+plus)$',
+    _re.IGNORECASE
+)
+_PALIER_LABEL_VERS_CLE = {
+    'premiere semaine': 'semaine1',
+    '8e jour au 14e jour': 'semaine2',
+    '15 jours et plus': 'semaine3',
+}
+
+
+def _familles_ghp_hospitalisation(structure_id):
+    """Regroupe le catalogue GHP en 'familles' de tarifs d'hospitalisation :
+    un type de salle (ex: 'Cabine climatisee avec 1 lit') -> ses 3 actes
+    GHP (un par palier), ne retient que les familles où les 3 paliers
+    existent réellement dans le catalogue. Retourne une liste triée par nom
+    de famille : [{'famille', 'semaine1', 'semaine2', 'semaine3', 'prix',
+    'pbr_semaine1', 'pbr_semaine2', 'pbr_semaine3'}, ...]."""
+    tarifs = _tarifs_ghp_structure(structure_id)
+
+    familles = {}
+    for acte in tarifs.values():
+        nom = (acte.get('nom') or '').strip()
+        m = _RE_PALIER_GHP.match(nom)
+        if not m:
+            continue
+        famille_nom = m.group(1).strip()
+        palier_cle = _PALIER_LABEL_VERS_CLE.get(m.group(2).strip().lower())
+        if not palier_cle:
+            continue
+        entry = familles.setdefault(famille_nom, {'famille': famille_nom})
+        entry[palier_cle] = nom
+        entry[f'prix_{palier_cle}'] = acte.get('prix')
+        entry[f'pbr_{palier_cle}'] = acte.get('pbr')
+
+    resultat = []
+    for famille_nom, entry in familles.items():
+        # Ne garder que les familles complètes (les 3 paliers présents) —
+        # une famille incomplète produirait un mapping partiel silencieux.
+        if not all(entry.get(p) for p in ('semaine1', 'semaine2', 'semaine3')):
+            continue
+        entry['prix'] = entry.get('prix_semaine1')  # flat sur les 3 paliers
+        resultat.append(entry)
+
+    return sorted(resultat, key=lambda e: e['famille'].lower())
+
+
+@app.route('/api/hospitalisation/familles-salles-ghp')
+@login_required
+def api_familles_salles_ghp():
+    """Types de salle d'hospitalisation disponibles dans le catalogue GHP
+    (groupés par famille, 3 paliers). Alimente le sélecteur unique de
+    Paramétrage tarif GHP dans la création/modification d'une salle."""
+    familles = _familles_ghp_hospitalisation(current_user.id_structure)
+    return jsonify({'familles': familles})
+
+
 @app.route('/hospitalisation/<int:id>/facturation/apercu')
 @login_required
 def apercu_facturation_hospitalisation(id):
@@ -6032,18 +6090,27 @@ def ajouter_salle():
         nombre_lits = request.form.get('nombre_lits', type=int)
         prix_journalier = request.form.get('prix_journalier', type=float)
         description = request.form.get('description')
-        
+        # ⭐ Renseignés automatiquement par le sélecteur "Tarif GHP" côté JS
+        # (un type de salle du catalogue GHP -> les 3 paliers d'un coup) —
+        # jamais de saisie libre pour ces 3 champs, voir ajouter_salle.html.
+        acte_ghp_semaine1 = (request.form.get('acte_ghp_semaine1') or '').strip() or None
+        acte_ghp_semaine2 = (request.form.get('acte_ghp_semaine2') or '').strip() or None
+        acte_ghp_semaine3 = (request.form.get('acte_ghp_semaine3') or '').strip() or None
+
         if not service_id or not nom or not type_salle or not nombre_lits:
             flash('Tous les champs obligatoires doivent être remplis', 'danger')
             return redirect(url_for('ajouter_salle'))
-        
+
         salle = Salle(
             service_id=int(service_id),
             nom=nom,
             type_salle=type_salle,
             nombre_lits=nombre_lits,
             prix_journalier=prix_journalier,
-            description=description
+            description=description,
+            acte_ghp_semaine1=acte_ghp_semaine1,
+            acte_ghp_semaine2=acte_ghp_semaine2,
+            acte_ghp_semaine3=acte_ghp_semaine3
         )
         db.session.add(salle)
         db.session.flush()
@@ -6057,8 +6124,15 @@ def ajouter_salle():
             db.session.add(lit)
         
         db.session.commit()
-        
+
         flash(f'Salle "{nom}" créée avec {nombre_lits} lits', 'success')
+        if not acte_ghp_semaine1:
+            flash(
+                f'Aucun tarif GHP choisi pour "{nom}" — la facturation automatique à la '
+                f'clôture d\'une hospitalisation ne fonctionnera pas tant que ce n\'est pas '
+                f'configuré (modifiez la salle pour le faire).',
+                'warning'
+            )
         return redirect(url_for('liste_salles'))
     
     return render_template('salles/ajouter_salle.html', services=services)
@@ -6086,6 +6160,65 @@ def detail_salle(id):
                 lit.patient = hospitalisation.patient
     
     return render_template('salles/detail_salle.html', salle=salle, lits=lits)
+
+
+@app.route('/salles/salle/<int:id>/modifier', methods=['GET', 'POST'])
+@login_required
+def modifier_salle(id):
+    """Modifier une salle — notamment son tarif GHP (paliers d'hospitalisation),
+    seul moyen désormais de le configurer/corriger après création (l'ancien
+    onglet Paramétrage AMU ne fait plus que les seuils de jours, communs à
+    la structure)."""
+    from models import Service, Salle
+
+    salle = Salle.query.get_or_404(id)
+    if salle.service.structure_id != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_salles'))
+
+    if current_user.role != 'admin_structure':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('detail_salle', id=id))
+
+    services = Service.query.filter_by(
+        structure_id=current_user.id_structure,
+        actif=True
+    ).all()
+
+    if request.method == 'POST':
+        service_id = request.form.get('service_id')
+        nom = request.form.get('nom')
+        type_salle = request.form.get('type_salle')
+        prix_journalier = request.form.get('prix_journalier', type=float)
+        description = request.form.get('description')
+        acte_ghp_semaine1 = (request.form.get('acte_ghp_semaine1') or '').strip() or None
+        acte_ghp_semaine2 = (request.form.get('acte_ghp_semaine2') or '').strip() or None
+        acte_ghp_semaine3 = (request.form.get('acte_ghp_semaine3') or '').strip() or None
+
+        if not service_id or not nom or not type_salle:
+            flash('Tous les champs obligatoires doivent être remplis', 'danger')
+            return redirect(url_for('modifier_salle', id=id))
+
+        salle.service_id = int(service_id)
+        salle.nom = nom
+        salle.type_salle = type_salle
+        salle.prix_journalier = prix_journalier
+        salle.description = description
+        salle.acte_ghp_semaine1 = acte_ghp_semaine1
+        salle.acte_ghp_semaine2 = acte_ghp_semaine2
+        salle.acte_ghp_semaine3 = acte_ghp_semaine3
+        db.session.commit()
+
+        flash(f'Salle "{nom}" mise à jour', 'success')
+        if not acte_ghp_semaine1:
+            flash(
+                f'Aucun tarif GHP choisi pour "{nom}" — la facturation automatique à la '
+                f'clôture d\'une hospitalisation ne fonctionnera pas tant que ce n\'est pas configuré.',
+                'warning'
+            )
+        return redirect(url_for('detail_salle', id=id))
+
+    return render_template('salles/modifier_salle.html', salle=salle, services=services)
 
 
 @app.route('/hospitalisation/<int:id>/assigner-lit', methods=['POST'])
