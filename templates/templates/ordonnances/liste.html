@@ -6,7 +6,13 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>
+            <i class="fas fa-prescription me-2 text-primary"></i>
             Ordonnances Types
+            {% if ordonnances %}
+            <span class="badge bg-primary align-middle" style="font-size:0.9rem; vertical-align:middle;">
+                {{ ordonnances|selectattr('actif')|list|length }} actif{{ 's' if ordonnances|selectattr('actif')|list|length != 1 else '' }} / {{ ordonnances|length }}
+            </span>
+            {% endif %}
         </h1>
         <div>
             <a href="{{ url_for('templates_dashboard') }}" class="btn btn-secondary me-2">
@@ -21,8 +27,23 @@
     {% if ordonnances %}
     <div class="card">
         <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent"><i class="fas fa-search text-muted"></i></span>
+                        <input type="text" id="filtreRecherche" class="form-control" placeholder="Rechercher une ordonnance par nom ou description...">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <select id="filtreStatut" class="form-select">
+                        <option value="">Tous les statuts</option>
+                        <option value="actif">Actives uniquement</option>
+                        <option value="inactif">Inactives uniquement</option>
+                    </select>
+                </div>
+            </div>
             <div class="table-responsive">
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover" id="tableOrdonnances">
                     <thead>
                         <tr>
                             <th>Nom</th>
@@ -34,7 +55,7 @@
                     </thead>
                     <tbody>
                         {% for o in ordonnances %}
-                        <tr>
+                        <tr data-nom="{{ o.nom|lower }}" data-description="{{ (o.description or '')|lower }}" data-statut="{{ 'actif' if o.actif else 'inactif' }}">
                             <td><strong>{{ o.nom }}</strong></td>
                             <td>{{ o.description or '-' }}</td>
                             <td>
@@ -84,9 +105,37 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                <p id="aucunResultat" class="text-muted text-center py-4" style="display:none;">
+                    <i class="fas fa-search me-2"></i>Aucune ordonnance ne correspond à ce filtre.
+                </p>
             </div>
         </div>
     </div>
+    <script>
+        (function() {
+            const recherche = document.getElementById('filtreRecherche');
+            const statut = document.getElementById('filtreStatut');
+            const lignes = Array.from(document.querySelectorAll('#tableOrdonnances tbody tr'));
+            const aucunResultat = document.getElementById('aucunResultat');
+
+            function appliquerFiltre() {
+                const terme = recherche.value.trim().toLowerCase();
+                const statutVoulu = statut.value;
+                let visibles = 0;
+                lignes.forEach(function(ligne) {
+                    const matchTexte = !terme || ligne.dataset.nom.includes(terme) || ligne.dataset.description.includes(terme);
+                    const matchStatut = !statutVoulu || ligne.dataset.statut === statutVoulu;
+                    const visible = matchTexte && matchStatut;
+                    ligne.style.display = visible ? '' : 'none';
+                    if (visible) visibles++;
+                });
+                aucunResultat.style.display = visibles === 0 ? '' : 'none';
+            }
+
+            recherche.addEventListener('input', appliquerFiltre);
+            statut.addEventListener('change', appliquerFiltre);
+        })();
+    </script>
     {% else %}
     <div class="card">
         <div class="card-body text-center py-5">

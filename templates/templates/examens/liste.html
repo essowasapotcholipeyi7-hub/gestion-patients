@@ -8,6 +8,11 @@
         <h1>
             <i class="fas fa-flask me-2 text-info"></i>
             Examens Types
+            {% if examens %}
+            <span class="badge bg-primary align-middle" style="font-size:0.9rem; vertical-align:middle;">
+                {{ examens|selectattr('actif')|list|length }} actif{{ 's' if examens|selectattr('actif')|list|length != 1 else '' }} / {{ examens|length }}
+            </span>
+            {% endif %}
         </h1>
         <div>
             <a href="{{ url_for('templates_dashboard') }}" class="btn btn-secondary me-2">
@@ -22,8 +27,31 @@
     {% if examens %}
     <div class="card">
         <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent"><i class="fas fa-search text-muted"></i></span>
+                        <input type="text" id="filtreRecherche" class="form-control" placeholder="Rechercher par nom ou motif...">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select id="filtreNature" class="form-select">
+                        <option value="">Toutes natures</option>
+                        <option value="BIOLOGIE">Biologie</option>
+                        <option value="IMAGERIE">Imagerie</option>
+                        <option value="AUTRE">Autre</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select id="filtreStatut" class="form-select">
+                        <option value="">Tous les statuts</option>
+                        <option value="actif">Actifs uniquement</option>
+                        <option value="inactif">Inactifs uniquement</option>
+                    </select>
+                </div>
+            </div>
             <div class="table-responsive">
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover" id="tableExamens">
                     <thead>
                         <tr>
                             <th>Nom</th>
@@ -36,7 +64,7 @@
                     </thead>
                     <tbody>
                         {% for e in examens %}
-                        <tr>
+                        <tr data-nom="{{ e.nom|lower }}" data-motif="{{ (e.motif or '')|lower }}" data-nature="{{ e.nature or '' }}" data-statut="{{ 'actif' if e.actif else 'inactif' }}">
                             <td><strong>{{ e.nom }}</strong></td>
                             <td>
                                 {% if e.nature == 'BIOLOGIE' %}
@@ -95,9 +123,41 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                <p id="aucunResultat" class="text-muted text-center py-4" style="display:none;">
+                    <i class="fas fa-search me-2"></i>Aucun examen type ne correspond à ce filtre.
+                </p>
             </div>
         </div>
     </div>
+    <script>
+        (function() {
+            const recherche = document.getElementById('filtreRecherche');
+            const nature = document.getElementById('filtreNature');
+            const statut = document.getElementById('filtreStatut');
+            const lignes = Array.from(document.querySelectorAll('#tableExamens tbody tr'));
+            const aucunResultat = document.getElementById('aucunResultat');
+
+            function appliquerFiltre() {
+                const terme = recherche.value.trim().toLowerCase();
+                const natureVoulue = nature.value;
+                const statutVoulu = statut.value;
+                let visibles = 0;
+                lignes.forEach(function(ligne) {
+                    const matchTexte = !terme || ligne.dataset.nom.includes(terme) || ligne.dataset.motif.includes(terme);
+                    const matchNature = !natureVoulue || ligne.dataset.nature === natureVoulue;
+                    const matchStatut = !statutVoulu || ligne.dataset.statut === statutVoulu;
+                    const visible = matchTexte && matchNature && matchStatut;
+                    ligne.style.display = visible ? '' : 'none';
+                    if (visible) visibles++;
+                });
+                aucunResultat.style.display = visibles === 0 ? '' : 'none';
+            }
+
+            recherche.addEventListener('input', appliquerFiltre);
+            nature.addEventListener('change', appliquerFiltre);
+            statut.addEventListener('change', appliquerFiltre);
+        })();
+    </script>
     {% else %}
     <div class="card">
         <div class="card-body text-center py-5">

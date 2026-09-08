@@ -247,6 +247,121 @@ def _pousser_rendez_vous_ghp(consultation, patient, medecin_nom):
 
 
 # ============================================================
+# ⭐ MIROIR PROTOCOLES / ORDONNANCES-TYPES / EXAMENS-TYPES VERS GHP
+# ============================================================
+# gestion_patients reste le côté auteur : c'est ici que les médecins créent
+# ET appliquent réellement ces modèles (hospitalisation, consultation).
+# Chaque création/modification/suppression est poussée en miroir vers le
+# modèle ProtocoleMedical de GHP (plus riche : statut, versioning, historique,
+# impression avec en-tête), pour que la même donnée soit visible des deux
+# côtés sans jamais la ressaisir. Best-effort, ne bloque jamais la
+# sauvegarde du médecin — voir /api/protocoles/sync-externe côté GHP.
+
+def _generer_contenu_protocole_soins(nom, description):
+    """Texte imprimable pour un ProtocoleSoins — GHP l'affiche tel quel."""
+    return f"{nom}\n\n{description or ''}".strip()
+
+
+def _generer_contenu_ordonnance(nom, medicaments):
+    """Même mise en forme que genererContenuOrdonnance() côté GHP
+    (templates/protocoles.html) pour un rendu identique à l'impression."""
+    date_jour = datetime.utcnow().strftime('%d/%m/%Y')
+    lignes = [f"Date : {date_jour}", ""]
+    if not medicaments:
+        lignes.append("Aucun médicament ajouté.")
+    else:
+        for i, med in enumerate(medicaments, start=1):
+            med_nom = (med.get('medicament') or med.get('nom') or '').strip()
+            dosage = (med.get('dosage') or '').strip()
+            posologie = (med.get('posologie') or med.get('frequence') or '').strip()
+            duree = (med.get('duree') or '').strip()
+            ligne = f"{i}. {med_nom}"
+            if dosage:
+                ligne += f" ({dosage})"
+            espaces = max(50 - len(ligne), 5)
+            ligne += " " + ("." * espaces) + " "
+            ligne += ", ".join(x for x in (posologie, duree) if x)
+            lignes.append(ligne)
+    lignes.append("")
+    lignes.append("─────────────────────────────────────────")
+    lignes.append("")
+    lignes.append("Signature : {{medecin}}")
+    return "\n".join(lignes)
+
+
+def _generer_contenu_bulletin(nom, motif, examens):
+    """Même mise en forme que genererContenuBulletin() côté GHP."""
+    date_jour = datetime.utcnow().strftime('%d/%m/%Y')
+    lignes = [f"Date : {date_jour}", ""]
+    lignes.append("1. Motif / Diagnostic :")
+    lignes.append(f"   {motif or '__________________________'}")
+    lignes.append("")
+    lignes.append("2. Eléments complémentaires :")
+    lignes.append("   __________________________")
+    lignes.append("")
+    lignes.append("3. Nature d'examen(s) demandé(s) :")
+    if examens:
+        for ex in examens:
+            ex = str(ex).strip()
+            if ex:
+                lignes.append(f"   - {ex}")
+    else:
+        lignes.append("   __________________________")
+    lignes.append("")
+    lignes.append("─────────────────────────────────────────")
+    lignes.append("")
+    lignes.append("Signature : {{medecin}}")
+    return "\n".join(lignes)
+
+
+def _pousser_protocole_ghp(categorie, source_model, source_id, structure_id,
+                            titre, description='', contenu='', medicaments=None,
+                            examens=None, actif=True, action='upsert'):
+    """Pousse (best-effort) un ProtocoleSoins/OrdonnanceType/ExamenType vers
+    GHP en tant que ProtocoleMedical miroir. Boucle sur TOUS les mappings
+    actifs de la structure (jamais .first() — une structure peut avoir
+    plusieurs cibles GHP), échec non bloquant comme le reste de ce miroir."""
+    from models import StructureMapping
+    import requests as _requests
+
+    mappings = StructureMapping.query.filter_by(
+        local_structure_id=structure_id, actif=True
+    ).all()
+    if not mappings:
+        return
+
+    auteur_nom = None
+    try:
+        auteur_nom = f"{current_user.prenom} {current_user.nom}".strip()
+    except Exception:
+        pass
+
+    for mapping in mappings:
+        try:
+            _requests.post(
+                f"{mapping.api_url}/api/protocoles/sync-externe",
+                params={'token': mapping.api_key},
+                json={
+                    'categorie': categorie,
+                    'source_app': 'gestion_patients',
+                    'source_model': source_model,
+                    'source_id': source_id,
+                    'titre': titre,
+                    'description': description or '',
+                    'contenu': contenu or '',
+                    'medicaments': medicaments or [],
+                    'examens': examens or [],
+                    'actif': actif,
+                    'action': action,
+                    'auteur_nom': auteur_nom,
+                },
+                timeout=10
+            )
+        except Exception as e:
+            print(f"⚠️ Push protocole GHP échoué (structure {structure_id}) : {e}")
+
+
+# ============================================================
 # ⭐ JOURNAL DE SOINS — actes réellement effectués sur un patient
 # ============================================================
 # Liste des actes courants proposés en un clic (dossier patient / détail de
@@ -7897,7 +8012,13 @@ def ajouter_protocole():
         
         db.session.add(protocole)
         db.session.commit()
-        
+
+        _pousser_protocole_ghp(
+            'protocole_soins', 'ProtocoleSoins', protocole.id, protocole.structure_id,
+            titre=nom, description=description,
+            contenu=_generer_contenu_protocole_soins(nom, description), actif=True,
+        )
+
         flash(f'Protocole "{nom}" créé avec succès', 'success')
         return redirect(url_for('liste_protocoles'))
     
@@ -7935,9 +8056,16 @@ def modifier_protocole(id):
         protocole.examen_type_id = request.form.get('examen_type_id', type=int) or None
         protocole.actif = request.form.get('actif') == 'on'
         protocole.updated_at = datetime.utcnow()
-        
+
         db.session.commit()
-        
+
+        _pousser_protocole_ghp(
+            'protocole_soins', 'ProtocoleSoins', protocole.id, protocole.structure_id,
+            titre=protocole.nom, description=protocole.description,
+            contenu=_generer_contenu_protocole_soins(protocole.nom, protocole.description),
+            actif=protocole.actif,
+        )
+
         flash(f'Protocole "{protocole.nom}" modifié avec succès', 'success')
         return redirect(url_for('liste_protocoles'))
     
@@ -7960,9 +8088,13 @@ def supprimer_protocole(id):
         return redirect(url_for('liste_protocoles'))
     
     nom = protocole.nom
+    _pousser_protocole_ghp(
+        'protocole_soins', 'ProtocoleSoins', protocole.id, protocole.structure_id,
+        titre=nom, action='archive',
+    )
     db.session.delete(protocole)
     db.session.commit()
-    
+
     flash(f'Protocole "{nom}" supprimé avec succès', 'success')
     return redirect(url_for('liste_protocoles'))
 
@@ -8023,10 +8155,17 @@ def ajouter_ordonnance():
             created_by=current_user.id,
             actif=True
         )
-        
+
         db.session.add(ordonnance)
         db.session.commit()
-        
+
+        _pousser_protocole_ghp(
+            'ordonnance_type', 'OrdonnanceType', ordonnance.id, ordonnance.structure_id,
+            titre=nom, description=description,
+            contenu=_generer_contenu_ordonnance(nom, medicaments),
+            medicaments=medicaments, actif=True,
+        )
+
         flash(f'Ordonnance "{nom}" créée avec succès', 'success')
         return redirect(url_for('liste_ordonnances'))
     
@@ -8052,9 +8191,20 @@ def modifier_ordonnance(id):
         ordonnance.medicaments = request.form.get('medicaments_json', '[]')
         ordonnance.actif = request.form.get('actif') == 'on'
         ordonnance.updated_at = datetime.utcnow()
-        
+
         db.session.commit()
-        
+
+        try:
+            medicaments = json.loads(ordonnance.medicaments or '[]')
+        except Exception:
+            medicaments = []
+        _pousser_protocole_ghp(
+            'ordonnance_type', 'OrdonnanceType', ordonnance.id, ordonnance.structure_id,
+            titre=ordonnance.nom, description=ordonnance.description,
+            contenu=_generer_contenu_ordonnance(ordonnance.nom, medicaments),
+            medicaments=medicaments, actif=ordonnance.actif,
+        )
+
         flash(f'Ordonnance "{ordonnance.nom}" modifiée avec succès', 'success')
         return redirect(url_for('liste_ordonnances'))
     
@@ -8074,9 +8224,13 @@ def supprimer_ordonnance(id):
         return redirect(url_for('liste_ordonnances'))
     
     nom = ordonnance.nom
+    _pousser_protocole_ghp(
+        'ordonnance_type', 'OrdonnanceType', ordonnance.id, ordonnance.structure_id,
+        titre=nom, action='archive',
+    )
     db.session.delete(ordonnance)
     db.session.commit()
-    
+
     flash(f'Ordonnance "{nom}" supprimée avec succès', 'success')
     return redirect(url_for('liste_ordonnances'))
 
@@ -8140,10 +8294,17 @@ def ajouter_examen():
             created_by=current_user.id,
             actif=True
         )
-        
+
         db.session.add(examen)
         db.session.commit()
-        
+
+        _pousser_protocole_ghp(
+            'bulletin_examen', 'ExamenType', examen.id, examen.structure_id,
+            titre=nom, description=description,
+            contenu=_generer_contenu_bulletin(nom, motif, examens),
+            examens=examens, actif=True,
+        )
+
         flash(f'Examen type "{nom}" créé avec succès', 'success')
         return redirect(url_for('liste_examens'))
     
@@ -8171,9 +8332,20 @@ def modifier_examen(id):
         examen.examens = request.form.get('examens_json', '[]')
         examen.actif = request.form.get('actif') == 'on'
         examen.updated_at = datetime.utcnow()
-        
+
         db.session.commit()
-        
+
+        try:
+            examens_list = json.loads(examen.examens or '[]')
+        except Exception:
+            examens_list = []
+        _pousser_protocole_ghp(
+            'bulletin_examen', 'ExamenType', examen.id, examen.structure_id,
+            titre=examen.nom, description=examen.description,
+            contenu=_generer_contenu_bulletin(examen.nom, examen.motif, examens_list),
+            examens=examens_list, actif=examen.actif,
+        )
+
         flash(f'Examen type "{examen.nom}" modifié avec succès', 'success')
         return redirect(url_for('liste_examens'))
     
@@ -8193,9 +8365,13 @@ def supprimer_examen(id):
         return redirect(url_for('liste_examens'))
     
     nom = examen.nom
+    _pousser_protocole_ghp(
+        'bulletin_examen', 'ExamenType', examen.id, examen.structure_id,
+        titre=nom, action='archive',
+    )
     db.session.delete(examen)
     db.session.commit()
-    
+
     flash(f'Examen type "{nom}" supprimé avec succès', 'success')
     return redirect(url_for('liste_examens'))
 
