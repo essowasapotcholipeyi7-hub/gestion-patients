@@ -999,9 +999,12 @@ def infirmier_pre_consultation(patient_id):
         patient.pre_consultation_date = datetime.now(timezone.utc)
         
         db.session.commit()
-        
-        flash('✅ Pré-consultation enregistrée avec succès !', 'success')
-        return redirect(url_for('infirmier_pre_consultation', patient_id=patient_id))
+
+        flash(f'✅ Pré-consultation de {patient.prenom} {patient.nom} enregistrée avec succès !', 'success')
+        # ⭐ Retour au tableau (liste des patients en attente/prêts) plutôt que
+        # de rester sur la fiche du patient qui vient d'être traité — demandé
+        # explicitement, l'infirmier enchaîne sur le patient suivant.
+        return redirect(url_for('infirmier_dashboard'))
     
     return render_template('infirmier/pre_consultation.html', 
                          patient=patient,
