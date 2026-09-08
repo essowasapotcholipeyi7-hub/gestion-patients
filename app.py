@@ -4346,14 +4346,43 @@ def _calculer_paliers_hospitalisation(jours_total, structure_id):
     return paliers, param
 
 
-def _salle_hospitalisation(hospitalisation):
-    """Retrouve la salle occupée pendant l'hospitalisation, via le lit
-    encore assigné. Doit être appelé AVANT de libérer le lit à la clôture."""
-    from models import Lit
-    if not hospitalisation.lit_id:
-        return None
-    lit = Lit.query.get(hospitalisation.lit_id)
-    return lit.salle if lit else None
+def _salle_hospitalisation(hospitalisation, salle_id_manuel=None):
+    """Retrouve la salle occupée pendant l'hospitalisation, pour la
+    facturation. Doit être appelé AVANT de libérer le lit à la clôture.
+
+    ⭐ Dans les faits, l'assignation formelle d'un lit (écran "Assigner un
+    lit") n'est utilisée que pour une minorité des hospitalisations —
+    beaucoup de dossiers ne renseignent qu'un numéro de chambre en texte
+    libre (Hospitalisation.chambre), sans lien avec la table Salle. Sans
+    repli, la facturation automatique échouait silencieusement pour la
+    plupart des clôtures réelles ("aucun lit n'était assigné"). On essaie
+    donc, dans l'ordre :
+    1. Un choix manuel explicite (sélectionné par l'utilisateur à la
+       clôture, quand aucune des méthodes automatiques n'a abouti).
+    2. Le lit formellement assigné (le cas fiable).
+    3. Une correspondance de nom entre Hospitalisation.chambre et
+       Salle.nom, pour la même structure (repli best-effort).
+    """
+    from models import Lit, Salle, Service
+
+    if salle_id_manuel:
+        return Salle.query.get(int(salle_id_manuel))
+
+    if hospitalisation.lit_id:
+        lit = Lit.query.get(hospitalisation.lit_id)
+        if lit and lit.salle:
+            return lit.salle
+
+    if hospitalisation.chambre:
+        chambre = hospitalisation.chambre.strip().lower()
+        salle = Salle.query.join(Service).filter(
+            Service.structure_id == hospitalisation.patient.id_structure,
+            db.func.lower(Salle.nom) == chambre
+        ).first()
+        if salle:
+            return salle
+
+    return None
 
 
 def _tarifs_ghp_structure(structure_id):
@@ -4393,11 +4422,24 @@ def apercu_facturation_hospitalisation(id):
     if current_user.id_structure and hospitalisation.patient.id_structure != current_user.id_structure:
         return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
 
-    salle = _salle_hospitalisation(hospitalisation)
+    salle_id_manuel = request.args.get('salle_id', type=int)
+    salle = _salle_hospitalisation(hospitalisation, salle_id_manuel=salle_id_manuel)
     if not salle:
+        # ⭐ Ni lit assigné, ni correspondance trouvée avec le nom de chambre
+        # ("{{ chambre }}" tapé en texte libre) — on propose la liste des
+        # salles de la structure pour un choix manuel, au lieu d'abandonner.
+        from models import Salle, Service
+        salles = Salle.query.join(Service).filter(
+            Service.structure_id == hospitalisation.patient.id_structure
+        ).order_by(Salle.nom).all()
         return jsonify({
             'success': False,
-            'error': "Aucun lit n'est assigné à cette hospitalisation : la facturation ne peut pas être calculée automatiquement."
+            'error': (
+                f"Aucune salle retrouvée automatiquement pour la chambre "
+                f"\"{hospitalisation.chambre or 'non renseignée'}\" — sélectionnez la salle facturée ci-dessous."
+            ),
+            'chambre_saisie': hospitalisation.chambre,
+            'salles_disponibles': [{'id': s.id, 'nom': s.nom} for s in salles]
         })
 
     jours_total = max(1, math.ceil((datetime.utcnow() - hospitalisation.date_debut).total_seconds() / 86400))
@@ -4457,6 +4499,7 @@ def apercu_facturation_hospitalisation(id):
     return jsonify({
         'success': True,
         'jours_total': jours_total,
+        'salle_id': salle.id,
         'salle_nom': salle.nom,
         'lignes': lignes,
         'mapping_manquant': mapping_manquant,
@@ -4533,7 +4576,10 @@ def cloturer_hospitalisation(id):
     
     # ⭐ Facturation : retrouver la salle occupée AVANT de libérer le lit
     # (sinon l'info est perdue — lit_id est mis à None juste après).
-    salle_facturation = _salle_hospitalisation(hospitalisation)
+    # salle_id (choix manuel) n'est fourni que si l'aperçu n'a pas pu
+    # résoudre automatiquement une salle (voir apercu_facturation_hospitalisation).
+    salle_id_manuel = request.form.get('salle_id_facturation', type=int)
+    salle_facturation = _salle_hospitalisation(hospitalisation, salle_id_manuel=salle_id_manuel)
 
     # ⭐ LIBÉRER LE LIT (corrigé)
     if hospitalisation.lit_id:
@@ -4584,8 +4630,9 @@ def cloturer_hospitalisation(id):
     # ⭐ Facturation automatique vers GHP (jours × tarif par palier)
     if not salle_facturation:
         flash(
-            'Hospitalisation clôturée. Aucun lit n\'était assigné : la facturation '
-            'n\'a pas pu être calculée automatiquement — à saisir manuellement côté GHP si besoin.',
+            f'Hospitalisation clôturée. Salle non identifiée (chambre "{hospitalisation.chambre or "?"}" '
+            f'sans lit assigné, et sans salle du même nom en Paramétrage AMU) : la facturation '
+            f'n\'a pas pu être calculée automatiquement — à saisir manuellement côté GHP si besoin.',
             'warning'
         )
     else:

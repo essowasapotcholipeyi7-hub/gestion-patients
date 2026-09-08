@@ -1092,6 +1092,7 @@
                         </div>
                         <div id="facturationApercuContenu" style="display:none;"></div>
                     </div>
+                    <input type="hidden" name="salle_id_facturation" id="salleIdFacturation" value="">
 
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="confirmCloture" required>
@@ -1119,25 +1120,63 @@
     const modalCloture = document.getElementById('cloturerModal');
     if (!modalCloture) return;
 
-    modalCloture.addEventListener('show.bs.modal', function() {
+    const urlApercuBase = '{{ url_for("apercu_facturation_hospitalisation", id=hospitalisation.id) }}';
+
+    function chargerApercuFacturation(salleId) {
         const loading = document.getElementById('facturationApercuLoading');
         const contenu = document.getElementById('facturationApercuContenu');
         loading.style.display = 'block';
         contenu.style.display = 'none';
         contenu.innerHTML = '';
 
-        fetch('{{ url_for("apercu_facturation_hospitalisation", id=hospitalisation.id) }}')
+        const url = salleId ? `${urlApercuBase}?salle_id=${salleId}` : urlApercuBase;
+
+        fetch(url)
             .then(r => r.json())
             .then(data => {
                 loading.style.display = 'none';
                 contenu.style.display = 'block';
 
                 if (!data.success) {
-                    contenu.innerHTML = `<div class="alert alert-secondary mb-0 py-2 small">
-                        <i class="fas fa-info-circle me-1"></i>${data.error}
-                    </div>`;
+                    if (data.salles_disponibles && data.salles_disponibles.length > 0) {
+                        // ⭐ Pas de salle résolue automatiquement (ni lit
+                        // assigné, ni nom de chambre correspondant à une
+                        // salle) : on laisse choisir manuellement au lieu
+                        // d'abandonner la facturation.
+                        const options = data.salles_disponibles
+                            .map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
+                        contenu.innerHTML = `
+                            <div class="alert alert-warning py-2 small mb-2">
+                                <i class="fas fa-exclamation-triangle me-1"></i>${data.error}
+                            </div>
+                            <div class="input-group input-group-sm">
+                                <select class="form-select" id="selectSalleFacturationManuelle">
+                                    <option value="">-- Choisir la salle facturée --</option>
+                                    ${options}
+                                </select>
+                                <button type="button" class="btn btn-outline-primary" id="btnRecalculerFacturation">
+                                    Recalculer
+                                </button>
+                            </div>
+                        `;
+                        document.getElementById('btnRecalculerFacturation').addEventListener('click', function() {
+                            const salleChoisie = document.getElementById('selectSalleFacturationManuelle').value;
+                            if (!salleChoisie) return;
+                            document.getElementById('salleIdFacturation').value = salleChoisie;
+                            chargerApercuFacturation(salleChoisie);
+                        });
+                    } else {
+                        contenu.innerHTML = `<div class="alert alert-secondary mb-0 py-2 small">
+                            <i class="fas fa-info-circle me-1"></i>${data.error}
+                        </div>`;
+                    }
                     return;
                 }
+
+                // Salle résolue (auto ou manuelle) : on la mémorise pour
+                // que la clôture facture bien la même salle que celle
+                // affichée ici.
+                document.getElementById('salleIdFacturation').value = data.salle_id;
 
                 const fmt = n => Number(n).toLocaleString('fr-FR', {maximumFractionDigits: 0}) + ' FCFA';
                 let lignesHtml = data.lignes.map(l => `
@@ -1182,6 +1221,11 @@
                 contenu.style.display = 'block';
                 contenu.innerHTML = `<div class="alert alert-secondary mb-0 py-2 small">Aperçu indisponible.</div>`;
             });
+    }
+
+    modalCloture.addEventListener('show.bs.modal', function() {
+        document.getElementById('salleIdFacturation').value = '';
+        chargerApercuFacturation(null);
     });
 })();
 </script>
