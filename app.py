@@ -184,6 +184,68 @@ def _envoyer_prescriptions_ghp_immediat():
         print(f"⚠️ Sync immédiate GHP échouée (rattrapage automatique par le scheduler) : {e}")
 
 
+def _pousser_rendez_vous_ghp(consultation, patient, medecin_nom):
+    """Si la consultation porte une date de suivi (Consultation.prochain_rdv),
+    pousse automatiquement un rendez-vous vers GHP au lieu de le laisser
+    ressaisir à l'accueil. Best-effort (ne bloque jamais l'enregistrement de
+    la consultation) — sans table de rattrapage dédiée : un échec est juste
+    signalé à l'utilisateur, à reprogrammer manuellement côté GHP le cas
+    échéant (contrairement aux prescriptions, il n'y a pas de conséquence
+    financière à un RDV manqué, donc pas de scheduler de retry ici).
+    """
+    if not consultation.prochain_rdv:
+        return
+
+    from models import StructureMapping
+    import requests as _requests
+
+    mapping = StructureMapping.query.filter_by(
+        local_structure_id=patient.id_structure, actif=True
+    ).first()
+    if not mapping:
+        return
+
+    try:
+        resp = _requests.post(
+            f"{mapping.api_url}/api/rendez-vous/creer-externe",
+            params={'token': mapping.api_key},
+            json={
+                'patient_nom': patient.nom,
+                'patient_prenom': patient.prenom,
+                'medecin_nom': medecin_nom,
+                'date': consultation.prochain_rdv.strftime('%Y-%m-%d'),
+                'heure': '08:00',
+                'motif': f"Suivi — {consultation.motif or 'consultation'}"[:255],
+                'notes': f"Programmé automatiquement depuis gestion_patients (consultation #{consultation.id})",
+                'source_id': consultation.id
+            },
+            timeout=10
+        )
+        try:
+            data = resp.json()
+        except Exception:
+            data = {}
+
+        if resp.status_code == 200 and data.get('success'):
+            if not data.get('deja_existant'):
+                flash(
+                    f"📅 Rendez-vous de suivi du {consultation.prochain_rdv.strftime('%d/%m/%Y')} "
+                    f"envoyé automatiquement à GHP (pas besoin de le ressaisir à l'accueil).",
+                    'info'
+                )
+        elif data.get('error') == 'medecin_introuvable':
+            flash(
+                data.get('message') or "Rendez-vous de suivi : médecin non retrouvé côté GHP — à programmer manuellement.",
+                'warning'
+            )
+        # patient_introuvable : le patient n'est probablement pas encore
+        # synchronisé côté GHP — pas la peine d'alarmer l'utilisateur pour
+        # ça, le rattrapage habituel du patient se fera dans les prochaines
+        # minutes et le RDV pourra être repoussé à la prochaine modification.
+    except Exception as e:
+        print(f"⚠️ Push RDV GHP échoué : {e}")
+
+
 # Routes principales
 @app.route('/')
 def index():
@@ -1830,7 +1892,9 @@ def consultation_ajouter():
                     print(f"⚠️ {result.get('message')}")
             except Exception as e:
                 print(f"⚠️ Erreur sync auto: {e}")
-        
+
+        _pousser_rendez_vous_ghp(consultation, patient, f"{current_user.prenom} {current_user.nom}")
+
         flash('Consultation enregistrée avec succès', 'success')
         return redirect(url_for('patient_detail', id=id_patient))
 
@@ -2661,7 +2725,9 @@ def consultation_ajouter_avec_patient(id):
                     print(f"⚠️ {result.get('message')}")
             except Exception as e:
                 print(f"⚠️ Erreur sync auto: {e}")
-        
+
+        _pousser_rendez_vous_ghp(consultation, patient, f"{current_user.prenom} {current_user.nom}")
+
         flash(f'Consultation pour {patient.prenom} {patient.nom} enregistrée avec succès', 'success')
         return redirect(url_for('patient_detail', id=patient.id))
     
