@@ -90,6 +90,100 @@ def from_json_filter(value):
     except:
         return []
 
+
+# ============================================================
+# ⭐ MIROIR VERS GHP DEPUIS LES ORDONNANCES/EXAMENS VERSIONNÉS
+# ============================================================
+# La table Prescription (avec synced_at) + tasks.sync_prescriptions_to_ghp()
+# est le SEUL mécanisme qui envoie effectivement vers GHP. Or les écrans de
+# prescription réels (ordonnances versionnées avec modèles/protocoles,
+# examens prescrits) écrivent dans Ordonnance/ExamenPrescrit — ou, pour
+# l'hospitalisation, directement dans Hospitalisation.ordonnance_prescite —
+# et ne touchent JAMAIS Prescription. Résultat : rien de ce qui est
+# réellement prescrit en pratique ne partait vers GHP. On crée donc ici,
+# EN PLUS, une ligne Prescription (miroir) par médicament/acte, pour que
+# le pipeline de sync existant (déjà testé, avec rattrapage automatique)
+# les prenne en charge sans rien avoir à changer côté GHP.
+def _creer_prescriptions_miroir(patient_id, prescripteur_nom, items, type_prescription, id_consultation=None):
+    """Crée des lignes Prescription à partir d'une liste d'items (médicaments
+    sous forme de dict, ou actes sous forme de chaînes) — ne commit pas,
+    l'appelant doit le faire avec le reste de sa transaction."""
+    from models import Prescription
+
+    def _duree_en_jours(valeur):
+        try:
+            return int(valeur)
+        except (TypeError, ValueError):
+            return 7
+
+    creees = []
+    for item in items or []:
+        if isinstance(item, dict):
+            nom = (item.get('medicament') or item.get('nom') or '').strip()
+            if not nom:
+                continue
+            p = Prescription(
+                id_patient=patient_id,
+                id_consultation=id_consultation,
+                medicament=nom,
+                dosage=item.get('dosage', '') or '',
+                forme=item.get('forme', '') or '',
+                quantite=str(item.get('quantite', '1')) or '1',
+                duree_jours=_duree_en_jours(item.get('duree')),
+                frequence=item.get('posologie') or item.get('frequence') or '',
+                instructions=item.get('instructions', '') or '',
+                type_prescription=type_prescription,
+                prescripteur=prescripteur_nom,
+                statut='active',
+                date_prescription=datetime.utcnow(),
+                notes=item.get('notes', '') or ''
+            )
+        else:
+            nom = str(item).strip()
+            if not nom:
+                continue
+            p = Prescription(
+                id_patient=patient_id,
+                id_consultation=id_consultation,
+                medicament=nom,
+                type_prescription=type_prescription,
+                prescripteur=prescripteur_nom,
+                statut='active',
+                date_prescription=datetime.utcnow()
+            )
+        db.session.add(p)
+        creees.append(p)
+    return creees
+
+
+def _signature_item(item):
+    """Signature stable d'un item (médicament dict ou acte chaîne), pour
+    comparer une nouvelle version d'ordonnance/examens à l'ancienne et ne
+    ré-envoyer vers GHP que les items réellement nouveaux (évite les doublons
+    à chaque modification/réimpression)."""
+    if isinstance(item, dict):
+        nom = (item.get('medicament') or item.get('nom') or '').strip().lower()
+        return (nom, str(item.get('dosage') or '').strip().lower(), str(item.get('posologie') or '').strip().lower())
+    return (str(item).strip().lower(),)
+
+
+def _items_nouveaux(items_nouveaux, items_anciens):
+    """Retourne les items de `items_nouveaux` absents de `items_anciens`."""
+    signatures_anciennes = {_signature_item(i) for i in (items_anciens or [])}
+    return [i for i in (items_nouveaux or []) if _signature_item(i) not in signatures_anciennes]
+
+
+def _envoyer_prescriptions_ghp_immediat():
+    """Tente un envoi immédiat vers GHP (best-effort, ne bloque jamais la
+    transaction métier) — le scheduler (tasks.py, toutes les 5 min) rattrape
+    de toute façon en cas d'échec, comme pour les actes posés."""
+    try:
+        from tasks import sync_prescriptions_to_ghp
+        sync_prescriptions_to_ghp()
+    except Exception as e:
+        print(f"⚠️ Sync immédiate GHP échouée (rattrapage automatique par le scheduler) : {e}")
+
+
 # Routes principales
 @app.route('/')
 def index():
@@ -8131,8 +8225,10 @@ def creer_ordonnance_hospitalisation(id):
                 historique = []
         
         # Si une ancienne ordonnance existe, la sauvegarder dans l'historique
+        anciens_medicaments = []
         if hospitalisation.ordonnance_prescite:
             ancienne_version = json.loads(hospitalisation.ordonnance_prescite)
+            anciens_medicaments = ancienne_version
             historique.append({
                 'version': hospitalisation.ordonnance_version or 1,
                 'date': datetime.utcnow().isoformat(),
@@ -8141,20 +8237,35 @@ def creer_ordonnance_hospitalisation(id):
                 'prescrit_par_nom': f"{current_user.prenom} {current_user.nom}",
                 'motif': 'Nouvelle prescription'
             })
-        
+
         # Sauvegarder l'historique
         hospitalisation.ordonnance_historique = json.dumps(historique, ensure_ascii=False)
-        
+
         # Incrémenter la version
         hospitalisation.ordonnance_version = (hospitalisation.ordonnance_version or 0) + 1
-        
+
         # Mettre à jour la nouvelle ordonnance
         hospitalisation.ordonnance_prescite = medicaments_json
         hospitalisation.updated_at = datetime.utcnow()
         hospitalisation.created_by = current_user.id
-        
+
+        # ⭐ Miroir Prescription pour la synchronisation GHP — uniquement les
+        # médicaments nouveaux par rapport à la version précédente (le champ
+        # ordonnance_prescite est réécrit en entier à chaque version, pas un
+        # historique ligne par ligne comme Prescription).
+        nouveaux = _items_nouveaux(medicaments, anciens_medicaments)
+        if nouveaux:
+            _creer_prescriptions_miroir(
+                patient_id=hospitalisation.patient_id,
+                prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+                items=nouveaux,
+                type_prescription='medicament'
+            )
+
         db.session.commit()
-        
+        if nouveaux:
+            _envoyer_prescriptions_ghp_immediat()
+
         flash(f'✅ Nouvelle prescription enregistrée (Version {hospitalisation.ordonnance_version})', 'success')
         
     except Exception as e:
@@ -8399,8 +8510,17 @@ def ajouter_examen_prescrit(id):
             print(f"✅ {analyses_creees} analyse(s) créée(s) pour le laborantin (hospitalisation)")
         except Exception as e:
             print(f"⚠️ Erreur création analyses: {e}")
-        
+
+        # ⭐ Miroir Prescription pour la synchronisation GHP
+        _creer_prescriptions_miroir(
+            patient_id=hospitalisation.patient_id,
+            prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+            items=examens,
+            type_prescription='acte'
+        )
+
         db.session.commit()
+        _envoyer_prescriptions_ghp_immediat()
         flash(f'✅ Examen prescrit et {analyses_creees} analyse(s) envoyée(s) au laborantin', 'success')
     except Exception as e:
         db.session.rollback()
@@ -8732,16 +8852,28 @@ def creer_ordonnance_consultation(id):
         
         db.session.add(ordonnance)
         db.session.flush()
-        
+
         # Mettre à jour la consultation
         consultation.ordonnance_active_id = ordonnance.id
-        
+
         # Si source_type est 'protocole', enregistrer le protocole
         if source_type == 'protocole' and source_id:
             consultation.protocole_applique_id = source_id
-        
+
+        # ⭐ Miroir Prescription pour la synchronisation GHP (voir commentaire
+        # au-dessus de _creer_prescriptions_miroir) — sans ça, cette
+        # ordonnance ne partait jamais vers "Prescriptions reçues" côté GHP.
+        _creer_prescriptions_miroir(
+            patient_id=consultation.id_patient,
+            prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+            items=medicaments,
+            type_prescription='medicament',
+            id_consultation=consultation.id
+        )
+
         db.session.commit()
-        
+        _envoyer_prescriptions_ghp_immediat()
+
         flash(f'✅ Ordonnance (version {nouvelle_version}) créée avec succès', 'success')
         return redirect(url_for('consultation_detail', id=id))
     
@@ -8803,12 +8935,28 @@ def modifier_ordonnance_consultation(id, ordonnance_id):
         
         db.session.add(ordonnance)
         db.session.flush()
-        
+
         # Mettre à jour la consultation
         consultation.ordonnance_active_id = ordonnance.id
-        
+
+        # ⭐ Miroir Prescription pour GHP — uniquement les médicaments
+        # réellement nouveaux par rapport à l'ancienne version, pour ne pas
+        # renvoyer en double ce qui a déjà été prescrit/synchronisé.
+        anciens_medicaments = ordonnance_old.get_medicaments_list()
+        nouveaux = _items_nouveaux(medicaments, anciens_medicaments)
+        if nouveaux:
+            _creer_prescriptions_miroir(
+                patient_id=consultation.id_patient,
+                prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+                items=nouveaux,
+                type_prescription='medicament',
+                id_consultation=consultation.id
+            )
+
         db.session.commit()
-        
+        if nouveaux:
+            _envoyer_prescriptions_ghp_immediat()
+
         flash(f'✅ Ordonnance modifiée (version {nouvelle_version})', 'success')
         return redirect(url_for('consultation_detail', id=id))
     
@@ -8884,6 +9032,7 @@ def ajouter_examen_prescrit_consultation(id):
     examens_json = request.form.get('examens_json', '[]')
     
     try:
+        examens_pour_ghp = []
         if examen_type_id:
             examen_type = ExamenType.query.get(examen_type_id)
             if examen_type:
@@ -8902,6 +9051,10 @@ def ajouter_examen_prescrit_consultation(id):
                     date_prescription=datetime.utcnow()
                 )
                 db.session.add(examen_prescrit)
+                try:
+                    examens_pour_ghp = json.loads(examen_type.examens) if examen_type.examens else []
+                except Exception:
+                    examens_pour_ghp = []
         else:
             # Création manuelle
             examens = json.loads(examens_json) if examens_json else []
@@ -8919,13 +9072,24 @@ def ajouter_examen_prescrit_consultation(id):
                 date_prescription=datetime.utcnow()
             )
             db.session.add(examen_prescrit)
-        
+            examens_pour_ghp = examens
+
+        # ⭐ Miroir Prescription pour la synchronisation GHP
+        _creer_prescriptions_miroir(
+            patient_id=consultation.id_patient,
+            prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+            items=examens_pour_ghp,
+            type_prescription='acte',
+            id_consultation=consultation.id
+        )
+
         db.session.commit()
+        _envoyer_prescriptions_ghp_immediat()
         flash('Examen prescrit ajoute avec succès', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Erreur : {str(e)}', 'danger')
-    
+
     return redirect(url_for('consultation_detail', id=id))
 
 
@@ -9053,9 +9217,19 @@ def creer_examen_consultation(id):
             print(f"✅ {analyses_creees} analyse(s) créée(s) pour le laborantin")
         except Exception as e:
             print(f"⚠️ Erreur création analyses: {e}")
-        
+
+        # ⭐ Miroir Prescription pour la synchronisation GHP
+        _creer_prescriptions_miroir(
+            patient_id=consultation.id_patient,
+            prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+            items=examens,
+            type_prescription='acte',
+            id_consultation=consultation.id
+        )
+
         db.session.commit()
-        
+        _envoyer_prescriptions_ghp_immediat()
+
         flash(f'✅ Demande d\'examens créée avec succès ({analyses_creees} analyse(s) envoyée(s) au laborantin)', 'success')
         return redirect(url_for('consultation_detail', id=id))
     
@@ -9124,8 +9298,24 @@ def modifier_examen_consultation(id, examen_id):
         )
         
         db.session.add(examen)
+
+        # ⭐ Miroir Prescription pour GHP — uniquement les examens réellement
+        # nouveaux par rapport à l'ancienne version.
+        anciens_examens = examen_old.get_examens_list()
+        nouveaux = _items_nouveaux(examens, anciens_examens)
+        if nouveaux:
+            _creer_prescriptions_miroir(
+                patient_id=consultation.id_patient,
+                prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+                items=nouveaux,
+                type_prescription='acte',
+                id_consultation=consultation.id
+            )
+
         db.session.commit()
-        
+        if nouveaux:
+            _envoyer_prescriptions_ghp_immediat()
+
         flash(f'Demande d\'examens modifiee (version {nouvelle_version})', 'success')
         return redirect(url_for('consultation_detail', id=id))
     
