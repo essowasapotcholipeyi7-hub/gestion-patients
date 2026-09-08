@@ -1,13 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}Actes posés — Historique{% endblock %}
+{% block title %}Actes posés{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3">
             <i class="fas fa-notes-medical me-2" style="color: var(--hp-primary);"></i>
-            Actes posés — Historique
+            Actes posés
+            {% if actes_a_valider %}
+            <span class="badge bg-warning text-dark ms-2">{{ actes_a_valider|length }} à valider</span>
+            {% endif %}
         </h1>
         <div>
             <a href="{{ url_for('acte_pose_ajouter') }}" class="btn btn-primary me-2">
@@ -19,7 +22,96 @@
         </div>
     </div>
 
+    <!-- ═══ À VÉRIFIER / VALIDER ═══ -->
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning bg-opacity-25">
+            <h5 class="mb-0">
+                <i class="fas fa-clock me-2"></i>À vérifier et valider
+                <small class="text-muted fw-normal">— ajustez la quantité si besoin, puis validez pour envoyer à GHP</small>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if actes_a_valider %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date / Heure</th>
+                            <th>Patient</th>
+                            <th>Acte</th>
+                            <th>Produit / Notes</th>
+                            <th style="width:110px">Qté</th>
+                            <th>Posé par</th>
+                            <th>Origine</th>
+                            <th style="width:220px">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in actes_a_valider %}
+                        <tr>
+                            <td class="small">{{ a.date_pose.strftime('%d/%m/%Y %H:%M') if a.date_pose else '-' }}</td>
+                            <td>
+                                {% if a.patient %}
+                                    <strong>{{ a.patient.prenom }} {{ a.patient.nom }}</strong>
+                                {% else %}
+                                    <span class="text-muted">Patient inconnu</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ a.nom }}</td>
+                            <td class="small text-muted">
+                                {{ a.produit_administre or '' }}
+                                {% if a.notes %}<br>{{ a.notes }}{% endif %}
+                            </td>
+                            <td>
+                                <input type="text" form="form-valider-{{ a.id }}" name="quantite"
+                                       class="form-control form-control-sm" value="{{ a.quantite }}">
+                            </td>
+                            <td class="small">
+                                {% if a.pose_par %}{{ a.pose_par.prenom }} {{ a.pose_par.nom }}{% else %}-{% endif %}
+                            </td>
+                            <td class="small">
+                                {% if a.consultation_id %}
+                                    <a href="{{ url_for('consultation_detail', id=a.consultation_id) }}">Consultation #{{ a.consultation_id }}</a>
+                                {% elif a.hospitalisation_id %}
+                                    <a href="{{ url_for('detail_hospitalisation', id=a.hospitalisation_id) }}">Hospitalisation #{{ a.hospitalisation_id }}</a>
+                                {% else %}
+                                    <span class="text-muted">Saisie manuelle</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <form method="POST" id="form-valider-{{ a.id }}"
+                                          action="{{ url_for('acte_pose_valider', id=a.id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-success">
+                                            <i class="fas fa-check me-1"></i>Valider
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('acte_pose_annuler', id=a.id) }}"
+                                          class="d-inline" onsubmit="return confirm('Annuler cet acte posé ?');">
+                                        <button type="submit" class="btn btn-outline-danger">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success m-3 mb-0">
+                <i class="fas fa-check-circle me-2"></i>Rien à valider pour l'instant.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ═══ HISTORIQUE ═══ -->
     <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-history me-2"></i>Historique</h5>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
@@ -30,11 +122,11 @@
                             <th>Acte</th>
                             <th>Qté</th>
                             <th>Posé par</th>
-                            <th>Facturation GHP</th>
+                            <th>Statut</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for a in actes %}
+                        {% for a in historique %}
                         <tr>
                             <td>{{ a.date_pose.strftime('%d/%m/%Y %H:%M') if a.date_pose else '-' }}</td>
                             <td>
@@ -54,15 +146,17 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if a.synced_at %}
-                                    <span class="badge bg-success"><i class="fas fa-check me-1"></i>Envoyé</span>
+                                {% if a.statut == 'annule' %}
+                                    <span class="badge bg-secondary"><i class="fas fa-ban me-1"></i>Annulé</span>
+                                {% elif a.synced_at %}
+                                    <span class="badge bg-success"><i class="fas fa-check me-1"></i>Envoyé à GHP</span>
                                 {% else %}
-                                    <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>En attente</span>
+                                    <span class="badge bg-info text-dark"><i class="fas fa-hourglass-half me-1"></i>Validé, envoi en cours</span>
                                 {% endif %}
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="6" class="text-center text-muted py-4">Aucun acte posé consigné pour l'instant</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-4">Aucun historique pour l'instant</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

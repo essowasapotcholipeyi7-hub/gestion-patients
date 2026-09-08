@@ -126,7 +126,9 @@ class ActeType(db.Model):
 
 
 class ActePose(db.Model):
-    """Un acte réellement effectué, consigné pour un patient donné."""
+    """Un acte réellement effectué, consigné pour un patient donné — que ce
+    soit via le journal de soins (dossier patient / consultation) ou saisi
+    manuellement dans l'onglet "Actes posés"."""
     __tablename__ = 'actes_poses'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -142,9 +144,22 @@ class ActePose(db.Model):
     quantite = db.Column(db.String(50), default='1')
     notes = db.Column(db.Text, nullable=True)
 
-    date_pose = db.Column(db.DateTime, default=datetime.utcnow)
+    # ⭐ Détail du soin — pertinent surtout pour injections/perfusions,
+    # laissé vide pour les actes qui n'en ont pas besoin.
+    produit_administre = db.Column(db.String(200), nullable=True)
+
+    date_pose = db.Column(db.DateTime, default=datetime.utcnow)  # porte aussi l'heure réelle du soin
     pose_par_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
     statut = db.Column(db.String(20), default='actif')  # 'actif' | 'annule'
+
+    # ⭐ Étape de vérification avant envoi à GHP : un soin tout juste
+    # consigné (dossier patient, consultation, ou saisie manuelle) arrive en
+    # "brouillon" dans l'onglet Actes posés — la caissière/l'infirmier(-ère)
+    # responsable y vérifie/ajuste la quantité puis valide, ce qui déclenche
+    # la synchronisation. Rien ne part vers GHP sans validation explicite.
+    valide = db.Column(db.Boolean, default=False, nullable=False)
+    valide_par_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
+    date_validation = db.Column(db.DateTime, nullable=True)
 
     synced_at = db.Column(db.DateTime, nullable=True)
 
@@ -153,6 +168,7 @@ class ActePose(db.Model):
     hospitalisation = db.relationship('Hospitalisation', foreign_keys=[hospitalisation_id], backref='actes_poses_hospitalisation')
     acte_type = db.relationship('ActeType', foreign_keys=[acte_type_id])
     pose_par = db.relationship('Utilisateur', foreign_keys=[pose_par_id], backref='actes_poses_realises')
+    valide_par = db.relationship('Utilisateur', foreign_keys=[valide_par_id])
 
 
 # ==================== CONSULTATIONS ====================

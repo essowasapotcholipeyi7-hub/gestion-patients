@@ -1,0 +1,166 @@
+{# ============================================================
+   Widget "Soins administrés" — journal de soins réutilisable
+   Variables attendues : patient, soins_poses, actes_soins_habituels, now
+   Variable optionnelle : consultation (pré-remplit consultation_id)
+   ============================================================ #}
+<div class="card mb-4" id="soinsWidget">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-kit-medical me-2"></i>Soins administrés</h5>
+        {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
+        <button class="btn btn-light btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#formNouveauSoin">
+            <i class="fas fa-plus me-1"></i>Consigner un soin
+        </button>
+        {% endif %}
+    </div>
+
+    {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
+    <div class="collapse" id="formNouveauSoin">
+        <div class="card-body border-bottom bg-light">
+            <form method="POST" action="{{ url_for('soin_ajouter', patient_id=patient.id) }}">
+                <input type="hidden" name="nom" id="soinNomChoisi">
+                {% if consultation %}
+                <input type="hidden" name="consultation_id" value="{{ consultation.id }}">
+                {% endif %}
+                <input type="hidden" name="retour_url" value="{{ request.path }}">
+
+                <label class="form-label fw-bold small">Acte effectué</label>
+                <div class="d-flex flex-wrap gap-2 mb-3" id="soinsChecklist">
+                    {% for acte in actes_soins_habituels %}
+                    <button type="button" class="btn btn-outline-primary btn-sm soin-choix"
+                            data-nom="{{ acte.nom }}" data-produit="{{ 'true' if acte.produit else 'false' }}">
+                        <i class="fas {{ acte.icone }} me-1"></i>{{ acte.label }}
+                    </button>
+                    {% endfor %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm soin-choix" data-nom="" data-produit="true" id="btnAutreSoin">
+                        <i class="fas fa-ellipsis me-1"></i>Autre...
+                    </button>
+                </div>
+
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4" id="zoneNomLibre" style="display:none;">
+                        <label class="form-label small">Nom de l'acte</label>
+                        <input type="text" class="form-control form-control-sm" id="soinNomLibre" placeholder="Ex: Vaccination, Ablation de fils...">
+                    </div>
+                    <div class="col-md-3" id="zoneProduit" style="display:none;">
+                        <label class="form-label small">Produit administré</label>
+                        <input type="text" name="produit_administre" class="form-control form-control-sm" placeholder="Ex: Sérum glucosé 10% 500ml">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Quantité</label>
+                        <input type="text" name="quantite" class="form-control form-control-sm" value="1">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Heure</label>
+                        <input type="datetime-local" name="heure" class="form-control form-control-sm" value="{{ now.strftime('%Y-%m-%dT%H:%M') }}">
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <label class="form-label small">Notes (optionnel)</label>
+                    <input type="text" name="notes" class="form-control form-control-sm" placeholder="Localisation, observations...">
+                </div>
+
+                <div class="mt-3 text-end">
+                    <small class="text-muted me-2">
+                        <i class="fas fa-info-circle"></i> Sera à vérifier/valider dans l'onglet "Actes posés" avant l'envoi à GHP.
+                    </small>
+                    <button type="submit" class="btn btn-primary btn-sm" id="btnSubmitSoin" disabled>
+                        <i class="fas fa-check me-1"></i>Consigner ce soin
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card-body p-0">
+        {% if soins_poses %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Heure</th>
+                        <th>Acte</th>
+                        <th>Produit / Qté</th>
+                        <th>Posé par</th>
+                        <th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for soin in soins_poses %}
+                    <tr class="{{ 'text-muted' if soin.statut == 'annule' else '' }}">
+                        <td class="small">{{ soin.date_pose.strftime('%d/%m/%Y %H:%M') if soin.date_pose else '-' }}</td>
+                        <td>
+                            {{ soin.nom }}
+                            {% if soin.notes %}<br><span class="text-muted small">{{ soin.notes }}</span>{% endif %}
+                        </td>
+                        <td class="small">
+                            {% if soin.produit_administre %}{{ soin.produit_administre }}<br>{% endif %}
+                            Qté : {{ soin.quantite }}
+                        </td>
+                        <td class="small">{{ soin.pose_par.prenom }} {{ soin.pose_par.nom }}</td>
+                        <td>
+                            {% if soin.statut == 'annule' %}
+                                <span class="badge bg-secondary">Annulé</span>
+                            {% elif soin.synced_at %}
+                                <span class="badge bg-success">Envoyé à GHP</span>
+                            {% elif soin.valide %}
+                                <span class="badge bg-info text-dark">Validé</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">À valider</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info m-3 mb-0">
+            <i class="fas fa-info-circle me-2"></i>Aucun soin consigné pour l'instant.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+(function() {
+    const widget = document.getElementById('soinsWidget');
+    if (!widget || widget.dataset.jsReady) return;
+    widget.dataset.jsReady = '1';
+
+    const nomChoisiInput = widget.querySelector('#soinNomChoisi');
+    const nomLibreInput = widget.querySelector('#soinNomLibre');
+    const zoneNomLibre = widget.querySelector('#zoneNomLibre');
+    const zoneProduit = widget.querySelector('#zoneProduit');
+    const btnSubmit = widget.querySelector('#btnSubmitSoin');
+    const boutons = widget.querySelectorAll('.soin-choix');
+
+    function selectionner(btn) {
+        boutons.forEach(b => b.classList.remove('btn-primary', 'active'));
+        boutons.forEach(b => b.classList.add('btn-outline-primary'));
+        btn.classList.remove('btn-outline-primary', 'btn-outline-secondary');
+        btn.classList.add('btn-primary', 'active');
+
+        const estAutre = btn.id === 'btnAutreSoin';
+        zoneNomLibre.style.display = estAutre ? 'block' : 'none';
+        zoneProduit.style.display = btn.dataset.produit === 'true' ? 'block' : 'none';
+
+        if (estAutre) {
+            nomChoisiInput.value = nomLibreInput.value.trim();
+            nomLibreInput.focus();
+        } else {
+            nomChoisiInput.value = btn.dataset.nom;
+        }
+        btnSubmit.disabled = !nomChoisiInput.value.trim();
+    }
+
+    boutons.forEach(btn => btn.addEventListener('click', () => selectionner(btn)));
+
+    if (nomLibreInput) {
+        nomLibreInput.addEventListener('input', function() {
+            nomChoisiInput.value = this.value.trim();
+            btnSubmit.disabled = !this.value.trim();
+        });
+    }
+})();
+</script>

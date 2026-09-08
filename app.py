@@ -246,6 +246,90 @@ def _pousser_rendez_vous_ghp(consultation, patient, medecin_nom):
         print(f"⚠️ Push RDV GHP échoué : {e}")
 
 
+# ============================================================
+# ⭐ JOURNAL DE SOINS — actes réellement effectués sur un patient
+# ============================================================
+# Liste des actes courants proposés en un clic (dossier patient / détail de
+# consultation), avec le nom EXACT du catalogue GHP (voir P15x/P160/C104
+# dans le catalogue d'actes) pour que le matching (badge vert) fonctionne
+# dès l'arrivée dans "Prescriptions reçues" côté GHP. `produit` indique si
+# le soin doit demander le produit administré (injections/perfusion).
+ACTES_SOINS_HABITUELS = [
+    {'nom': 'P152 Injection IM*', 'label': 'Injection IM', 'icone': 'fa-syringe', 'produit': True},
+    {'nom': 'P153 Injection IV*', 'label': 'Injection IV', 'icone': 'fa-syringe', 'produit': True},
+    {'nom': 'P154 Perfusion*', 'label': 'Perfusion', 'icone': 'fa-droplet', 'produit': True},
+    {'nom': 'P155 Pansement*', 'label': 'Pansement', 'icone': 'fa-bandage', 'produit': False},
+    {'nom': 'P158 Sutures*', 'label': 'Sutures', 'icone': 'fa-scissors', 'produit': False},
+    {'nom': "P157 Incision d'abces*", 'label': "Incision d'abcès", 'icone': 'fa-kit-medical', 'produit': False},
+    {'nom': 'P159 POSE DE SONDE URINAIRE*', 'label': 'Pose de sonde urinaire', 'icone': 'fa-notes-medical', 'produit': False},
+    {'nom': 'P160 MISE EN OBSERVATION (MEO)', 'label': 'Mise en observation', 'icone': 'fa-eye', 'produit': False},
+    {'nom': 'C104 Ponction lombaire avec ou sans injection medicamenteuse*', 'label': 'Ponction lombaire', 'icone': 'fa-syringe', 'produit': False},
+    {'nom': 'P156 Circoncision*', 'label': 'Circoncision', 'icone': 'fa-kit-medical', 'produit': False},
+]
+
+
+@app.route('/patient/<int:patient_id>/soins/ajouter', methods=['POST'])
+@login_required
+def soin_ajouter(patient_id):
+    """Consigne un soin réellement effectué (journal de soins) — depuis le
+    dossier patient ou le détail d'une consultation. Atterrit en brouillon
+    dans "Actes posés" : rien ne part vers GHP tant que ce n'est pas
+    vérifié/validé là-bas (voir ACTES_SOINS_HABITUELS et actes_poses_liste)."""
+    from models import Patient, ActeType, ActePose
+
+    patient = Patient.query.get_or_404(patient_id)
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
+    nom = (request.form.get('nom') or '').strip()
+    if not nom:
+        flash('Veuillez choisir ou saisir un acte', 'danger')
+        return redirect(request.referrer or url_for('patient_detail', id=patient_id))
+
+    produit_administre = (request.form.get('produit_administre') or '').strip() or None
+    quantite = (request.form.get('quantite') or '1').strip() or '1'
+    notes = (request.form.get('notes') or '').strip() or None
+    heure_str = request.form.get('heure')  # datetime-local : "2026-09-08T15:30"
+    consultation_id = request.form.get('consultation_id', type=int)
+    hospitalisation_id = request.form.get('hospitalisation_id', type=int)
+
+    try:
+        date_pose = datetime.strptime(heure_str, '%Y-%m-%dT%H:%M') if heure_str else datetime.utcnow()
+    except ValueError:
+        date_pose = datetime.utcnow()
+
+    acte_type = ActeType.query.filter_by(structure_id=current_user.id_structure, nom=nom).first()
+    if not acte_type:
+        acte_type = ActeType(structure_id=current_user.id_structure, nom=nom, created_by=current_user.id)
+        db.session.add(acte_type)
+        db.session.flush()
+
+    acte_pose = ActePose(
+        patient_id=patient.id,
+        consultation_id=consultation_id,
+        hospitalisation_id=hospitalisation_id,
+        acte_type_id=acte_type.id,
+        nom=nom,
+        quantite=quantite,
+        produit_administre=produit_administre,
+        notes=notes,
+        date_pose=date_pose,
+        pose_par_id=current_user.id,
+        statut='actif',
+        valide=False
+    )
+    db.session.add(acte_pose)
+    db.session.commit()
+
+    flash(
+        f'✅ Soin consigné : {nom}{" — " + produit_administre if produit_administre else ""} '
+        f'— à vérifier et valider dans l\'onglet "Actes posés".',
+        'success'
+    )
+    return redirect(request.form.get('retour_url') or url_for('patient_detail', id=patient_id))
+
+
 # Routes principales
 @app.route('/')
 def index():
@@ -1469,7 +1553,10 @@ def patient_detail(id):
     
     consultations = Consultation.query.filter_by(id_patient=patient.id).order_by(Consultation.date_consultation.desc()).all()
     prescriptions = Prescription.query.filter_by(id_patient=patient.id).order_by(Prescription.date_prescription.desc()).all()
-    
+
+    from models import ActePose
+    soins_poses = ActePose.query.filter_by(patient_id=patient.id).order_by(ActePose.date_pose.desc()).all()
+
     # ⭐ Récupérer les sections standard pour référence
     sections_standard = SectionExamenPhysique.query.filter_by(actif=True).order_by(SectionExamenPhysique.ordre).all()
     sections_standard_dict = {s.nom: s.texte_fr for s in sections_standard}
@@ -1491,10 +1578,12 @@ def patient_detail(id):
         # ⭐ Ajouter les sections standard pour comparaison
         consultation.sections_standard = sections_standard_dict
     
-    return render_template('patients/detail.html', 
-                         patient=patient, 
+    return render_template('patients/detail.html',
+                         patient=patient,
                          consultations=consultations,
                          prescriptions=prescriptions,
+                         soins_poses=soins_poses,
+                         actes_soins_habituels=ACTES_SOINS_HABITUELS,
                          now=datetime.now())
 
 @app.route('/consultation/ajouter', methods=['GET', 'POST'])
@@ -1922,12 +2011,17 @@ def consultation_detail(id):
         examens_prescrits = consultation.examens_prescrits.order_by(
             ExamenPrescrit.date_prescription.desc()
         ).all() if consultation.examens_prescrits else []
-    
+
+    from models import ActePose
+    soins_poses = ActePose.query.filter_by(consultation_id=consultation.id).order_by(ActePose.date_pose.desc()).all()
+
     return render_template('consultations/detail.html',
                          consultation=consultation,
                          patient=patient,
                          examens_types=examens_types,
                          examens_prescrits=examens_prescrits,
+                         soins_poses=soins_poses,
+                         actes_soins_habituels=ACTES_SOINS_HABITUELS,
                          now=datetime.utcnow())
 
 
@@ -2110,28 +2204,20 @@ def acte_pose_ajouter():
                     notes=notes,
                     date_pose=datetime.utcnow(),
                     pose_par_id=current_user.id,
-                    statut='actif'
+                    statut='actif',
+                    valide=False  # ⭐ atterrit en brouillon dans "Actes posés" — voir _actes_poses_liste()
                 )
                 db.session.add(acte_pose)
                 actes_crees.append(acte_pose)
 
             db.session.commit()
 
-            # ⭐ Synchronisation immédiate vers GHP (comme après une
-            # consultation) — le rattrapage périodique (5 min) reste le
-            # filet de sécurité si celle-ci échoue.
-            try:
-                from tasks import sync_actes_poses_to_ghp
-                result = sync_actes_poses_to_ghp()
-                if result.get('success'):
-                    print(f"✅ {result.get('message')}")
-                else:
-                    print(f"⚠️ {result.get('message')}")
-            except Exception as e:
-                print(f"⚠️ Erreur sync auto actes posés: {e}")
-
-            flash(f'✅ {len(actes_crees)} acte(s) posé(s) enregistré(s)', 'success')
-            return redirect(url_for('patients_list'))
+            flash(
+                f'✅ {len(actes_crees)} acte(s) posé(s) enregistré(s) — à vérifier et valider '
+                f'dans l\'onglet "Actes posés" avant l\'envoi à GHP.',
+                'success'
+            )
+            return redirect(url_for('actes_poses_liste'))
 
         except Exception as e:
             print(f"❌ Erreur: {e}")
@@ -2149,15 +2235,84 @@ def acte_pose_ajouter():
 def actes_poses_liste():
     from models import ActePose, Patient
 
-    actes = (
+    base_query = (
         ActePose.query
         .join(Patient, ActePose.patient_id == Patient.id)
         .filter(Patient.id_structure == current_user.id_structure)
+    )
+
+    # ⭐ Deux blocs bien distincts : ce qui reste à vérifier/valider (issu du
+    # journal de soins ou de la saisie manuelle) en premier, bien visible ;
+    # l'historique (déjà validé/envoyé/annulé) ensuite, pour référence.
+    actes_a_valider = (
+        base_query.filter(ActePose.valide == False, ActePose.statut == 'actif')
+        .order_by(ActePose.date_pose.desc())
+        .all()
+    )
+    historique = (
+        base_query.filter(db.or_(ActePose.valide == True, ActePose.statut == 'annule'))
         .order_by(ActePose.date_pose.desc())
         .limit(200)
         .all()
     )
-    return render_template('actes_poses/liste.html', actes=actes)
+    return render_template('actes_poses/liste.html', actes_a_valider=actes_a_valider, historique=historique)
+
+
+@app.route('/actes-poses/<int:id>/valider', methods=['POST'])
+@login_required
+def acte_pose_valider(id):
+    """Vérifie/ajuste puis valide un acte posé — déclenche son envoi à GHP.
+    Rien ne part vers GHP tant que cette étape n'a pas eu lieu (voir
+    tasks.sync_actes_poses_to_ghp, filtré sur valide=True)."""
+    from models import ActePose
+
+    acte = ActePose.query.get_or_404(id)
+    if acte.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('actes_poses_liste'))
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('actes_poses_liste'))
+
+    quantite = (request.form.get('quantite') or '').strip()
+    if quantite:
+        acte.quantite = quantite
+
+    acte.valide = True
+    acte.valide_par_id = current_user.id
+    acte.date_validation = datetime.utcnow()
+    db.session.commit()
+
+    try:
+        from tasks import sync_actes_poses_to_ghp
+        result = sync_actes_poses_to_ghp()
+        if result.get('success'):
+            print(f"✅ {result.get('message')}")
+    except Exception as e:
+        print(f"⚠️ Erreur sync auto actes posés : {e}")
+
+    flash(f'✅ "{acte.nom}" validé et envoyé à GHP', 'success')
+    return redirect(url_for('actes_poses_liste'))
+
+
+@app.route('/actes-poses/<int:id>/annuler', methods=['POST'])
+@login_required
+def acte_pose_annuler(id):
+    """Annule un acte posé consigné par erreur — ne part jamais à GHP."""
+    from models import ActePose
+
+    acte = ActePose.query.get_or_404(id)
+    if acte.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('actes_poses_liste'))
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('actes_poses_liste'))
+
+    acte.statut = 'annule'
+    db.session.commit()
+    flash(f'Acte "{acte.nom}" annulé', 'info')
+    return redirect(url_for('actes_poses_liste'))
 
 
 @app.route('/api/actes-types/rechercher')
@@ -8520,7 +8675,15 @@ def imprimer_dossier_patient(patient_id):
     if patient.date_naissance:
         today = datetime.utcnow().date()
         age = today.year - patient.date_naissance.year - ((today.month, today.day) < (patient.date_naissance.month, patient.date_naissance.day))
-    
+
+    # ============================================================ #
+    # 5. SOINS ADMINISTRÉS (journal de soins — actes réellement effectués)
+    # ============================================================ #
+    from models import ActePose
+    soins_poses = ActePose.query.filter_by(
+        patient_id=patient.id, statut='actif'
+    ).order_by(ActePose.date_pose.desc()).all()
+
     return render_template('impressions/dossier_patient.html',
                          patient=patient,
                          age=age,
@@ -8528,6 +8691,7 @@ def imprimer_dossier_patient(patient_id):
                          hospitalisations_data=hospitalisations_data,
                          engagements=engagements,
                          antecedents=antecedents,
+                         soins_poses=soins_poses,
                          now=datetime.utcnow())
 
 @app.route('/hospitalisation/<int:id>/examen/ajouter', methods=['POST'])

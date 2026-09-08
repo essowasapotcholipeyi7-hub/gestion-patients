@@ -572,6 +572,30 @@
         <div class="patient-id">{{ patient.nom }} {{ patient.prenom }} - P{{ "%06d"|format(patient.id) }}</div>
     </div>
 
+    <!-- SOINS ADMINISTRÉS (journal de soins) -->
+    <div class="section-title">Soins administrés <span class="badge badge-engagement">{{ soins_poses|length }}</span></div>
+    {% if soins_poses %}
+    <table class="table">
+        <thead>
+            <tr><th>Date / Heure</th><th>Acte</th><th>Produit administré</th><th>Qté</th><th>Posé par</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+            {% for soin in soins_poses %}
+            <tr>
+                <td>{{ soin.date_pose.strftime('%d/%m/%Y %H:%M') if soin.date_pose else '-' }}</td>
+                <td>{{ soin.nom }}</td>
+                <td>{{ soin.produit_administre or '-' }}</td>
+                <td>{{ soin.quantite }}</td>
+                <td>{{ soin.pose_par.prenom }} {{ soin.pose_par.nom if soin.pose_par else '-' }}</td>
+                <td>{{ soin.notes or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">Aucun soin consigné.</p>
+    {% endif %}
+
     <div class="section-title">Engagements <span class="badge badge-engagement">{{ engagements|length }}</span></div>
 
     {% if engagements %}

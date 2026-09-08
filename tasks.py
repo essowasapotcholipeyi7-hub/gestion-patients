@@ -142,6 +142,7 @@ def sync_actes_poses_to_ghp():
                     .filter(
                         ActePose.synced_at.is_(None),
                         ActePose.statut == 'actif',
+                        ActePose.valide == True,  # ⭐ seuls les actes validés (voir onglet Actes posés) partent vers GHP
                         Patient.id_structure == mapping.local_structure_id,
                     )
                     .all()
@@ -152,6 +153,9 @@ def sync_actes_poses_to_ghp():
 
                 data = []
                 for a in actes:
+                    instructions = a.notes or ''
+                    if a.produit_administre:
+                        instructions = f"Produit administré : {a.produit_administre}" + (f" — {instructions}" if instructions else '')
                     data.append({
                         'id': a.id,
                         'patient_id': a.patient_id,
@@ -163,7 +167,7 @@ def sync_actes_poses_to_ghp():
                         'quantite': a.quantite or '1',
                         'duree_jours': 0,
                         'frequence': '',
-                        'instructions': a.notes or '',
+                        'instructions': instructions,
                         'type_prescription': 'acte_pose',
                         'date_prescription': a.date_pose.isoformat() if a.date_pose else datetime.now().isoformat(),
                         'prescripteur': f"{a.pose_par.prenom} {a.pose_par.nom}" if a.pose_par else ''
