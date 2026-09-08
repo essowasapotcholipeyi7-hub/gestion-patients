@@ -70,6 +70,20 @@ def scheduled_sync_actes_poses():
         logger.error(f"❌ Erreur sync actes posés: {e}")
 
 
+def scheduled_sync_hospitalisations():
+    """
+    Synchronisation automatique des lignes de facturation d'hospitalisation
+    toutes les 5 minutes (rattrapage si l'envoi à la clôture a échoué)
+    """
+    try:
+        from tasks import sync_hospitalisations_to_ghp
+        result = sync_hospitalisations_to_ghp()
+        if result.get('success'):
+            logger.info(f"🔄 Sync hospitalisations: {result.get('message')}")
+    except Exception as e:
+        logger.error(f"❌ Erreur sync hospitalisations: {e}")
+
+
 def start_scheduler():
     """Démarre le planificateur de tâches"""
     global scheduler
@@ -114,6 +128,15 @@ def start_scheduler():
             replace_existing=True
         )
         logger.info("🔄 Actes posés: Synchronisation toutes les 5 minutes")
+
+        # ---- 5. SYNCHRONISATION FACTURATION HOSPITALISATION (toutes les 5 minutes) ----
+        scheduler.add_job(
+            func=scheduled_sync_hospitalisations,
+            trigger=IntervalTrigger(minutes=5),
+            id='sync_hospitalisations',
+            replace_existing=True
+        )
+        logger.info("🔄 Hospitalisations: Synchronisation toutes les 5 minutes")
 
         # ---- DÉMARRAGE ----
         scheduler.start()

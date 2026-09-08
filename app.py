@@ -816,6 +816,71 @@ def structure_utilisateurs():
     utilisateurs = Utilisateur.query.filter_by(id_structure=current_user.id_structure).all()
     return render_template('structure/utilisateurs.html', utilisateurs=utilisateurs)
 
+
+@app.route('/structure/parametrage-amu', methods=['GET', 'POST'])
+@login_required
+def parametrage_amu():
+    """Paramétrage AMU hospitalisation : seuils de jours par palier (semaine 1
+    / semaine 2 / 15j et plus) + mapping, par salle, vers le nom exact de
+    l'acte GHP correspondant à chaque palier (tarifs différents par salle)."""
+    if current_user.role != 'admin_structure':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    from models import ParametrageAMU, Salle, Service
+
+    parametrage = ParametrageAMU.query.filter_by(structure_id=current_user.id_structure).first()
+    if not parametrage:
+        parametrage = ParametrageAMU(structure_id=current_user.id_structure)
+        db.session.add(parametrage)
+        db.session.commit()
+
+    if request.method == 'POST':
+        form_type = request.form.get('form_type')
+
+        if form_type == 'seuils':
+            try:
+                s1 = int(request.form.get('seuil_jours_semaine1', 7))
+                s2 = int(request.form.get('seuil_jours_semaine2', 14))
+                taux = float(request.form.get('taux_amu_info', 90))
+            except (TypeError, ValueError):
+                flash('Valeurs invalides', 'danger')
+                return redirect(url_for('parametrage_amu'))
+
+            if s1 < 1 or s2 <= s1:
+                flash('Le palier 2 doit se terminer après le palier 1', 'danger')
+                return redirect(url_for('parametrage_amu'))
+
+            parametrage.seuil_jours_semaine1 = s1
+            parametrage.seuil_jours_semaine2 = s2
+            parametrage.taux_amu_info = taux
+            db.session.commit()
+            flash('Paramétrage AMU mis à jour', 'success')
+
+        elif form_type == 'salle':
+            salle_id = request.form.get('salle_id', type=int)
+            salle = Salle.query.join(Service).filter(
+                Salle.id == salle_id,
+                Service.structure_id == current_user.id_structure
+            ).first()
+            if salle:
+                salle.acte_ghp_semaine1 = request.form.get('acte_ghp_semaine1', '').strip() or None
+                salle.acte_ghp_semaine2 = request.form.get('acte_ghp_semaine2', '').strip() or None
+                salle.acte_ghp_semaine3 = request.form.get('acte_ghp_semaine3', '').strip() or None
+                db.session.commit()
+                flash(f'Tarifs GHP de la salle "{salle.nom}" mis à jour', 'success')
+            else:
+                flash('Salle non trouvée', 'danger')
+
+        return redirect(url_for('parametrage_amu'))
+
+    salles = Salle.query.join(Service).filter(
+        Service.structure_id == current_user.id_structure
+    ).order_by(Salle.nom).all()
+
+    return render_template('structure/parametrage_amu.html', parametrage=parametrage, salles=salles)
+
+
 @app.route('/structure/utilisateur/ajouter', methods=['GET', 'POST'])
 @login_required
 def structure_ajouter_utilisateur():
@@ -4098,13 +4163,162 @@ def ajouter_constante(id):
                          dernieres_constantes=dernieres_constantes,
                          now=datetime.utcnow())
 
+def _calculer_paliers_hospitalisation(jours_total, structure_id):
+    """Répartit un nombre de jours en paliers (semaine 1 / semaine 2 / 15j
+    et plus) selon le paramétrage AMU de la structure. Retourne la liste des
+    paliers avec un nombre de jours > 0, dans l'ordre."""
+    from models import ParametrageAMU
+    param = ParametrageAMU.get_ou_defaut(structure_id)
+    s1, s2 = param.seuil_jours_semaine1, param.seuil_jours_semaine2
+
+    jours_p1 = min(jours_total, s1)
+    jours_p2 = min(max(jours_total - s1, 0), max(s2 - s1, 0))
+    jours_p3 = max(jours_total - s2, 0)
+
+    paliers = []
+    if jours_p1 > 0:
+        paliers.append({'palier': 'semaine1', 'label': f'Semaine 1 (jours 1-{s1})', 'jours': jours_p1})
+    if jours_p2 > 0:
+        paliers.append({'palier': 'semaine2', 'label': f'Semaine 2 (jours {s1+1}-{s2})', 'jours': jours_p2})
+    if jours_p3 > 0:
+        paliers.append({'palier': 'semaine3plus', 'label': f'À partir du jour {s2+1}', 'jours': jours_p3})
+
+    return paliers, param
+
+
+def _salle_hospitalisation(hospitalisation):
+    """Retrouve la salle occupée pendant l'hospitalisation, via le lit
+    encore assigné. Doit être appelé AVANT de libérer le lit à la clôture."""
+    from models import Lit
+    if not hospitalisation.lit_id:
+        return None
+    lit = Lit.query.get(hospitalisation.lit_id)
+    return lit.salle if lit else None
+
+
+def _tarifs_ghp_structure(structure_id):
+    """Récupère en direct (par nom) le catalogue d'actes GHP de la
+    structure — utilisé pour estimer le montant avant envoi. Retourne un
+    dict {nom_en_minuscule: {'nom', 'prix', 'pbr'}}, vide si indisponible
+    (ce n'est qu'une estimation, GHP recalcule de toute façon à la vente)."""
+    from models import StructureMapping
+    import requests
+
+    mapping = StructureMapping.query.filter_by(local_structure_id=structure_id, actif=True).first()
+    if not mapping:
+        return {}
+    try:
+        resp = requests.get(
+            f"{mapping.api_url}/api/actes/disponibles",
+            params={'token': mapping.api_key},
+            timeout=10
+        )
+        if resp.status_code != 200:
+            return {}
+        return {a['nom'].lower().strip(): a for a in resp.json().get('actes', []) if a.get('nom')}
+    except Exception:
+        return {}
+
+
+@app.route('/hospitalisation/<int:id>/facturation/apercu')
+@login_required
+def apercu_facturation_hospitalisation(id):
+    """Aperçu (lecture seule) du calcul de facturation d'une hospitalisation
+    en cours — jours par palier, tarifs GHP, estimation AMU/complémentaire.
+    Appelé en AJAX à l'ouverture de la modale de clôture."""
+    from models import Hospitalisation
+    import math
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    if current_user.id_structure and hospitalisation.patient.id_structure != current_user.id_structure:
+        return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
+    salle = _salle_hospitalisation(hospitalisation)
+    if not salle:
+        return jsonify({
+            'success': False,
+            'error': "Aucun lit n'est assigné à cette hospitalisation : la facturation ne peut pas être calculée automatiquement."
+        })
+
+    jours_total = max(1, math.ceil((datetime.utcnow() - hospitalisation.date_debut).total_seconds() / 86400))
+    structure_id = hospitalisation.patient.id_structure
+    paliers, param = _calculer_paliers_hospitalisation(jours_total, structure_id)
+
+    noms_actes = {
+        'semaine1': salle.acte_ghp_semaine1,
+        'semaine2': salle.acte_ghp_semaine2,
+        'semaine3plus': salle.acte_ghp_semaine3,
+    }
+    tarifs = _tarifs_ghp_structure(structure_id)
+
+    patient = hospitalisation.patient
+    try:
+        taux_amu_patient = float(patient.taux_prise_charge) if patient.taux_prise_charge else 0
+    except (TypeError, ValueError):
+        taux_amu_patient = 0
+    est_assure = (
+        bool(patient.type_assurance)
+        and 'non_assur' not in patient.type_assurance.lower().replace('é', 'e')
+        and taux_amu_patient > 0
+    )
+    taux_cac = float(patient.taux_assurance2 or 0) if patient.assurance2_nom else 0
+
+    lignes = []
+    total_brut = 0
+    total_pbr_base = 0
+    mapping_manquant = False
+
+    for p in paliers:
+        acte_nom = noms_actes.get(p['palier'])
+        tarif = tarifs.get((acte_nom or '').lower().strip())
+        if not acte_nom:
+            mapping_manquant = True
+        prix = float(tarif['prix']) if tarif else 0
+        pbr = float(tarif['pbr']) if tarif else 0
+        sous_total = prix * p['jours']
+        pbr_base = min(prix, pbr) * p['jours'] if tarif else 0
+        total_brut += sous_total
+        total_pbr_base += pbr_base
+        lignes.append({
+            'palier': p['palier'],
+            'label': p['label'],
+            'jours': p['jours'],
+            'acte_nom': acte_nom or '(non configuré — voir Paramétrage AMU)',
+            'trouve_dans_catalogue': tarif is not None,
+            'prix_unitaire': prix,
+            'sous_total': sous_total,
+        })
+
+    prise_en_charge_amu = (total_pbr_base * taux_amu_patient / 100) if est_assure else 0
+    reste_apres_amu = max(total_brut - prise_en_charge_amu, 0)
+    prise_en_charge_cac = (reste_apres_amu * taux_cac / 100) if taux_cac > 0 else 0
+    net_estime = max(reste_apres_amu - prise_en_charge_cac, 0)
+
+    return jsonify({
+        'success': True,
+        'jours_total': jours_total,
+        'salle_nom': salle.nom,
+        'lignes': lignes,
+        'mapping_manquant': mapping_manquant,
+        'total_brut': total_brut,
+        'est_assure': est_assure,
+        'taux_amu_patient': taux_amu_patient,
+        'prise_en_charge_amu': prise_en_charge_amu,
+        'assurance2_nom': patient.assurance2_nom,
+        'taux_cac': taux_cac,
+        'prise_en_charge_cac': prise_en_charge_cac,
+        'net_estime': net_estime,
+    })
+
+
 @app.route('/hospitalisation/<int:id>/cloturer', methods=['POST'])
 @login_required
 def cloturer_hospitalisation(id):
     """Clôturer une hospitalisation (sortie du patient)"""
     from models import Hospitalisation, HospitalisationMedecin, Lit
     from datetime import datetime
-    
+    import math
+
     hospitalisation = Hospitalisation.query.get_or_404(id)
     
     if current_user.role not in ['super_admin', 'admin_structure', 'medecin']:
@@ -4157,6 +4371,10 @@ def cloturer_hospitalisation(id):
     else:  # sortie normale
         hospitalisation.statut = 'sorti'
     
+    # ⭐ Facturation : retrouver la salle occupée AVANT de libérer le lit
+    # (sinon l'info est perdue — lit_id est mis à None juste après).
+    salle_facturation = _salle_hospitalisation(hospitalisation)
+
     # ⭐ LIBÉRER LE LIT (corrigé)
     if hospitalisation.lit_id:
         lit = Lit.query.get(hospitalisation.lit_id)
@@ -4200,10 +4418,76 @@ def cloturer_hospitalisation(id):
     notes_completes += "---\n"
     
     hospitalisation.notes_admission = (hospitalisation.notes_admission or '') + notes_completes
-    
+
     db.session.commit()
-    
-    flash(f'Hospitalisation clôturée avec succès ({type_sortie})', 'success')
+
+    # ⭐ Facturation automatique vers GHP (jours × tarif par palier)
+    if not salle_facturation:
+        flash(
+            'Hospitalisation clôturée. Aucun lit n\'était assigné : la facturation '
+            'n\'a pas pu être calculée automatiquement — à saisir manuellement côté GHP si besoin.',
+            'warning'
+        )
+    else:
+        from models import HospitalisationFacturation
+        jours_total = max(1, math.ceil((hospitalisation.date_fin - hospitalisation.date_debut).total_seconds() / 86400))
+        structure_id = hospitalisation.patient.id_structure
+        paliers, _param = _calculer_paliers_hospitalisation(jours_total, structure_id)
+
+        noms_actes = {
+            'semaine1': salle_facturation.acte_ghp_semaine1,
+            'semaine2': salle_facturation.acte_ghp_semaine2,
+            'semaine3plus': salle_facturation.acte_ghp_semaine3,
+        }
+        tarifs = _tarifs_ghp_structure(structure_id)
+
+        lignes_creees = 0
+        paliers_sans_mapping = []
+        for p in paliers:
+            acte_nom = noms_actes.get(p['palier'])
+            if not acte_nom:
+                paliers_sans_mapping.append(p['label'])
+                continue
+            tarif = tarifs.get(acte_nom.lower().strip())
+            ligne = HospitalisationFacturation(
+                hospitalisation_id=hospitalisation.id,
+                patient_id=hospitalisation.patient_id,
+                palier=p['palier'],
+                acte_nom=acte_nom,
+                nombre_jours=p['jours'],
+                prix_unitaire_estime=float(tarif['prix']) if tarif else None
+            )
+            db.session.add(ligne)
+            lignes_creees += 1
+
+        if lignes_creees:
+            db.session.commit()
+            try:
+                from tasks import sync_hospitalisations_to_ghp
+                resultat_sync = sync_hospitalisations_to_ghp()
+            except Exception as e:
+                resultat_sync = {'success': False, 'message': str(e)}
+
+            if resultat_sync.get('success') and resultat_sync.get('count'):
+                flash(
+                    f'Hospitalisation clôturée ({jours_total} jour(s), {salle_facturation.nom}) '
+                    f'— facturation envoyée à GHP (onglet Prescriptions reçues).',
+                    'success'
+                )
+            else:
+                flash(
+                    f'Hospitalisation clôturée ({jours_total} jour(s)). La facturation sera '
+                    f'envoyée à GHP automatiquement dans les prochaines minutes (rattrapage).',
+                    'warning'
+                )
+        else:
+            flash(
+                f'Hospitalisation clôturée. Aucun acte GHP n\'est configuré pour la salle '
+                f'"{salle_facturation.nom}" ({", ".join(paliers_sans_mapping)}) — configurez-le '
+                f'dans Paramétrage AMU, puis facturez manuellement côté GHP.',
+                'warning'
+            )
+
     return redirect(url_for('liste_hospitalisations'))
 
 @app.route('/patient/<int:patient_id>/hospitalisations')
@@ -6950,7 +7234,13 @@ def api_actes_types_disponibles():
 
         data = response.json()
         actes = data.get('actes', [])
-        result = [{'nom': a.get('nom', '')} for a in actes if a.get('nom')]
+        # ⭐ prix/pbr transmis en plus du nom (si présents côté GHP) — la
+        # recherche d'actes posés les ignore, l'aperçu de facturation
+        # d'hospitalisation les utilise pour l'estimation avant envoi.
+        result = [
+            {'nom': a.get('nom', ''), 'prix': a.get('prix', 0), 'pbr': a.get('pbr', 0)}
+            for a in actes if a.get('nom')
+        ]
         result.sort(key=lambda x: x['nom'])
 
         print(f"✅ {len(result)} actes disponibles chargés")

@@ -756,7 +756,7 @@ class Service(db.Model):
 
 class Salle(db.Model):
     __tablename__ = 'salles'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     service_id = db.Column(db.Integer, db.ForeignKey('services.id'), nullable=False)
     nom = db.Column(db.String(50), nullable=False)
@@ -766,6 +766,16 @@ class Salle(db.Model):
     description = db.Column(db.Text, nullable=True)
     actif = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # ⭐ FACTURATION HOSPITALISATION — mapping vers le catalogue d'actes GHP
+    # de la structure. Le nom doit correspondre EXACTEMENT à un acte du
+    # catalogue Sheets côté GHP (P160 Hospitalisation ... Premiere Semaine /
+    # 8e jour au 14e jour / 15 jours et plus) pour que le prix/PBR soit
+    # retrouvé à l'affichage dans "Prescriptions reçues". Configurable par
+    # salle depuis l'écran Paramétrages (les tarifs dépendent de la salle).
+    acte_ghp_semaine1 = db.Column(db.String(255), nullable=True)   # jours 1-7
+    acte_ghp_semaine2 = db.Column(db.String(255), nullable=True)   # jours 8-14
+    acte_ghp_semaine3 = db.Column(db.String(255), nullable=True)   # jour 15+
     
     # Relations - Utiliser des noms uniques
     service = db.relationship('Service', backref='salles_list', overlaps="salles")
@@ -803,6 +813,64 @@ class Lit(db.Model):
         self.statut = 'occupe'
         self.hospitalisation_id = hospitalisation_id
         self.updated_at = datetime.utcnow()
+
+
+# ==================== FACTURATION HOSPITALISATION (AMU) ====================
+
+class ParametrageAMU(db.Model):
+    """Paramétrage AMU hospitalisation, par structure. Les paliers de jours
+    (semaine 1 / semaine 2 / 15j et plus) déterminent comment les jours
+    d'hospitalisation sont répartis vers les actes GHP correspondants
+    (voir Salle.acte_ghp_semaine1/2/3). Le taux n'est utilisé que pour
+    l'ESTIMATION affichée à la clôture — le calcul définitif est fait par
+    GHP au moment de la vente, avec le taux réel du patient et le PBR du
+    catalogue à cet instant (même moteur que pour toute vente normale)."""
+    __tablename__ = 'parametrages_amu'
+
+    id = db.Column(db.Integer, primary_key=True)
+    structure_id = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False, unique=True)
+
+    seuil_jours_semaine1 = db.Column(db.Integer, nullable=False, default=7)   # fin du palier 1
+    seuil_jours_semaine2 = db.Column(db.Integer, nullable=False, default=14)  # fin du palier 2
+    taux_amu_info = db.Column(db.Float, nullable=False, default=90.0)         # informatif uniquement
+
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    structure = db.relationship('Structure', backref=db.backref('parametrage_amu', uselist=False))
+
+    @classmethod
+    def get_ou_defaut(cls, structure_id):
+        """Retourne le paramétrage de la structure, ou un paramétrage par
+        défaut (non persisté) si elle n'en a pas encore configuré."""
+        p = cls.query.filter_by(structure_id=structure_id).first()
+        if p:
+            return p
+        return cls(structure_id=structure_id, seuil_jours_semaine1=7, seuil_jours_semaine2=14, taux_amu_info=90.0)
+
+
+class HospitalisationFacturation(db.Model):
+    """Une ligne de facturation d'hospitalisation envoyée à GHP (une par
+    palier réellement utilisé — jusqu'à 3 par hospitalisation clôturée).
+    Miroir du même principe que Prescription/ActePose : synced_at permet au
+    scheduler de rattraper un envoi qui aurait échoué (structure GHP
+    injoignable au moment de la clôture)."""
+    __tablename__ = 'hospitalisation_facturations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    hospitalisation_id = db.Column(db.Integer, db.ForeignKey('hospitalisations.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+
+    palier = db.Column(db.String(20), nullable=False)       # 'semaine1' | 'semaine2' | 'semaine3plus'
+    acte_nom = db.Column(db.String(255), nullable=False)     # nom exact catalogue GHP envoyé
+    nombre_jours = db.Column(db.Integer, nullable=False)
+    prix_unitaire_estime = db.Column(db.Float, nullable=True)  # snapshot pour historique/affichage local
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    synced_at = db.Column(db.DateTime, nullable=True)
+
+    hospitalisation = db.relationship('Hospitalisation', backref='facturations')
+    patient = db.relationship('Patient')
+
 
 # ==================== ANTÉCÉDENTS PATIENT ====================
 

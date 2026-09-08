@@ -1,6 +1,6 @@
 # tasks.py
 from app import app, db
-from models import Prescription, ActePose, Patient, StructureMapping
+from models import Prescription, ActePose, Patient, StructureMapping, HospitalisationFacturation
 import requests
 from datetime import datetime
 import logging
@@ -205,6 +205,101 @@ def sync_actes_poses_to_ghp():
 
         except Exception as e:
             logger.error(f"❌ Erreur sync actes posés: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'success': False, 'message': str(e)}
+
+
+def sync_hospitalisations_to_ghp():
+    """
+    Synchronise les lignes de facturation d'hospitalisation (une par palier)
+    non envoyées vers GHP — même pipeline /api/prescriptions
+    (type_prescription='hospitalisation') que les actes posés. Chaque ligne
+    porte déjà le nom exact de l'acte GHP (résolu à la clôture via le
+    mapping Salle.acte_ghp_semaineN) : GHP retrouve son prix/PBR dans son
+    propre catalogue par ce nom, exactement comme pour tout autre acte.
+
+    Même principe multi-structure que les deux fonctions ci-dessus.
+    """
+    with app.app_context():
+        try:
+            mappings = StructureMapping.query.filter_by(actif=True).all()
+            if not mappings:
+                logger.error("❌ Aucune configuration GHP active")
+                return {'success': False, 'message': 'Configuration GHP non trouvée'}
+
+            total_envoyees = 0
+            messages = []
+
+            for mapping in mappings:
+                lignes = (
+                    HospitalisationFacturation.query
+                    .join(Patient, HospitalisationFacturation.patient_id == Patient.id)
+                    .filter(
+                        HospitalisationFacturation.synced_at.is_(None),
+                        Patient.id_structure == mapping.local_structure_id,
+                    )
+                    .all()
+                )
+
+                if not lignes:
+                    continue
+
+                data = []
+                for l in lignes:
+                    data.append({
+                        'id': l.id,
+                        'patient_id': l.patient_id,
+                        'patient_nom': l.patient.nom if l.patient else '',
+                        'patient_prenom': l.patient.prenom if l.patient else '',
+                        'medicament': l.acte_nom,
+                        'dosage': '',
+                        'forme': '',
+                        'quantite': l.nombre_jours or 1,
+                        'duree_jours': 0,
+                        'frequence': '',
+                        'instructions': f"Hospitalisation #{l.hospitalisation_id} — palier {l.palier}",
+                        'type_prescription': 'hospitalisation',
+                        'date_prescription': l.created_at.isoformat() if l.created_at else datetime.now().isoformat(),
+                        'prescripteur': ''
+                    })
+
+                url = f"{mapping.api_url}/api/prescriptions"
+                params = {'token': mapping.api_key}
+
+                logger.info(f"📡 Structure locale {mapping.local_structure_id} : envoi de {len(data)} ligne(s) de facturation hospitalisation vers GHP")
+
+                response = requests.post(
+                    url,
+                    json={'prescriptions': data},
+                    params=params,
+                    timeout=30
+                )
+
+                if response.status_code == 200:
+                    for l in lignes:
+                        l.synced_at = datetime.utcnow()
+                    db.session.commit()
+
+                    total_envoyees += len(data)
+                    messages.append(f"structure {mapping.local_structure_id}: {len(data)} envoyée(s)")
+                    logger.info(f"✅ Structure {mapping.local_structure_id} : {len(data)} ligne(s) hospitalisation synchronisées")
+                else:
+                    messages.append(f"structure {mapping.local_structure_id}: échec ({response.status_code})")
+                    logger.error(f"❌ Structure {mapping.local_structure_id} — Erreur GHP: {response.status_code} - {response.text[:200]}")
+
+            if total_envoyees == 0 and not messages:
+                logger.info("📭 Aucune ligne de facturation hospitalisation à synchroniser")
+                return {'success': True, 'message': 'Aucune ligne à synchroniser'}
+
+            return {
+                'success': True,
+                'message': f"✅ {total_envoyees} ligne(s) synchronisée(s) — " + "; ".join(messages),
+                'count': total_envoyees
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Erreur sync hospitalisations: {e}")
             import traceback
             traceback.print_exc()
             return {'success': False, 'message': str(e)}

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Paramétrage AMU hospitalisation - {{ current_user.structure.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-file-invoice-dollar me-2"></i>
+            Paramétrage AMU — Hospitalisation
+        </h1>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        À la clôture d'une hospitalisation, le nombre de jours est réparti en
+        <strong>paliers</strong> (semaine 1 / semaine 2 / 15 jours et plus), chacun
+        facturé au tarif GHP correspondant pour la salle occupée. Le taux AMU n'est
+        utilisé ici que pour l'<strong>estimation</strong> affichée à la clôture — le
+        montant réellement remboursé est calculé par GHP au moment de la vente, avec
+        le taux propre au patient.
+    </div>
+
+    <!-- ===== SEUILS + TAUX ===== -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-layer-group me-2"></i>Paliers de jours
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <input type="hidden" name="form_type" value="seuils">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Fin du palier 1 (jours)</label>
+                        <input type="number" min="1" class="form-control" name="seuil_jours_semaine1"
+                               value="{{ parametrage.seuil_jours_semaine1 }}" required>
+                        <div class="form-text">Ex: 7 → jours 1 à 7</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Fin du palier 2 (jours)</label>
+                        <input type="number" min="1" class="form-control" name="seuil_jours_semaine2"
+                               value="{{ parametrage.seuil_jours_semaine2 }}" required>
+                        <div class="form-text">Ex: 14 → jours 8 à 14 (au-delà : palier 3)</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Taux AMU (%)</label>
+                        <input type="number" min="0" max="100" step="0.1" class="form-control" name="taux_amu_info"
+                               value="{{ parametrage.taux_amu_info }}" required>
+                        <div class="form-text">Informatif — le taux réel du patient s'applique à la vente</div>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-save me-2"></i>Enregistrer
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===== MAPPING PAR SALLE ===== -->
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-bed me-2"></i>Tarifs GHP par salle
+        </div>
+        <div class="card-body">
+            {% if not salles %}
+            <p class="text-muted mb-0">Aucune salle configurée pour votre structure.</p>
+            {% else %}
+            <p class="text-muted">
+                Pour chaque salle, indiquez le nom <strong>exact</strong> de l'acte
+                correspondant dans le catalogue GHP (recherche assistée ci-dessous).
+                Un palier laissé vide ne sera pas facturé pour ce palier — utile si un
+                séjour aussi long est en pratique impossible dans cette salle.
+            </p>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle">
+                    <thead>
+                        <tr>
+                            <th style="min-width:160px">Salle</th>
+                            <th>Acte GHP — Palier 1 (semaine 1)</th>
+                            <th>Acte GHP — Palier 2 (8e-14e j.)</th>
+                            <th>Acte GHP — Palier 3 (15j et +)</th>
+                            <th style="width:80px">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for salle in salles %}
+                        <tr>
+                            <td>
+                                <strong>{{ salle.nom }}</strong><br>
+                                <small class="text-muted">{{ salle.type_salle }} · {{ salle.nombre_lits }} lit(s)</small>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm acte-input"
+                                       form="form-salle-{{ salle.id }}"
+                                       list="datalistActesGHP" name="acte_ghp_semaine1"
+                                       value="{{ salle.acte_ghp_semaine1 or '' }}"
+                                       placeholder="Nom exact de l'acte GHP...">
+                                <small class="text-muted tarif-preview"></small>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm acte-input"
+                                       form="form-salle-{{ salle.id }}"
+                                       list="datalistActesGHP" name="acte_ghp_semaine2"
+                                       value="{{ salle.acte_ghp_semaine2 or '' }}"
+                                       placeholder="Nom exact de l'acte GHP...">
+                                <small class="text-muted tarif-preview"></small>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm acte-input"
+                                       form="form-salle-{{ salle.id }}"
+                                       list="datalistActesGHP" name="acte_ghp_semaine3"
+                                       value="{{ salle.acte_ghp_semaine3 or '' }}"
+                                       placeholder="Nom exact de l'acte GHP...">
+                                <small class="text-muted tarif-preview"></small>
+                            </td>
+                            <td>
+                                <form method="POST" id="form-salle-{{ salle.id }}">
+                                    <input type="hidden" name="form_type" value="salle">
+                                    <input type="hidden" name="salle_id" value="{{ salle.id }}">
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<datalist id="datalistActesGHP"></datalist>
+
+<script>
+// Charge le catalogue d'actes GHP (avec prix/pbr) pour l'autocomplétion
+// et l'aperçu tarifaire — même endpoint que l'onglet "Actes posés".
+let actesGHPCatalogue = {};
+
+function afficherApercuTarif(input) {
+    const preview = input.parentElement.querySelector('.tarif-preview');
+    const val = input.value.trim().toLowerCase();
+    if (!val) { preview.textContent = ''; return; }
+    const acte = actesGHPCatalogue[val];
+    if (acte) {
+        preview.innerHTML = `<i class="fas fa-check-circle text-success"></i> ${acte.prix} FCFA/jour (PBR ${acte.pbr})`;
+    } else {
+        preview.innerHTML = `<i class="fas fa-exclamation-triangle text-warning"></i> Non trouvé dans le catalogue GHP`;
+    }
+}
+
+// Écouteurs posés tout de suite (l'input peut changer avant la fin du
+// chargement), mais l'aperçu INITIAL n'est affiché qu'une fois le
+// catalogue chargé — sinon toute valeur déjà saisie apparaît à tort
+// "non trouvée" pendant la fraction de seconde où actesGHPCatalogue est
+// encore vide (même bug de course que pharma_vente.html côté GHP).
+document.querySelectorAll('.acte-input').forEach(input => {
+    input.addEventListener('input', () => afficherApercuTarif(input));
+    input.addEventListener('change', () => afficherApercuTarif(input));
+});
+
+fetch('/api/actes-types/disponibles')
+    .then(r => r.ok ? r.json() : [])
+    .then(data => {
+        const datalist = document.getElementById('datalistActesGHP');
+        (data || []).forEach(a => {
+            if (!a.nom) return;
+            actesGHPCatalogue[a.nom.toLowerCase().trim()] = a;
+            const opt = document.createElement('option');
+            opt.value = a.nom;
+            datalist.appendChild(opt);
+        });
+        document.querySelectorAll('.acte-input').forEach(afficherApercuTarif);
+    })
+    .catch(() => {});
+</script>
+{% endblock %}

@@ -1083,7 +1083,16 @@
                         <label class="form-label">Observations finales</label>
                         <textarea name="motif_sortie" class="form-control" rows="3" placeholder="Observations complémentaires..."></textarea>
                     </div>
-                    
+
+                    <!-- ⭐ Récapitulatif de facturation (jours × tarif par palier) -->
+                    <div class="mb-3" id="zoneFacturationCloture">
+                        <h6 class="text-primary"><i class="fas fa-file-invoice-dollar me-2"></i>Facturation</h6>
+                        <div id="facturationApercuLoading" class="text-muted small">
+                            <i class="fas fa-spinner fa-spin me-1"></i>Calcul en cours...
+                        </div>
+                        <div id="facturationApercuContenu" style="display:none;"></div>
+                    </div>
+
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="confirmCloture" required>
                         <label class="form-check-label" for="confirmCloture">
@@ -1101,6 +1110,81 @@
         </div>
     </div>
 </div>
+
+<script>
+// Récapitulatif de facturation (jours × tarif par palier + estimation
+// AMU/complémentaire) — chargé à l'ouverture de la modale de clôture, pour
+// que l'utilisateur voie AVANT de confirmer (jamais silencieux).
+(function() {
+    const modalCloture = document.getElementById('cloturerModal');
+    if (!modalCloture) return;
+
+    modalCloture.addEventListener('show.bs.modal', function() {
+        const loading = document.getElementById('facturationApercuLoading');
+        const contenu = document.getElementById('facturationApercuContenu');
+        loading.style.display = 'block';
+        contenu.style.display = 'none';
+        contenu.innerHTML = '';
+
+        fetch('{{ url_for("apercu_facturation_hospitalisation", id=hospitalisation.id) }}')
+            .then(r => r.json())
+            .then(data => {
+                loading.style.display = 'none';
+                contenu.style.display = 'block';
+
+                if (!data.success) {
+                    contenu.innerHTML = `<div class="alert alert-secondary mb-0 py-2 small">
+                        <i class="fas fa-info-circle me-1"></i>${data.error}
+                    </div>`;
+                    return;
+                }
+
+                const fmt = n => Number(n).toLocaleString('fr-FR', {maximumFractionDigits: 0}) + ' FCFA';
+                let lignesHtml = data.lignes.map(l => `
+                    <tr>
+                        <td>${l.label}</td>
+                        <td>${l.jours} j.</td>
+                        <td>${l.acte_nom} ${l.trouve_dans_catalogue ? '' : '<span class="badge bg-danger ms-1">non trouvé</span>'}</td>
+                        <td class="text-end">${fmt(l.sous_total)}</td>
+                    </tr>
+                `).join('');
+
+                let alerteMapping = data.mapping_manquant ? `
+                    <div class="alert alert-warning py-2 small mb-2">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        Un ou plusieurs paliers n'ont pas d'acte GHP configuré pour la salle
+                        "${data.salle_nom}" — configurez-les dans <strong>Paramétrage AMU</strong>
+                        pour que la facturation parte automatiquement vers GHP.
+                    </div>` : '';
+
+                contenu.innerHTML = `
+                    ${alerteMapping}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead><tr><th>Palier</th><th>Jours</th><th>Acte GHP</th><th class="text-end">Sous-total</th></tr></thead>
+                            <tbody>${lignesHtml}</tbody>
+                        </table>
+                    </div>
+                    <table class="table table-sm mb-0">
+                        <tr><td>Total brut (${data.jours_total} jour(s))</td><td class="text-end">${fmt(data.total_brut)}</td></tr>
+                        ${data.est_assure ? `<tr><td>Estimation prise en charge AMU (${data.taux_amu_patient}%)</td><td class="text-end text-success">- ${fmt(data.prise_en_charge_amu)}</td></tr>` : ''}
+                        ${data.taux_cac > 0 ? `<tr><td>Estimation ${data.assurance2_nom} (${data.taux_cac}%)</td><td class="text-end text-success">- ${fmt(data.prise_en_charge_cac)}</td></tr>` : ''}
+                        <tr class="fw-bold"><td>Estimation reste à charge patient</td><td class="text-end">${fmt(data.net_estime)}</td></tr>
+                    </table>
+                    <div class="small text-muted mt-1">
+                        <i class="fas fa-info-circle me-1"></i>Estimation — le montant définitif est
+                        calculé par GHP à la vente (onglet Prescriptions reçues).
+                    </div>
+                `;
+            })
+            .catch(() => {
+                loading.style.display = 'none';
+                contenu.style.display = 'block';
+                contenu.innerHTML = `<div class="alert alert-secondary mb-0 py-2 small">Aperçu indisponible.</div>`;
+            });
+    });
+})();
+</script>
 
 <!-- ========== MODAL AJOUTER AVIS EXTERNE ========== -->
 <div class="modal fade" id="avisExternesModal" tabindex="-1">
