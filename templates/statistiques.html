@@ -458,7 +458,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const hpPrimary = getComputedStyle(document.documentElement).getPropertyValue('--hp-primary').trim() || '#0e7490';
+    const hpPrimary = getComputedStyle(document.documentElement).getPropertyValue('--hp-primary').trim() || '#667eea';
 
     const ctx1 = document.getElementById('evolutionChart');
     if (ctx1) {
@@ -470,7 +470,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     label: 'Consultations',
                     data: {{ evolution_data|tojson }},
                     borderColor: hpPrimary,
-                    backgroundColor: 'rgba(14, 116, 144, 0.10)',
+                    backgroundColor: 'rgba(102, 126, 234, 0.10)',
                     tension: 0.3,
                     fill: true
                 }]
@@ -491,7 +491,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 labels: {{ assurances|map(attribute=0)|list|tojson }},
                 datasets: [{
                     data: {{ assurances|map(attribute=1)|list|tojson }},
-                    backgroundColor: ['#0e7490', '#3b7fa6', '#c8811f', '#8a97a3', '#2f9e5b', '#c94b4b']
+                    backgroundColor: ['#667eea', '#3b7fa6', '#c8811f', '#8a97a3', '#2f9e5b', '#c94b4b']
                 }]
             },
             options: {

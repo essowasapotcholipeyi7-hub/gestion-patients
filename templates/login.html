@@ -7,159 +7,168 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(135deg, #e8f4f8 0%, #d4e9f0 50%, #b8dce8 100%);
+        background: var(--hp-bg);
         position: relative;
         overflow: hidden;
         padding: 2rem 1rem;
     }
 
-    /* Formes décoratives en arrière-plan */
+    /* Formes décoratives en arrière-plan, dans la teinte de la marque */
     .login-section::before {
         content: '';
         position: absolute;
         top: -30%;
         right: -10%;
-        width: 500px;
-        height: 500px;
-        background: radial-gradient(circle, rgba(14, 116, 144, 0.10) 0%, transparent 70%);
+        width: 550px;
+        height: 550px;
+        background: radial-gradient(circle, rgba(102, 126, 234, 0.12) 0%, transparent 70%);
         border-radius: 50%;
     }
 
     .login-section::after {
         content: '';
         position: absolute;
-        bottom: -20%;
-        left: -10%;
-        width: 400px;
-        height: 400px;
-        background: radial-gradient(circle, rgba(14, 116, 144, 0.08) 0%, transparent 70%);
+        bottom: -25%;
+        left: -12%;
+        width: 450px;
+        height: 450px;
+        background: radial-gradient(circle, rgba(118, 75, 162, 0.10) 0%, transparent 70%);
         border-radius: 50%;
     }
 
-    /* Icône flottante décorative */
     .login-decoration {
         position: absolute;
         font-size: 6rem;
-        color: rgba(14, 116, 144, 0.06);
+        color: rgba(102, 126, 234, 0.06);
         z-index: 0;
     }
-    .login-decoration-1 { top: 10%; right: 5%; transform: rotate(15deg); }
-    .login-decoration-2 { bottom: 15%; left: 8%; transform: rotate(-10deg); }
+    .login-decoration-1 { top: 10%; right: 6%; transform: rotate(15deg); }
+    .login-decoration-2 { bottom: 12%; left: 8%; transform: rotate(-10deg); }
 
     .login-card {
-        background: rgba(255, 255, 255, 0.92);
-        backdrop-filter: blur(20px);
+        background: #fff;
         border: none;
         border-radius: 24px;
-        box-shadow: 0 20px 60px rgba(14, 116, 144, 0.15);
+        overflow: hidden;
+        box-shadow: 0 25px 60px -12px rgba(26, 26, 46, 0.25);
         position: relative;
         z-index: 1;
         width: 100%;
         max-width: 440px;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        animation: loginFadeUp 0.5s ease-out;
     }
 
-    .login-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 30px 80px rgba(14, 116, 144, 0.20);
+    @keyframes loginFadeUp {
+        from { opacity: 0; transform: translateY(24px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
+    /* ===== BANDEAU DÉGRADÉ (mêmes tons que la sidebar/les boutons) ===== */
     .login-header {
+        position: relative;
+        padding: 2.75rem 2rem 3rem;
         text-align: center;
-        padding: 2rem 2rem 0 2rem;
+        overflow: hidden;
+        background: var(--hp-sidebar-bg-active);
     }
 
-    .login-icon {
-        width: 72px;
-        height: 72px;
-        background: linear-gradient(135deg, #0e7490, #0a5a70);
+    .login-header-wave {
+        position: absolute;
+        left: 0; right: 0; bottom: -1px;
+        line-height: 0;
+    }
+
+    .login-header-wave svg { width: 100%; height: 36px; display: block; }
+
+    .login-icon-float {
+        width: 76px;
+        height: 76px;
         border-radius: 20px;
+        background: rgba(255,255,255,0.16);
+        backdrop-filter: blur(6px);
         display: inline-flex;
         align-items: center;
         justify-content: center;
         margin-bottom: 1rem;
-        box-shadow: 0 8px 32px rgba(14, 116, 144, 0.30);
+        animation: loginFloat 3s ease-in-out infinite;
     }
 
-    .login-icon i {
-        font-size: 2.2rem;
+    .login-icon-float i { font-size: 2.1rem; color: #fff; }
+
+    @keyframes loginFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-8px); }
+    }
+
+    .login-header h1 {
         color: #fff;
+        font-weight: 800;
+        font-size: 1.5rem;
+        letter-spacing: -0.3px;
+        margin-bottom: 0.2rem;
     }
 
-    .login-title {
-        font-size: 1.6rem;
-        font-weight: 700;
-        color: #0a5a70;
-        margin-bottom: 0.25rem;
-    }
-
-    .login-subtitle {
+    .login-header p {
+        color: rgba(255,255,255,0.8);
         font-size: 0.9rem;
-        color: #6a8a9a;
-        font-weight: 400;
+        margin: 0;
     }
 
-    .login-body {
-        padding: 2rem 2rem 2rem 2rem;
-    }
+    /* ===== CORPS ===== */
+    .login-body { padding: 2rem 2.25rem 1.75rem; }
 
-    .form-group {
-        margin-bottom: 1.25rem;
-    }
+    .form-group { margin-bottom: 1.15rem; }
 
     .form-group label {
         font-weight: 600;
         font-size: 0.85rem;
-        color: #2c3e46;
+        color: var(--hp-text);
         margin-bottom: 0.4rem;
         display: block;
     }
 
-    .form-group .input-group {
-        position: relative;
-    }
+    .form-group .input-group { position: relative; }
 
     .form-group .input-group .input-icon {
         position: absolute;
         left: 14px;
         top: 50%;
         transform: translateY(-50%);
-        color: #9ab0bc;
+        color: #a9b3d6;
         z-index: 10;
         font-size: 0.9rem;
+        pointer-events: none;
     }
 
     .form-group .form-control {
         padding: 0.7rem 1rem 0.7rem 2.8rem;
         border-radius: 14px;
-        border: 2px solid #e8edf0;
+        border: 2px solid var(--hp-card-border);
         font-size: 0.95rem;
         transition: all 0.25s ease;
-        background: #f8fafc;
+        background: var(--hp-bg);
         height: 52px;
     }
 
     .form-group .form-control:focus {
-        border-color: #0e7490;
-        box-shadow: 0 0 0 4px rgba(14, 116, 144, 0.12);
+        border-color: var(--hp-primary);
+        box-shadow: 0 0 0 4px var(--hp-primary-light);
         background: #fff;
+        outline: none;
     }
 
-    .form-group .form-control::placeholder {
-        color: #b0c8d4;
-        font-size: 0.9rem;
-    }
+    .form-group .form-control::placeholder { color: #b7bfe0; font-size: 0.9rem; }
 
     .btn-login {
-        background: linear-gradient(135deg, #0e7490, #0a5a70);
+        background: var(--hp-sidebar-bg-active);
         border: none;
         padding: 0.9rem;
         border-radius: 14px;
         font-weight: 600;
         font-size: 1rem;
         color: #fff;
-        transition: all 0.3s ease;
-        box-shadow: 0 8px 32px rgba(14, 116, 144, 0.30);
+        transition: all 0.25s ease;
+        box-shadow: 0 10px 28px rgba(102, 126, 234, 0.35);
         width: 100%;
         height: 52px;
         display: flex;
@@ -170,39 +179,25 @@
 
     .btn-login:hover {
         transform: translateY(-2px);
-        box-shadow: 0 12px 48px rgba(14, 116, 144, 0.40);
+        box-shadow: 0 14px 34px rgba(102, 126, 234, 0.45);
         color: #fff;
-        background: linear-gradient(135deg, #0a5a70, #064e60);
     }
 
-    .btn-login:active {
-        transform: translateY(0px);
-    }
+    .btn-login:active { transform: translateY(0); }
 
-    .login-links {
-        margin-top: 1.5rem;
-        text-align: center;
-    }
+    .login-links { margin-top: 1.4rem; text-align: center; }
 
     .login-links .divider {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        margin: 1.2rem 0;
-        color: #b0c8d4;
-        font-size: 0.8rem;
+        display: flex; align-items: center; gap: 1rem;
+        margin: 1.1rem 0; color: #b7bfe0; font-size: 0.8rem;
     }
 
-    .login-links .divider::before,
-    .login-links .divider::after {
-        content: '';
-        flex: 1;
-        height: 1px;
-        background: #e8edf0;
+    .login-links .divider::before, .login-links .divider::after {
+        content: ''; flex: 1; height: 1px; background: var(--hp-card-border);
     }
 
     .login-links a {
-        color: #5a7a8a;
+        color: var(--hp-text-muted);
         text-decoration: none;
         font-size: 0.9rem;
         font-weight: 500;
@@ -212,134 +207,63 @@
         gap: 0.4rem;
     }
 
-    .login-links a:hover {
-        color: #0e7490;
-    }
+    .login-links a:hover { color: var(--hp-primary); }
 
     .login-links .link-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: #f0f5f8;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+        width: 32px; height: 32px; border-radius: 50%;
+        background: var(--hp-primary-light);
+        display: inline-flex; align-items: center; justify-content: center;
         transition: background 0.2s ease;
+        color: var(--hp-primary);
     }
 
-    .login-links a:hover .link-icon {
-        background: #e3f2f5;
+    .login-links a:hover .link-icon { background: var(--hp-primary); color: #fff; }
+
+    /* ===== PIED — repère visuel des fonctionnalités, pas un chiffre inventé ===== */
+    .login-footer {
+        padding: 1rem 2rem 1.4rem;
+        background: var(--hp-bg);
+        border-top: 1px solid var(--hp-card-border);
+        display: flex;
+        justify-content: space-around;
     }
 
-    /* Messages flash améliorés */
-    .alert {
-        border-radius: 14px;
-        border: none;
-        padding: 0.75rem 1rem;
-        font-size: 0.9rem;
-        margin-bottom: 1rem;
-    }
+    .login-footer .feature { text-align: center; }
+    .login-footer .feature i { font-size: 1.05rem; color: var(--hp-primary); display: block; margin-bottom: 0.2rem; }
+    .login-footer .feature span { font-size: 0.68rem; color: var(--hp-text-muted); font-weight: 600; }
 
-    .alert-success {
-        background: #e7f6ed;
-        color: #1a7a4a;
-    }
+    .alert { border-radius: 14px; border: none; padding: 0.75rem 1rem; font-size: 0.9rem; margin-bottom: 1rem; }
+    .alert-success { background: var(--hp-success-light); color: var(--hp-success); }
+    .alert-danger { background: var(--hp-danger-light); color: var(--hp-danger); }
+    .alert-warning { background: var(--hp-warning-light); color: var(--hp-warning); }
+    .alert-info { background: var(--hp-info-light); color: var(--hp-info); }
 
-    .alert-danger {
-        background: #fbeaea;
-        color: #b94b4b;
-    }
-
-    .alert-warning {
-        background: #fbf1e2;
-        color: #a86a1a;
-    }
-
-    .alert-info {
-        background: #e6f0f6;
-        color: #2a6a8a;
-    }
-
-    /* Version mobile */
     @media (max-width: 576px) {
-        .login-card {
-            border-radius: 20px;
-        }
-
-        .login-header {
-            padding: 1.5rem 1.5rem 0 1.5rem;
-        }
-
-        .login-body {
-            padding: 1.5rem;
-        }
-
-        .login-icon {
-            width: 60px;
-            height: 60px;
-        }
-
-        .login-icon i {
-            font-size: 1.8rem;
-        }
-
-        .login-title {
-            font-size: 1.3rem;
-        }
-
-        .form-group .form-control {
-            height: 48px;
-            padding: 0.6rem 1rem 0.6rem 2.5rem;
-            font-size: 0.9rem;
-        }
-
-        .btn-login {
-            height: 48px;
-            font-size: 0.95rem;
-        }
-
-        .login-section {
-            padding: 1rem;
-        }
-    }
-
-    @media (max-width: 380px) {
-        .login-body {
-            padding: 1rem;
-        }
-
-        .login-title {
-            font-size: 1.1rem;
-        }
-
-        .login-links a {
-            font-size: 0.8rem;
-        }
+        .login-header { padding: 2.2rem 1.5rem 2.6rem; }
+        .login-body { padding: 1.6rem 1.5rem; }
+        .login-footer { padding: 0.9rem 1.2rem 1.2rem; }
+        .form-group .form-control { height: 48px; padding: 0.6rem 1rem 0.6rem 2.5rem; font-size: 0.9rem; }
+        .btn-login { height: 48px; font-size: 0.95rem; }
     }
 </style>
 
 <div class="login-section">
-    <!-- Formes décoratives -->
-    <div class="login-decoration login-decoration-1">
-        <i class="fas fa-heartbeat"></i>
-    </div>
-    <div class="login-decoration login-decoration-2">
-        <i class="fas fa-stethoscope"></i>
-    </div>
+    <div class="login-decoration login-decoration-1"><i class="fas fa-heartbeat"></i></div>
+    <div class="login-decoration login-decoration-2"><i class="fas fa-notes-medical"></i></div>
 
     <div class="login-card">
-        <!-- En-tête -->
         <div class="login-header">
-            <div class="login-icon">
-                <i class="fas fa-hospital-user"></i>
+            <div class="login-icon-float"><i class="fas fa-stethoscope"></i></div>
+            <h1>MediLogic</h1>
+            <p>Gestion des patients &amp; suivi clinique</p>
+            <div class="login-header-wave">
+                <svg viewBox="0 0 1440 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="#ffffff" d="M0,32L60,29.3C120,27,240,21,360,24C480,27,600,37,720,37.3C840,37,960,27,1080,22.7C1200,19,1320,21,1380,22.7L1440,24L1440,60L0,60Z"></path>
+                </svg>
             </div>
-            <h1 class="login-title">MediLogic</h1>
-            <p class="login-subtitle">Connectez-vous à votre espace</p>
         </div>
 
-        <!-- Corps du formulaire -->
         <div class="login-body">
-            <!-- Messages flash -->
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
@@ -352,64 +276,45 @@
             {% endwith %}
 
             <form method="POST">
-                <!-- Email -->
                 <div class="form-group">
-                    <label for="email">
-                        <i class="fas fa-envelope me-1" style="color: #0e7490;"></i> Adresse email
-                    </label>
+                    <label for="email"><i class="fas fa-envelope me-1" style="color: var(--hp-primary);"></i> Adresse email</label>
                     <div class="input-group">
                         <span class="input-icon"><i class="fas fa-envelope"></i></span>
-                        <input 
-                            type="email" 
-                            name="email" 
-                            id="email"
-                            class="form-control" 
-                            placeholder="exemple@structure.com"
-                            required
-                            autofocus
-                        >
+                        <input type="email" name="email" id="email" class="form-control"
+                               placeholder="exemple@structure.com" required autofocus>
                     </div>
                 </div>
 
-                <!-- Mot de passe -->
                 <div class="form-group">
-                    <label for="password">
-                        <i class="fas fa-lock me-1" style="color: #0e7490;"></i> Mot de passe
-                    </label>
+                    <label for="password"><i class="fas fa-lock me-1" style="color: var(--hp-primary);"></i> Mot de passe</label>
                     <div class="input-group">
                         <span class="input-icon"><i class="fas fa-lock"></i></span>
-                        <input 
-                            type="password" 
-                            name="password" 
-                            id="password"
-                            class="form-control" 
-                            placeholder="••••••••"
-                            required
-                        >
+                        <input type="password" name="password" id="password" class="form-control"
+                               placeholder="••••••••" required>
                     </div>
                 </div>
 
-                <!-- Bouton de connexion -->
                 <button type="submit" class="btn-login">
-                    <i class="fas fa-sign-in-alt"></i>
-                    Se connecter
+                    <i class="fas fa-sign-in-alt"></i> Se connecter
                 </button>
 
-                <!-- Liens -->
                 <div class="login-links">
                     <a href="{{ url_for('forgot_password') }}">
-                        <span class="link-icon"><i class="fas fa-key"></i></span>
-                        Mot de passe oublié ?
+                        <span class="link-icon"><i class="fas fa-key"></i></span> Mot de passe oublié ?
                     </a>
-
                     <div class="divider">ou</div>
-
                     <a href="{{ url_for('register_structure') }}">
-                        <span class="link-icon"><i class="fas fa-building"></i></span>
-                        Nouvelle structure ? S'inscrire
+                        <span class="link-icon"><i class="fas fa-building"></i></span> Nouvelle structure ? S'inscrire
                     </a>
                 </div>
             </form>
+        </div>
+
+        <div class="login-footer">
+            <div class="feature"><i class="fas fa-users"></i><span>Patients</span></div>
+            <div class="feature"><i class="fas fa-stethoscope"></i><span>Consultations</span></div>
+            <div class="feature"><i class="fas fa-flask"></i><span>Analyses</span></div>
+            <div class="feature"><i class="fas fa-procedures"></i><span>Hospitalisation</span></div>
         </div>
     </div>
 </div>
