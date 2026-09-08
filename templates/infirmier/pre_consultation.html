@@ -622,31 +622,45 @@
 <script>
 // ==================== GESTION DES ÉTAPES ====================
 function goToStep(step) {
+    // ⭐ FIX : la navigation (window.location.href) partait AVANT que le
+    // fetch() de sauvegarde n'ait eu le temps d'atteindre le serveur —
+    // fetch() est asynchrone, et le navigateur annule une requête en vol
+    // dès qu'on quitte la page. Résultat : le motif (et parfois les
+    // constantes) ne se sauvegardaient pas de façon fiable, silencieusement
+    // (aucune erreur visible, la requête était juste interrompue en cours
+    // de route). On attend maintenant explicitement la fin de la sauvegarde
+    // (succès ou échec) avant de naviguer vers l'étape suivante.
+    let sauvegarde = Promise.resolve();
+
     // Sauvegarder le motif (étape 1 → 2)
     if (step === 2) {
         const motif = document.querySelector('textarea[name="motif"]');
         if (motif) {
-            fetch('/infirmier/pre_consultation/{{ patient.id }}/save-motif', {
+            sauvegarde = fetch('/infirmier/pre_consultation/{{ patient.id }}/save-motif', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
                 body: 'motif=' + encodeURIComponent(motif.value)
-            }).catch(error => console.error('Erreur:', error));
+            }).catch(error => console.error('Erreur sauvegarde motif:', error));
         }
     }
 
     // Sauvegarder les constantes (étape 2 → 3)
     if (step === 3) {
         const formData = new FormData(document.getElementById('step2Form'));
-        fetch('/infirmier/pre_consultation/{{ patient.id }}/save-constantes', {
+        sauvegarde = fetch('/infirmier/pre_consultation/{{ patient.id }}/save-constantes', {
             method: 'POST',
             body: formData
-        }).catch(error => console.error('Erreur:', error));
+        }).catch(error => console.error('Erreur sauvegarde constantes:', error));
     }
 
-    // Rediriger vers l'étape
-    window.location.href = `/infirmier/pre_consultation/{{ patient.id }}?step=${step}`;
+    // Rediriger vers l'étape SEULEMENT une fois la sauvegarde terminée
+    // (finally : on navigue même si la sauvegarde a échoué, pour ne pas
+    // bloquer l'infirmier — mais au moins on lui a laissé sa chance).
+    sauvegarde.finally(() => {
+        window.location.href = `/infirmier/pre_consultation/{{ patient.id }}?step=${step}`;
+    });
 }
 
 // ==================== CALCUL IMC ====================
