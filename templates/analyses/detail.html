@@ -75,7 +75,10 @@
             <!-- Résultats -->
             <div class="col-md-12" id="resultats">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center {% if analyse.statut == 'TERMINE' %}bg-success text-white{% else %}bg-secondary text-white{% endif %}">
+                    <!-- ⭐ FIX (diminuer la vivacité des couleurs) : fond pastel +
+                         texte teinté au lieu d'un aplat vert/gris avec texte blanc. -->
+                    <div class="card-header d-flex justify-content-between align-items-center"
+                         style="{% if analyse.statut == 'TERMINE' %}background: var(--hp-success-light); color: var(--hp-success);{% else %}background: #f1f3f5; color: var(--hp-text-muted);{% endif %} border-bottom: none;">
                         <h5 class="mb-0"><i class="fas fa-file-medical-alt me-2"></i>Résultats</h5>
                         {% if analyse.statut == 'TERMINE' %}
                         <button class="btn btn-light btn-sm no-print" onclick="imprimerResultats()">

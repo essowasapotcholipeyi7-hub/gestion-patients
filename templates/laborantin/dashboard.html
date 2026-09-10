@@ -17,37 +17,40 @@
         </div>
     </div>
 
-    <!-- Statistiques -->
-    <div class="row mb-4">
+    <!-- ⭐ FIX (diminuer la vivacité des couleurs) : cartes pastel (icône +
+         chiffre teintés, fond clair) au lieu d'un aplat de couleur pleine
+         avec texte blanc — même esprit "soft & professionnel" que le reste
+         de l'appli (voir templates/base.html, .btn-primary/success/...). -->
+    <div class="row mb-4 g-3">
         <div class="col-md-3">
-            <div class="card text-white bg-warning">
+            <div class="card h-100" style="border: none; background: var(--hp-warning-light);">
                 <div class="card-body">
-                    <h6 class="card-title">En attente</h6>
-                    <h2 class="mb-0">{{ en_attente }}</h2>
+                    <h6 class="card-title text-muted mb-1">En attente</h6>
+                    <h2 class="mb-0" style="color: var(--hp-warning);">{{ en_attente }}</h2>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-primary">
+            <div class="card h-100" style="border: none; background: var(--hp-primary-light);">
                 <div class="card-body">
-                    <h6 class="card-title">En cours</h6>
-                    <h2 class="mb-0">{{ en_cours }}</h2>
+                    <h6 class="card-title text-muted mb-1">En cours</h6>
+                    <h2 class="mb-0" style="color: var(--hp-primary-dark);">{{ en_cours }}</h2>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-success">
+            <div class="card h-100" style="border: none; background: var(--hp-success-light);">
                 <div class="card-body">
-                    <h6 class="card-title">Terminées</h6>
-                    <h2 class="mb-0">{{ termine }}</h2>
+                    <h6 class="card-title text-muted mb-1">Terminées</h6>
+                    <h2 class="mb-0" style="color: var(--hp-success);">{{ termine }}</h2>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-info">
+            <div class="card h-100" style="border: none; background: var(--hp-info-light);">
                 <div class="card-body">
-                    <h6 class="card-title">Total</h6>
-                    <h2 class="mb-0">{{ total }}</h2>
+                    <h6 class="card-title text-muted mb-1">Total</h6>
+                    <h2 class="mb-0" style="color: var(--hp-info);">{{ total }}</h2>
                 </div>
             </div>
         </div>

@@ -278,27 +278,74 @@
             border-radius: 9px;
             font-weight: 500;
         }
+        /* ⭐ FIX (diminuer la vivacité des couleurs) : fond pastel (les
+           tokens --hp-*-light existaient déjà mais n'étaient utilisés nulle
+           part) + texte/bordure teintés au repos, la couleur pleine (+
+           texte blanc) n'apparaissant qu'au survol — même esprit "soft &
+           professionnel" appliqué côté GHP (templates/base.html,
+           .btn-primary/success/danger/warning/info). Avant, chaque bouton
+           était un aplat de couleur en permanence. */
         .btn-primary {
-            background: var(--hp-primary);
+            background: var(--hp-primary-light);
             border-color: var(--hp-primary);
+            color: var(--hp-primary-dark);
         }
         .btn-primary:hover,
         .btn-primary:focus {
-            background: var(--hp-primary-dark);
-            border-color: var(--hp-primary-dark);
+            background: var(--hp-primary);
+            border-color: var(--hp-primary);
+            color: #fff;
         }
         .btn-outline-primary {
             color: var(--hp-primary);
             border-color: var(--hp-primary);
+            background: var(--hp-primary-light);
         }
         .btn-outline-primary:hover {
             background: var(--hp-primary);
             border-color: var(--hp-primary);
+            color: #fff;
         }
-        .btn-success { background: var(--hp-success); border-color: var(--hp-success); }
-        .btn-info { background: var(--hp-info); border-color: var(--hp-info); }
-        .btn-warning { background: var(--hp-warning); border-color: var(--hp-warning); color: #fff; }
-        .btn-danger { background: var(--hp-danger); border-color: var(--hp-danger); }
+        .btn-success {
+            background: var(--hp-success-light);
+            border-color: var(--hp-success);
+            color: var(--hp-success);
+        }
+        .btn-success:hover, .btn-success:focus {
+            background: var(--hp-success);
+            border-color: var(--hp-success);
+            color: #fff;
+        }
+        .btn-info {
+            background: var(--hp-info-light);
+            border-color: var(--hp-info);
+            color: var(--hp-info);
+        }
+        .btn-info:hover, .btn-info:focus {
+            background: var(--hp-info);
+            border-color: var(--hp-info);
+            color: #fff;
+        }
+        .btn-warning {
+            background: var(--hp-warning-light);
+            border-color: var(--hp-warning);
+            color: var(--hp-warning);
+        }
+        .btn-warning:hover, .btn-warning:focus {
+            background: var(--hp-warning);
+            border-color: var(--hp-warning);
+            color: #fff;
+        }
+        .btn-danger {
+            background: var(--hp-danger-light);
+            border-color: var(--hp-danger);
+            color: var(--hp-danger);
+        }
+        .btn-danger:hover, .btn-danger:focus {
+            background: var(--hp-danger);
+            border-color: var(--hp-danger);
+            color: #fff;
+        }
 
         .bg-primary { background-color: var(--hp-primary) !important; }
         .bg-success { background-color: var(--hp-success) !important; }
@@ -310,6 +357,36 @@
         .text-info { color: var(--hp-info) !important; }
         .text-warning { color: var(--hp-warning) !important; }
         .text-danger { color: var(--hp-danger) !important; }
+
+        /* ⭐ FIX (diminuer la vivacité des couleurs) : en-têtes de carte
+           .card-header.bg-primary/success/... + text-white — un aplat de
+           couleur pleine avec texte blanc, utilisé tel quel dans une
+           vingtaine de pages (fiches patient, modales d'ordonnance/examen,
+           hospitalisation, etc.). Passés au même fond pastel + texte
+           teinté que les boutons ci-dessus. Ciblé uniquement sur
+           .card-header pour ne jamais toucher les badges de statut
+           (.badge.bg-success...), volontairement gardés vifs pour le
+           repérage rapide. Plus spécifique que .text-white (2 classes
+           contre 1), donc l'emporte même si le gabarit garde "text-white"
+           dans sa liste de classes. */
+        .card-header.bg-primary { background: var(--hp-primary-light) !important; color: var(--hp-primary-dark) !important; border-bottom: none; }
+        .card-header.bg-success { background: var(--hp-success-light) !important; color: var(--hp-success) !important; border-bottom: none; }
+        .card-header.bg-info { background: var(--hp-info-light) !important; color: var(--hp-info) !important; border-bottom: none; }
+        .card-header.bg-warning { background: var(--hp-warning-light) !important; color: var(--hp-warning) !important; border-bottom: none; }
+        .card-header.bg-danger { background: var(--hp-danger-light) !important; color: var(--hp-danger) !important; border-bottom: none; }
+        .card-header.bg-secondary { background: #f1f3f5 !important; color: var(--hp-text-muted) !important; border-bottom: none; }
+        .card-header.bg-dark { background: #e9ecef !important; color: var(--hp-text) !important; border-bottom: none; }
+
+        /* Même correctif pour les en-têtes de modale (.modal-header.bg-*),
+           même pattern utilisé sur plusieurs modales de l'appli. */
+        .modal-header.bg-primary { background: var(--hp-primary-light) !important; color: var(--hp-primary-dark) !important; border-bottom: 1px solid var(--hp-card-border); }
+        .modal-header.bg-success { background: var(--hp-success-light) !important; color: var(--hp-success) !important; border-bottom: 1px solid var(--hp-card-border); }
+        .modal-header.bg-info { background: var(--hp-info-light) !important; color: var(--hp-info) !important; border-bottom: 1px solid var(--hp-card-border); }
+        .modal-header.bg-warning { background: var(--hp-warning-light) !important; color: var(--hp-warning) !important; border-bottom: 1px solid var(--hp-card-border); }
+        .modal-header.bg-danger { background: var(--hp-danger-light) !important; color: var(--hp-danger) !important; border-bottom: 1px solid var(--hp-card-border); }
+        .modal-header.bg-primary .btn-close, .modal-header.bg-success .btn-close,
+        .modal-header.bg-info .btn-close, .modal-header.bg-warning .btn-close,
+        .modal-header.bg-danger .btn-close { filter: none; }
 
         .toast-container {
             position: fixed;

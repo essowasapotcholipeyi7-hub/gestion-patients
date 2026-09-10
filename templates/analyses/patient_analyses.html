@@ -31,37 +31,38 @@
         </div>
     </div>
 
-    <!-- Stats rapides -->
-    <div class="row mb-4">
+    <!-- ⭐ FIX (diminuer la vivacité des couleurs) : cartes pastel au lieu
+         d'un aplat de couleur pleine avec texte blanc. -->
+    <div class="row mb-4 g-3">
         <div class="col-md-3">
-            <div class="card text-white bg-warning">
+            <div class="card h-100" style="border: none; background: var(--hp-warning-light);">
                 <div class="card-body">
-                    <h6 class="card-title">En attente</h6>
-                    <h3>{{ analyses|selectattr('statut', 'equalto', 'EN_ATTENTE')|list|length }}</h3>
+                    <h6 class="card-title text-muted mb-1">En attente</h6>
+                    <h3 style="color: var(--hp-warning);">{{ analyses|selectattr('statut', 'equalto', 'EN_ATTENTE')|list|length }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-primary">
+            <div class="card h-100" style="border: none; background: var(--hp-primary-light);">
                 <div class="card-body">
-                    <h6 class="card-title">En cours</h6>
-                    <h3>{{ analyses|selectattr('statut', 'equalto', 'EN_COURS')|list|length }}</h3>
+                    <h6 class="card-title text-muted mb-1">En cours</h6>
+                    <h3 style="color: var(--hp-primary-dark);">{{ analyses|selectattr('statut', 'equalto', 'EN_COURS')|list|length }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-success">
+            <div class="card h-100" style="border: none; background: var(--hp-success-light);">
                 <div class="card-body">
-                    <h6 class="card-title">Terminés</h6>
-                    <h3>{{ analyses|selectattr('statut', 'equalto', 'TERMINE')|list|length }}</h3>
+                    <h6 class="card-title text-muted mb-1">Terminés</h6>
+                    <h3 style="color: var(--hp-success);">{{ analyses|selectattr('statut', 'equalto', 'TERMINE')|list|length }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-info">
+            <div class="card h-100" style="border: none; background: var(--hp-info-light);">
                 <div class="card-body">
-                    <h6 class="card-title">Total</h6>
-                    <h3>{{ analyses|length }}</h3>
+                    <h6 class="card-title text-muted mb-1">Total</h6>
+                    <h3 style="color: var(--hp-info);">{{ analyses|length }}</h3>
                 </div>
             </div>
         </div>
