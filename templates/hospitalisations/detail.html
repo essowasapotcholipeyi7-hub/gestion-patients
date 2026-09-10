@@ -1179,11 +1179,15 @@
                 document.getElementById('salleIdFacturation').value = data.salle_id;
 
                 const fmt = n => Number(n).toLocaleString('fr-FR', {maximumFractionDigits: 0}) + ' FCFA';
+                // ⭐ FIX : le taux AMU affiché est maintenant celui réellement
+                // appliqué ligne par ligne (P160 = 90%, reste = taux du
+                // patient) — voir _taux_amu_pour_acte() côté serveur.
                 let lignesHtml = data.lignes.map(l => `
                     <tr>
                         <td>${l.label}</td>
                         <td>${l.jours} j.</td>
                         <td>${l.acte_nom} ${l.trouve_dans_catalogue ? '' : '<span class="badge bg-danger ms-1">non trouvé</span>'}</td>
+                        <td class="text-end">${l.taux_amu ? l.taux_amu + '%' : '-'}</td>
                         <td class="text-end">${fmt(l.sous_total)}</td>
                     </tr>
                 `).join('');
@@ -1200,13 +1204,13 @@
                     ${alerteMapping}
                     <div class="table-responsive">
                         <table class="table table-sm">
-                            <thead><tr><th>Palier</th><th>Jours</th><th>Acte GHP</th><th class="text-end">Sous-total</th></tr></thead>
+                            <thead><tr><th>Palier</th><th>Jours</th><th>Acte GHP</th><th class="text-end">Taux AMU</th><th class="text-end">Sous-total</th></tr></thead>
                             <tbody>${lignesHtml}</tbody>
                         </table>
                     </div>
                     <table class="table table-sm mb-0">
                         <tr><td>Total brut (${data.jours_total} jour(s))</td><td class="text-end">${fmt(data.total_brut)}</td></tr>
-                        ${data.est_assure ? `<tr><td>Estimation prise en charge AMU (${data.taux_amu_patient}%)</td><td class="text-end text-success">- ${fmt(data.prise_en_charge_amu)}</td></tr>` : ''}
+                        ${data.est_assure ? `<tr><td>Estimation prise en charge AMU</td><td class="text-end text-success">- ${fmt(data.prise_en_charge_amu)}</td></tr>` : ''}
                         ${data.taux_cac > 0 ? `<tr><td>Estimation ${data.assurance2_nom} (${data.taux_cac}%)</td><td class="text-end text-success">- ${fmt(data.prise_en_charge_cac)}</td></tr>` : ''}
                         <tr class="fw-bold"><td>Estimation reste à charge patient</td><td class="text-end">${fmt(data.net_estime)}</td></tr>
                     </table>

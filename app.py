@@ -4584,6 +4584,17 @@ def ajouter_constante(id):
                          dernieres_constantes=dernieres_constantes,
                          now=datetime.utcnow())
 
+def _taux_amu_pour_acte(nom_acte, taux_defaut):
+    """⭐ FIX : l'acte P160 (hospitalisation) est remboursé par l'AMU à 90%,
+    alors que le taux général du patient (souvent 80%) s'applique à tous
+    les autres actes — même règle que côté GHP (app.py:taux_amu_pour_article(),
+    templates/actes_vente.html:tauxAMUPourArticle()). Les actes de
+    facturation d'hospitalisation portent le nom exact du catalogue GHP
+    (ex: "P160 Hospi Cabine ventillee..."), donc la même détection par nom
+    s'applique ici."""
+    return 90 if (nom_acte and 'P160' in nom_acte) else taux_defaut
+
+
 def _calculer_paliers_hospitalisation(jours_total, structure_id):
     """Répartit un nombre de jours en paliers (semaine 1 / semaine 2 / 15j
     et plus) selon le paramétrage AMU de la structure. Retourne la liste des
@@ -4799,6 +4810,7 @@ def apercu_facturation_hospitalisation(id):
     lignes = []
     total_brut = 0
     total_pbr_base = 0
+    prise_en_charge_amu = 0
     mapping_manquant = False
 
     for p in paliers:
@@ -4812,6 +4824,12 @@ def apercu_facturation_hospitalisation(id):
         pbr_base = min(prix, pbr) * p['jours'] if tarif else 0
         total_brut += sous_total
         total_pbr_base += pbr_base
+        # ⭐ FIX : taux AMU par palier (P160 = 90%, le reste = taux du
+        # patient) au lieu d'un taux unique appliqué à tout le total —
+        # voir _taux_amu_pour_acte() ci-dessus.
+        taux_ligne = _taux_amu_pour_acte(acte_nom, taux_amu_patient)
+        if est_assure and tarif:
+            prise_en_charge_amu += pbr_base * taux_ligne / 100
         lignes.append({
             'palier': p['palier'],
             'label': p['label'],
@@ -4820,9 +4838,9 @@ def apercu_facturation_hospitalisation(id):
             'trouve_dans_catalogue': tarif is not None,
             'prix_unitaire': prix,
             'sous_total': sous_total,
+            'taux_amu': taux_ligne if est_assure else 0,
         })
 
-    prise_en_charge_amu = (total_pbr_base * taux_amu_patient / 100) if est_assure else 0
     reste_apres_amu = max(total_brut - prise_en_charge_amu, 0)
     prise_en_charge_cac = (reste_apres_amu * taux_cac / 100) if taux_cac > 0 else 0
     net_estime = max(reste_apres_amu - prise_en_charge_cac, 0)
