@@ -1,0 +1,109 @@
+{# ============================================================
+   Widget "Notes d'admission" — une par hospitalisation ayant une note
+   active, en LECTURE SEULE (patron : "on doit pouvoir reconsulter cette
+   note mais pas la modifier"). Même principe que ordonnances/_widget.html.
+   Variable attendue : notes_admission_patient (liste de {hospitalisation,
+   note}, voir patient_detail(), app.py), triée la plus récente d'abord.
+   ============================================================ #}
+<div class="card mb-4" id="notesAdmissionWidget">
+    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-file-medical-alt me-2"></i>Notes d'admission</h5>
+        <span class="badge bg-light text-dark">{{ notes_admission_patient|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        {% if notes_admission_patient %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Hospitalisation</th>
+                        <th>Motif</th>
+                        <th>Rédigée par</th>
+                        <th>Version</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in notes_admission_patient %}
+                    {% set hosp = item.hospitalisation %}
+                    {% set note = item.note %}
+                    <tr>
+                        <td class="small">
+                            {{ hosp.date_debut.strftime('%d/%m/%Y') if hosp.date_debut else '-' }}
+                            <div class="text-muted">{{ hosp.service }}</div>
+                        </td>
+                        <td class="small">{{ (note.motif_admission or '')|truncate(60) }}</td>
+                        <td class="small">
+                            {% if note.redacteur %}Dr {{ note.redacteur.prenom }} {{ note.redacteur.nom }}{% else %}-{% endif %}
+                            <div class="text-muted">{{ note.date_redaction.strftime('%d/%m/%Y') if note.date_redaction else '' }}</div>
+                        </td>
+                        <td><span class="badge bg-secondary">v{{ note.version }}</span></td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#voirNoteModal{{ hosp.id }}" title="Consulter (lecture seule)">
+                                <i class="fas fa-eye"></i> Consulter
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info m-3 mb-0">
+            <i class="fas fa-info-circle me-2"></i>Aucune note d'admission pour ce patient pour l'instant.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modales de consultation (lecture seule, une par hospitalisation) -->
+{% for item in notes_admission_patient %}
+{% set hosp = item.hospitalisation %}
+{% set note = item.note %}
+<div class="modal fade" id="voirNoteModal{{ hosp.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-medical-alt me-2"></i>Note d'admission — {{ hosp.service }} du {{ hosp.date_debut.strftime('%d/%m/%Y') if hosp.date_debut else '-' }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-secondary py-2 small mb-3">
+                    <i class="fas fa-lock me-1"></i>Version {{ note.version }} — verrouillée, lecture seule.
+                    Rédigée par {% if note.redacteur %}Dr {{ note.redacteur.prenom }} {{ note.redacteur.nom }}{% else %}-{% endif %}
+                    le {{ note.date_redaction.strftime('%d/%m/%Y %H:%M') if note.date_redaction else '-' }}.
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Motif d'hospitalisation</strong><br>{{ note.motif_admission or '-' }}</p>
+                        <p><strong>Contexte et antécédents</strong><br>{{ note.contexte_admission or '-' }}</p>
+                        <p><strong>Examen clinique initial</strong><br>{{ note.examen_clinique_admission or '-' }}</p>
+                        {% if note.constantes_admission %}
+                        <p><strong>Constantes</strong><br>{{ note.constantes_admission }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Diagnostic présumé</strong><br>{{ note.diagnostic_admission or '-' }}</p>
+                        {% if note.examens_admission %}
+                        <p><strong>Examens complémentaires</strong><br>{{ note.examens_admission }}</p>
+                        {% endif %}
+                        <p><strong>Traitement initial</strong><br>{{ note.traitement_admission or '-' }}</p>
+                        {% if note.evolution_prevue %}
+                        <p><strong>Évolution prévue</strong><br>{{ note.evolution_prevue }}</p>
+                        {% endif %}
+                        <p><strong>Conclusion</strong><br>{{ note.conclusion_admission or '-' }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="{{ url_for('detail_hospitalisation', id=hosp.id) }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-hospital me-1"></i>Voir l'hospitalisation
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}

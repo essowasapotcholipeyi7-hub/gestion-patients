@@ -180,6 +180,123 @@
 
 
             <!-- ========================================================== -->
+            <!-- ⭐ CARTE NOTE D'ADMISSION (lecture seule + réévaluations)   -->
+            <!-- ========================================================== -->
+            <div class="card mb-4 border-warning">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-file-medical-alt me-2"></i>
+                        <strong>Note d'admission</strong>
+                        {% if note_active %}<span class="badge bg-dark ms-2">v{{ note_active.version }}</span>{% endif %}
+                    </div>
+                    {% if hospitalisation.statut == 'actif' and current_user.role in ['admin_structure', 'medecin'] %}
+                    <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#nouvelleNoteModal">
+                        <i class="fas fa-plus me-1"></i>Nouvelle réévaluation
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if note_active %}
+                        <div class="alert alert-secondary py-2 small mb-3">
+                            <i class="fas fa-lock me-1"></i>Verrouillée — lecture seule.
+                            Rédigée par {% if note_active.redacteur %}Dr {{ note_active.redacteur.prenom }} {{ note_active.redacteur.nom }}{% else %}-{% endif %}
+                            le {{ note_active.date_redaction.strftime('%d/%m/%Y %H:%M') if note_active.date_redaction else '-' }}.
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Motif d'hospitalisation</strong><br>{{ note_active.motif_admission or '-' }}</p>
+                                <p><strong>Contexte et antécédents</strong><br>{{ note_active.contexte_admission or '-' }}</p>
+                                <p><strong>Examen clinique initial</strong><br>{{ note_active.examen_clinique_admission or '-' }}</p>
+                                {% if note_active.constantes_admission %}
+                                <p><strong>Constantes</strong><br>{{ note_active.constantes_admission }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Diagnostic présumé</strong><br>{{ note_active.diagnostic_admission or '-' }}</p>
+                                {% if note_active.examens_admission %}
+                                <p><strong>Examens complémentaires</strong><br>{{ note_active.examens_admission }}</p>
+                                {% endif %}
+                                <p><strong>Traitement initial</strong><br>{{ note_active.traitement_admission or '-' }}</p>
+                                {% if note_active.evolution_prevue %}
+                                <p><strong>Évolution prévue</strong><br>{{ note_active.evolution_prevue }}</p>
+                                {% endif %}
+                                <p><strong>Conclusion</strong><br>{{ note_active.conclusion_admission or '-' }}</p>
+                            </div>
+                        </div>
+                        {% if a_plusieurs_versions %}
+                        <hr>
+                        <p class="small text-muted mb-2"><i class="fas fa-history me-1"></i>{{ nb_versions }} version(s) — historique des réévaluations :</p>
+                        <ul class="list-group list-group-flush">
+                            {% for n in notes %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1">
+                                <span class="small">
+                                    v{{ n.version }}{% if n.est_initial %} (initiale){% endif %}
+                                    — {{ n.date_redaction.strftime('%d/%m/%Y %H:%M') if n.date_redaction else '-' }}
+                                    {% if n.redacteur %}par Dr {{ n.redacteur.prenom }} {{ n.redacteur.nom }}{% endif %}
+                                    {% if note_active and n.id == note_active.id %}<span class="badge bg-success ms-1">Active</span>{% endif %}
+                                </span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#voirVersionModal{{ n.id }}">
+                                    <i class="fas fa-eye"></i> Voir
+                                </button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    {% else %}
+                        <p class="text-muted text-center my-3">
+                            <i class="fas fa-info-circle me-2"></i>Aucune note d'admission enregistrée.
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if a_plusieurs_versions %}
+            {% for n in notes %}
+            <div class="modal fade" id="voirVersionModal{{ n.id }}" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning text-dark">
+                            <h5 class="modal-title"><i class="fas fa-file-medical-alt me-2"></i>Note d'admission — version {{ n.version }}{% if n.est_initial %} (initiale){% endif %}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-secondary py-2 small mb-3">
+                                <i class="fas fa-lock me-1"></i>Verrouillée — lecture seule.
+                                Rédigée par {% if n.redacteur %}Dr {{ n.redacteur.prenom }} {{ n.redacteur.nom }}{% else %}-{% endif %}
+                                le {{ n.date_redaction.strftime('%d/%m/%Y %H:%M') if n.date_redaction else '-' }}.
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Motif d'hospitalisation</strong><br>{{ n.motif_admission or '-' }}</p>
+                                    <p><strong>Contexte et antécédents</strong><br>{{ n.contexte_admission or '-' }}</p>
+                                    <p><strong>Examen clinique initial</strong><br>{{ n.examen_clinique_admission or '-' }}</p>
+                                    {% if n.constantes_admission %}
+                                    <p><strong>Constantes</strong><br>{{ n.constantes_admission }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Diagnostic présumé</strong><br>{{ n.diagnostic_admission or '-' }}</p>
+                                    {% if n.examens_admission %}
+                                    <p><strong>Examens complémentaires</strong><br>{{ n.examens_admission }}</p>
+                                    {% endif %}
+                                    <p><strong>Traitement initial</strong><br>{{ n.traitement_admission or '-' }}</p>
+                                    {% if n.evolution_prevue %}
+                                    <p><strong>Évolution prévue</strong><br>{{ n.evolution_prevue }}</p>
+                                    {% endif %}
+                                    <p><strong>Conclusion</strong><br>{{ n.conclusion_admission or '-' }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            <!-- ========================================================== -->
             <!-- ⭐ CARTE PROTOCOLE DE SOINS                                 -->
             <!-- ========================================================== -->
             <div class="card mb-4 border-primary">
