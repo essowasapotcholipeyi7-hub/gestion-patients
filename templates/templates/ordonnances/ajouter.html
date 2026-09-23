@@ -100,6 +100,15 @@
 </div>
 
 <script>
+// ⭐ Empêche la touche Entrée dans n'importe quel champ du formulaire
+// (nom, recherche, lignes médicament...) de soumettre l'ordonnance avant
+// que l'utilisateur ait fini d'ajouter ses médicaments.
+document.getElementById('ordonnanceForm').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.type !== 'submit') {
+        e.preventDefault();
+    }
+});
+
 // ============================================================ //
 // ⭐ SYSTÈME DE RECHERCHE DE MÉDICAMENTS                       //
 // ============================================================ //

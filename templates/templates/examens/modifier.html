@@ -126,6 +126,15 @@
 </div>
 
 <script>
+// ⭐ Empêche la touche Entrée dans n'importe quel champ du formulaire
+// (nom, recherche, lignes d'examen...) de soumettre l'examen type avant
+// que l'utilisateur ait fini d'ajouter ses examens.
+document.getElementById('examenForm').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.type !== 'submit') {
+        e.preventDefault();
+    }
+});
+
 // ============================================================ //
 // Systeme de recherche d'analyses                              //
 // ============================================================ //
