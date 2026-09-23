@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}Médicaments à administrer{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-syringe me-2" style="color: var(--hp-primary);"></i>
+            Médicaments à administrer
+            <span class="badge bg-danger ms-2" id="badgeEnRetard" style="display:none;">0</span>
+        </h1>
+        <div>
+            {% if current_user.role in ['admin_structure', 'infirmier'] %}
+            <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#modalAdhoc">
+                <i class="fas fa-plus me-2"></i>Médicament non prescrit
+            </button>
+            {% endif %}
+            <a href="{{ url_for('medicaments_historique') }}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-history me-2"></i>Historique
+            </a>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        Ce suivi reste local à gestion_patients — il n'est jamais envoyé à GHP.
+        {% if current_user.role == 'medecin' %}Vous le voyez en lecture seule.{% endif %}
+    </div>
+
+    <div id="alerteRetard" class="alert alert-danger d-none" style="border-left: 6px solid #dc3545;">
+        <i class="fas fa-triangle-exclamation me-2"></i>
+        <strong id="alerteRetardTexte"></strong>
+    </div>
+
+    <!-- ═══ À PLANIFIER (prescriptions sans planning) ═══ -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-calendar-plus me-2"></i>Prescriptions à planifier
+                <span class="badge bg-secondary ms-1">{{ a_planifier|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if a_planifier %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Patient</th>
+                            <th>Médicament</th>
+                            <th>Dosage</th>
+                            <th>Fréquence prescrite</th>
+                            <th>Prescripteur</th>
+                            <th>Origine</th>
+                            {% if current_user.role in ['admin_structure', 'infirmier'] %}<th style="width:140px">Action</th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in a_planifier %}
+                        <tr>
+                            <td>{% if p.patient %}<strong>{{ p.patient.prenom }} {{ p.patient.nom }}</strong>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                            <td>{{ p.medicament }}</td>
+                            <td>{{ p.dosage or '-' }}</td>
+                            <td class="small text-muted">{{ p.frequence or '-' }}</td>
+                            <td class="small">{{ p.prescripteur or '-' }}</td>
+                            <td>
+                                {% if p.origine_prescripteur == 'infirmier' %}
+                                <span class="badge bg-warning text-dark">Infirmier</span>
+                                {% else %}
+                                <span class="badge bg-primary">Médecin</span>
+                                {% endif %}
+                            </td>
+                            {% if current_user.role in ['admin_structure', 'infirmier'] %}
+                            <td>
+                                <button class="btn btn-sm btn-success" onclick='ouvrirPlanification({{ {"id": p.id, "medicament": p.medicament, "dosage": p.dosage}|tojson }})'>
+                                    <i class="fas fa-calendar-check me-1"></i>Planifier
+                                </button>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success m-3 mb-0"><i class="fas fa-check-circle me-2"></i>Aucune prescription en attente de planning.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ═══ DOSES À FAIRE ═══ -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Doses à faire
+                <span class="badge bg-secondary ms-1">{{ a_faire|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if a_faire %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="tableAFaire">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Patient</th>
+                            <th>Médicament</th>
+                            <th>Dose</th>
+                            <th>N°</th>
+                            <th>Heure prévue</th>
+                            <th>Statut</th>
+                            {% if current_user.role in ['admin_structure', 'infirmier'] %}<th style="width:140px">Action</th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in a_faire %}
+                        <tr data-heure-prevue="{{ a.heure_prevue.isoformat() }}" data-admin-id="{{ a.id }}">
+                            <td>{% if a.patient %}<strong>{{ a.patient.prenom }} {{ a.patient.nom }}</strong>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                            <td>{{ a.medicament }}</td>
+                            <td>{{ a.dose or '-' }}</td>
+                            <td class="text-muted small">#{{ a.numero_dose }}</td>
+                            <td>{{ a.heure_prevue.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td class="statut-cell"><span class="badge bg-secondary">à venir</span></td>
+                            {% if current_user.role in ['admin_structure', 'infirmier'] %}
+                            <td>
+                                <form method="POST" action="{{ url_for('infirmier_medicament_marquer_fait', id=a.id) }}" onsubmit="return confirm('Confirmer l\'administration maintenant ?');">
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-check me-1"></i>Marquer fait
+                                    </button>
+                                </form>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success m-3 mb-0"><i class="fas fa-check-circle me-2"></i>Aucune dose en attente.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal : planifier la 1ère dose -->
+<div class="modal fade" id="modalPlanifier" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" id="formPlanifier">
+                <div class="modal-header">
+                    <h6 class="modal-title"><i class="fas fa-calendar-check me-1"></i> Planifier <span id="planifierMedicament"></span></h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">La fréquence définie ici sera reprise automatiquement pour toutes les doses suivantes.</p>
+                    <div class="row">
+                        <div class="col-6 mb-2">
+                            <label class="form-label">Date de la 1ère dose *</label>
+                            <input type="date" name="date_prevue" id="planifierDate" class="form-control" required>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <label class="form-label">Heure *</label>
+                            <input type="time" name="heure_prevue" id="planifierHeure" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Fréquence (toutes les combien d'heures) *</label>
+                        <input type="number" name="intervalle_heures" id="planifierIntervalle" class="form-control" min="0.5" step="0.5" placeholder="Ex: 8" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Dose</label>
+                        <input type="text" name="dose" id="planifierDose" class="form-control" placeholder="Ex: 1 comprimé, 5ml...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-success">Démarrer le planning</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal : ajouter un médicament non prescrit -->
+{% if current_user.role in ['admin_structure', 'infirmier'] %}
+<div class="modal fade" id="modalAdhoc" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('infirmier_medicament_ajouter_adhoc') }}">
+                <div class="modal-header">
+                    <h6 class="modal-title"><i class="fas fa-plus me-1"></i> Médicament non prescrit</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning small py-2">
+                        <i class="fas fa-shield-alt me-1"></i> Sera marqué "prescrit par l'infirmier" — hors circuit normal du médecin.
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Patient *</label>
+                        <select name="id_patient" class="form-select" required>
+                            <option value="">Sélectionner un patient</option>
+                            {% for patient in patients %}
+                            <option value="{{ patient.id }}">{{ patient.prenom }} {{ patient.nom }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Médicament *</label>
+                        <input type="text" name="medicament" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Dosage</label>
+                        <input type="text" name="dosage" class="form-control" placeholder="Ex: 500mg">
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-2">
+                            <label class="form-label">Date 1ère dose *</label>
+                            <input type="date" name="date_prevue" class="form-control" required>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <label class="form-label">Heure *</label>
+                            <input type="time" name="heure_prevue" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Fréquence (heures) *</label>
+                        <input type="number" name="intervalle_heures" class="form-control" min="0.5" step="0.5" placeholder="Ex: 8" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-warning">Ajouter et planifier</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function ouvrirPlanification(prescription) {
+    document.getElementById('formPlanifier').action = `/infirmier/medicaments/${prescription.id}/planifier`;
+    document.getElementById('planifierMedicament').textContent = prescription.medicament;
+    document.getElementById('planifierDose').value = prescription.dosage || '';
+    const maintenant = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    document.getElementById('planifierDate').value = `${maintenant.getFullYear()}-${pad(maintenant.getMonth()+1)}-${pad(maintenant.getDate())}`;
+    document.getElementById('planifierHeure').value = `${pad(maintenant.getHours())}:${pad(maintenant.getMinutes())}`;
+    new bootstrap.Modal(document.getElementById('modalPlanifier')).show();
+}
+
+// ⭐ Alerte "c'est l'heure" — scrutation régulière (pas d'infra de
+// notification temps réel existante dans l'appli, voir exploration) +
+// signal visuel rouge + son. Recalcule aussi le statut visuel de chaque
+// ligne déjà affichée (à venir / en retard) sans recharger la page.
+function verifierEcheances() {
+    const lignes = document.querySelectorAll('#tableAFaire tr[data-heure-prevue]');
+    const maintenant = new Date();
+    let enRetard = [];
+    lignes.forEach(ligne => {
+        const prevue = new Date(ligne.dataset.heurePrevue);
+        const cell = ligne.querySelector('.statut-cell');
+        if (prevue <= maintenant) {
+            cell.innerHTML = '<span class="badge bg-danger">EN RETARD</span>';
+            ligne.classList.add('table-danger');
+            enRetard.push(ligne);
+        } else {
+            cell.innerHTML = '<span class="badge bg-secondary">à venir</span>';
+            ligne.classList.remove('table-danger');
+        }
+    });
+
+    const badge = document.getElementById('badgeEnRetard');
+    const banniere = document.getElementById('alerteRetard');
+    const texte = document.getElementById('alerteRetardTexte');
+    if (enRetard.length > 0) {
+        badge.style.display = 'inline-block';
+        badge.textContent = enRetard.length;
+        banniere.classList.remove('d-none');
+        texte.textContent = `${enRetard.length} dose(s) en retard — vérifiez la liste "Doses à faire" ci-dessous.`;
+        if (!window.__medicamentBeepJoue || (Date.now() - window.__medicamentBeepJoue) > 60000) {
+            jouerBeep();
+            window.__medicamentBeepJoue = Date.now();
+        }
+    } else {
+        badge.style.display = 'none';
+        banniere.classList.add('d-none');
+    }
+}
+
+function jouerBeep() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+    } catch (e) { /* audio non disponible, tant pis */ }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    verifierEcheances();
+    setInterval(verifierEcheances, 30000);
+});
+</script>
+{% endblock %}

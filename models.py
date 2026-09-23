@@ -85,6 +85,12 @@ class Prescription(db.Model):
     
     # Suivi
     prescripteur = db.Column(db.String(100))
+    # ⭐ 'medecin' (flux normal) ou 'infirmier' (ajout ad-hoc d'un médicament
+    # non prescrit, depuis l'écran de suivi d'administration — voir
+    # /infirmier/medicaments/ajouter-adhoc, app.py). Distinct de
+    # `prescripteur` (nom en clair) pour filtrer/afficher facilement les
+    # prescriptions hors circuit normal.
+    origine_prescripteur = db.Column(db.String(20), default='medecin')
     statut = db.Column(db.String(50), default='active')
     date_debut = db.Column(db.Date)
     date_fin = db.Column(db.Date)
@@ -169,6 +175,63 @@ class ActePose(db.Model):
     acte_type = db.relationship('ActeType', foreign_keys=[acte_type_id])
     pose_par = db.relationship('Utilisateur', foreign_keys=[pose_par_id], backref='actes_poses_realises')
     valide_par = db.relationship('Utilisateur', foreign_keys=[valide_par_id])
+
+
+# ==================== ADMINISTRATION DES MÉDICAMENTS ====================
+# ⭐ Suivi infirmier de l'administration effective des médicaments prescrits
+# (Consultation ou Hospitalisation) — RESTE TOUJOURS LOCAL à gestion_patients,
+# jamais envoyé à GHP (contrairement à ActePose/Prescription). Une ligne =
+# une dose précise, prévue puis (une fois faite) horodatée réellement ; la
+# dose suivante de la même prescription est créée automatiquement à la
+# validation de la précédente (voir marquer_administration_faite, app.py).
+class AdministrationMedicament(db.Model):
+    __tablename__ = 'administrations_medicaments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    prescription_id = db.Column(db.Integer, db.ForeignKey('prescriptions.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+
+    # Dénormalisé (même principe que Prescription.medicament/ActePose.nom) —
+    # lisible même si la prescription d'origine est modifiée plus tard.
+    medicament = db.Column(db.String(100), nullable=False)
+    dose = db.Column(db.String(50))
+    numero_dose = db.Column(db.Integer, default=1, nullable=False)
+
+    # ⭐ Fixé par l'infirmier(-ère) à la 1ère dose, puis reconduit tel quel
+    # pour toutes les doses suivantes de la même prescription (patron :
+    # "l'infirmier redéfinit l'heure pour chaque médicament et par défaut
+    # ça prend l'heure défini la première fois aux administrations
+    # suivantes") — reste modifiable dose par dose si besoin.
+    intervalle_heures = db.Column(db.Float)
+
+    # ⭐ Heure PRÉVUE vs heure RÉELLE — le coeur du suivi de ponctualité
+    # demandé. heure_prevue est fixée à l'avance (par l'infirmier pour la
+    # 1ère dose, calculée automatiquement ensuite) ; heure_reelle n'est
+    # posée QU'UNE FOIS par marquer_administration_faite() (jamais éditable
+    # ensuite depuis un formulaire) pour que l'écart calculé (voir
+    # ecart_minutes ci-dessous) reste fiable — patron : "la différence
+    # d'heure ou de minute non modifiable ; nécessaire pour le suivi de
+    # l'infirmier".
+    heure_prevue = db.Column(db.DateTime, nullable=False)
+    heure_reelle = db.Column(db.DateTime, nullable=True)
+
+    statut = db.Column(db.String(20), default='a_faire', nullable=False)  # 'a_faire' | 'fait'
+    fait_par_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    prescription = db.relationship('Prescription', foreign_keys=[prescription_id], backref='administrations')
+    patient = db.relationship('Patient', foreign_keys=[patient_id])
+    fait_par = db.relationship('Utilisateur', foreign_keys=[fait_par_id])
+
+    @property
+    def ecart_minutes(self):
+        """Écart réel-prévu en minutes (positif = en retard, négatif = en
+        avance) — calculé à la volée depuis les deux horodatages stockés,
+        jamais lui-même stocké ni modifiable directement."""
+        if not self.heure_reelle:
+            return None
+        return round((self.heure_reelle - self.heure_prevue).total_seconds() / 60)
 
 
 # ==================== CONSULTATIONS ====================

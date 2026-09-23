@@ -60,6 +60,23 @@
                     </div>
                 </div>
 
+                <!-- ⭐ Date/heure RÉELLE de l'acte — obligatoire, pré-remplie avec
+                     l'instant présent mais modifiable si l'infirmier(-ère) saisit
+                     après-coup (patron : "je veux qu'on ait la trace de ce que
+                     l'infirmier a posé comme acte à quel moment quelle heure").
+                     Remplace l'ancien datetime.utcnow() silencieux côté serveur —
+                     voir acte_pose_ajouter(), app.py. -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Date de l'acte *</label>
+                        <input type="date" name="date_pose" id="datePose" class="form-control" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Heure de l'acte *</label>
+                        <input type="time" name="heure_pose" id="heurePose" class="form-control" required>
+                    </div>
+                </div>
+
                 <hr>
 
                 <!-- ═══════════════════════════════════════════ -->
@@ -194,6 +211,14 @@ function initPatients() {
 document.addEventListener('DOMContentLoaded', function() {
     initPatients();
     chargerActesDisponibles();
+
+    // ⭐ Pré-remplissage date/heure avec l'instant présent — champs requis
+    // mais modifiables si l'infirmier(-ère) consigne l'acte après-coup.
+    const maintenant = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    document.getElementById('datePose').value =
+        `${maintenant.getFullYear()}-${pad(maintenant.getMonth() + 1)}-${pad(maintenant.getDate())}`;
+    document.getElementById('heurePose').value = `${pad(maintenant.getHours())}:${pad(maintenant.getMinutes())}`;
 
     const patientSearch = document.getElementById('patientSearch');
     const patientResults = document.getElementById('patientResults');
@@ -503,6 +528,10 @@ function viderPanierActes() {
 function validerFormulaire() {
     if (!selectedPatientId) {
         showToast('⚠️ Veuillez sélectionner un patient', 'warning');
+        return false;
+    }
+    if (!document.getElementById('datePose').value || !document.getElementById('heurePose').value) {
+        showToast('⚠️ La date et l\'heure de l\'acte sont obligatoires', 'warning');
         return false;
     }
     if (actesPanier.length === 0) {

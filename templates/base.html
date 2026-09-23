@@ -519,6 +519,16 @@
             </a>
             {% endif %}
 
+            <!-- ========== MÉDICAMENTS À ADMINISTRER ========== -->
+            {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
+            <a class="nav-link" href="{{ url_for('infirmier_medicaments') }}" title="Médicaments à administrer">
+                <i class="fas fa-syringe"></i><span class="nav-text">Médicaments à administrer</span>
+                {% if medicaments_en_retard_count %}
+                <span class="badge bg-danger ms-1">{{ medicaments_en_retard_count }}</span>
+                {% endif %}
+            </a>
+            {% endif %}
+
             <!-- ========== SALLES ========== -->
             {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
             <a class="nav-link" href="{{ url_for('liste_salles') }}" title="Salles">

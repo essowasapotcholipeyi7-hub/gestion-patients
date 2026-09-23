@@ -68,6 +68,30 @@ def inject_non_lus():
     return dict(non_lus=0)
 
 @app.context_processor
+def inject_medicaments_en_retard():
+    """Badge rouge dans la sidebar (voir base.html, lien "Médicaments à
+    administrer") — doses dont l'heure prévue est dépassée, recalculé à
+    chaque page comme inject_non_lus ci-dessus (même limite : pas de temps
+    réel, juste un compteur à jour au chargement de la page)."""
+    from models import AdministrationMedicament, Patient
+    if current_user.is_authenticated and current_user.role in ['admin_structure', 'medecin', 'infirmier']:
+        try:
+            count = (
+                AdministrationMedicament.query
+                .join(Patient, AdministrationMedicament.patient_id == Patient.id)
+                .filter(
+                    Patient.id_structure == current_user.id_structure,
+                    AdministrationMedicament.statut == 'a_faire',
+                    AdministrationMedicament.heure_prevue <= datetime.utcnow(),
+                )
+                .count()
+            )
+            return dict(medicaments_en_retard_count=count)
+        except Exception:
+            return dict(medicaments_en_retard_count=0)
+    return dict(medicaments_en_retard_count=0)
+
+@app.context_processor
 def utility_processor():
     from datetime import datetime
     return {
@@ -1342,7 +1366,23 @@ def structure_modifier_utilisateur(id):
     if request.method == 'POST':
         user.nom = request.form.get('nom')
         user.prenom = request.form.get('prenom')
-        user.role = request.form.get('role')
+        # ⭐ Garde-fou : n'accepter que les rôles réels de l'application — sans
+        # ça, un <select> incomplet ou un champ manipulé peut écraser
+        # silencieusement le rôle d'un utilisateur (voir le commentaire sur
+        # modifier_utilisateur.html : c'est exactement ce qui arrivait pour
+        # le rôle "infirmier", absent de l'ancienne liste déroulante).
+        role_soumis = request.form.get('role')
+        roles_valides = [
+            'medecin', 'infirmier', 'sage-femme', 'assistant_medical',
+            'technicien_superieur', 'secretaire', 'laborantin', 'radiologue',
+            'kinésithérapeute', 'psychologue', 'nutritionniste', 'pharmacien',
+            'ambulancier', 'accueil', 'comptable',
+        ]
+        if role_soumis in roles_valides:
+            user.role = role_soumis
+        elif role_soumis:
+            flash(f'Rôle "{role_soumis}" invalide — rôle inchangé.', 'danger')
+            return redirect(url_for('structure_modifier_utilisateur', id=id))
         user.actif = request.form.get('actif') == 'on'
         
         # Changement de mot de passe optionnel
@@ -2318,9 +2358,23 @@ def acte_pose_ajouter():
             id_patient = request.form.get('id_patient')
             notes = request.form.get('notes', '')
             actes_poses_json = request.form.get('actes_poses_json')
+            date_pose_str = request.form.get('date_pose')
+            heure_pose_str = request.form.get('heure_pose')
 
             if not id_patient:
                 flash('Veuillez sélectionner un patient', 'danger')
+                return redirect(url_for('acte_pose_ajouter'))
+
+            # ⭐ Date/heure RÉELLES de l'acte — obligatoires, jamais déduites en
+            # silence côté serveur (patron : "je veux qu'on ait la trace de ce
+            # que l'infirmier a posé comme acte à quel moment quelle heure").
+            if not date_pose_str or not heure_pose_str:
+                flash('La date et l\'heure de l\'acte sont obligatoires', 'danger')
+                return redirect(url_for('acte_pose_ajouter'))
+            try:
+                date_pose = datetime.strptime(f"{date_pose_str} {heure_pose_str}", '%Y-%m-%d %H:%M')
+            except ValueError:
+                flash('Date ou heure invalide', 'danger')
                 return redirect(url_for('acte_pose_ajouter'))
 
             if not actes_poses_json:
@@ -2359,7 +2413,7 @@ def acte_pose_ajouter():
                     nom=nom,
                     quantite=str(a.get('quantite', 1)),
                     notes=notes,
-                    date_pose=datetime.utcnow(),
+                    date_pose=date_pose,
                     pose_par_id=current_user.id,
                     statut='actif',
                     valide=False  # ⭐ atterrit en brouillon dans "Actes posés" — voir _actes_poses_liste()
@@ -2470,6 +2524,306 @@ def acte_pose_annuler(id):
     db.session.commit()
     flash(f'Acte "{acte.nom}" annulé', 'info')
     return redirect(url_for('actes_poses_liste'))
+
+
+# ==================== ADMINISTRATION DES MÉDICAMENTS ====================
+# ⭐ Suivi infirmier des médicaments prescrits (Consultation ET Hospitalisation
+# — les deux créent des lignes Prescription, voir _creer_prescriptions_miroir)
+# — planning, rappel, écart prévu/réel. Ne part JAMAIS vers GHP : lecture
+# infirmier/médecin/admin_structure, écriture réservée à l'infirmier(-ère)
+# (et admin_structure en dépannage), comme pour les Actes posés.
+def _calculer_prochaine_echeance(prescription, heure_prevue_precedente, intervalle_heures):
+    """Renvoie la prochaine heure_prevue, ancrée sur l'heure PRÉVUE (pas
+    l'heure réelle) pour que des retards ponctuels ne décalent pas tout le
+    planning restant — ou None si la prescription est arrivée à son terme
+    (date_fin dépassée)."""
+    from datetime import timedelta
+    prochaine = heure_prevue_precedente + timedelta(hours=intervalle_heures or 24)
+    date_fin = prescription.date_fin
+    if not date_fin and prescription.date_debut and prescription.duree_jours:
+        date_fin = prescription.date_debut + timedelta(days=prescription.duree_jours)
+    if date_fin and prochaine.date() > date_fin:
+        return None
+    return prochaine
+
+
+@app.route('/infirmier/medicaments')
+@login_required
+def infirmier_medicaments():
+    """Écran de suivi d'administration — lecture pour infirmier/médecin/
+    admin_structure (patron : "permets aux médecins et à l'administrateur de
+    voir cet onglet de l'infirmier"), écriture réservée à l'infirmier dans
+    le template (mêmes boutons masqués pour les autres rôles, comme pour
+    Actes posés)."""
+    from models import Prescription, AdministrationMedicament, Patient
+
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # Prescriptions de médicaments actives, sans AUCUNE administration
+    # planifiée pour l'instant — à planifier (1ère dose) par l'infirmier.
+    deja_planifiees = db.session.query(AdministrationMedicament.prescription_id).distinct()
+    a_planifier = (
+        Prescription.query
+        .join(Patient, Prescription.id_patient == Patient.id)
+        .filter(
+            Patient.id_structure == current_user.id_structure,
+            Prescription.type_prescription == 'medicament',
+            Prescription.statut == 'active',
+            ~Prescription.id.in_(deja_planifiees)
+        )
+        .order_by(Prescription.date_prescription.desc())
+        .all()
+    )
+
+    base_admin = (
+        AdministrationMedicament.query
+        .join(Patient, AdministrationMedicament.patient_id == Patient.id)
+        .filter(Patient.id_structure == current_user.id_structure)
+    )
+    a_faire = (
+        base_admin.filter(AdministrationMedicament.statut == 'a_faire')
+        .order_by(AdministrationMedicament.heure_prevue.asc())
+        .all()
+    )
+
+    patients = (
+        Patient.query.filter_by(id_structure=current_user.id_structure, archived=False)
+        .order_by(Patient.nom).all()
+    )
+
+    return render_template('infirmier/medicaments.html', a_planifier=a_planifier, a_faire=a_faire, patients=patients)
+
+
+@app.route('/infirmier/medicaments/<int:prescription_id>/planifier', methods=['POST'])
+@login_required
+def infirmier_medicament_planifier(prescription_id):
+    """Fixe la 1ère dose (heure prévue + fréquence + dose) d'une prescription
+    — les doses suivantes seront ensuite créées automatiquement à mesure
+    qu'on marque chaque dose comme faite."""
+    from models import Prescription, AdministrationMedicament, Patient
+
+    if current_user.role not in ['admin_structure', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    prescription = Prescription.query.get_or_404(prescription_id)
+    if prescription.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    date_str = request.form.get('date_prevue')
+    heure_str = request.form.get('heure_prevue')
+    intervalle = request.form.get('intervalle_heures', type=float)
+    dose = (request.form.get('dose') or prescription.dosage or '').strip()
+
+    if not date_str or not heure_str or not intervalle:
+        flash('Date, heure et fréquence (en heures) sont obligatoires', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    try:
+        heure_prevue = datetime.strptime(f"{date_str} {heure_str}", '%Y-%m-%d %H:%M')
+    except ValueError:
+        flash('Date ou heure invalide', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    admin = AdministrationMedicament(
+        prescription_id=prescription.id,
+        patient_id=prescription.id_patient,
+        medicament=prescription.medicament,
+        dose=dose,
+        numero_dose=1,
+        intervalle_heures=intervalle,
+        heure_prevue=heure_prevue,
+        statut='a_faire',
+    )
+    db.session.add(admin)
+    db.session.commit()
+    flash(f'Planning démarré pour "{prescription.medicament}"', 'success')
+    return redirect(url_for('infirmier_medicaments'))
+
+
+@app.route('/infirmier/medicaments/administration/<int:id>/marquer-fait', methods=['POST'])
+@login_required
+def infirmier_medicament_marquer_fait(id):
+    """Marque une dose comme administrée — heure_reelle posée UNE SEULE FOIS
+    ici (jamais modifiable ensuite), puis crée automatiquement la dose
+    suivante de la même prescription si elle n'est pas arrivée à son terme."""
+    from models import AdministrationMedicament
+
+    if current_user.role not in ['admin_structure', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    admin = AdministrationMedicament.query.get_or_404(id)
+    if admin.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+    if admin.statut == 'fait':
+        flash('Cette dose est déjà marquée comme faite', 'warning')
+        return redirect(url_for('infirmier_medicaments'))
+
+    admin.statut = 'fait'
+    admin.heure_reelle = datetime.utcnow()
+    admin.fait_par_id = current_user.id
+    db.session.flush()
+
+    prochaine = _calculer_prochaine_echeance(admin.prescription, admin.heure_prevue, admin.intervalle_heures)
+    if prochaine:
+        suivante = AdministrationMedicament(
+            prescription_id=admin.prescription_id,
+            patient_id=admin.patient_id,
+            medicament=admin.medicament,
+            dose=admin.dose,
+            numero_dose=admin.numero_dose + 1,
+            intervalle_heures=admin.intervalle_heures,
+            heure_prevue=prochaine,
+            statut='a_faire',
+        )
+        db.session.add(suivante)
+
+    db.session.commit()
+    flash(f'"{admin.medicament}" administré — enregistré', 'success')
+    return redirect(url_for('infirmier_medicaments'))
+
+
+@app.route('/infirmier/medicaments/ajouter-adhoc', methods=['POST'])
+@login_required
+def infirmier_medicament_ajouter_adhoc():
+    """Ajoute un médicament non prescrit par un médecin — la prescription
+    créée est marquée origine_prescripteur='infirmier' pour qu'on sache
+    qu'elle sort du circuit normal (patron : "cette prescription sera
+    marquée comme prescrite par l'infirmier")."""
+    from models import Prescription, AdministrationMedicament, Patient
+
+    if current_user.role not in ['admin_structure', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    id_patient = request.form.get('id_patient', type=int)
+    medicament = (request.form.get('medicament') or '').strip()
+    dosage = (request.form.get('dosage') or '').strip()
+    date_str = request.form.get('date_prevue')
+    heure_str = request.form.get('heure_prevue')
+    intervalle = request.form.get('intervalle_heures', type=float)
+
+    if not id_patient or not medicament or not date_str or not heure_str or not intervalle:
+        flash('Patient, médicament, date, heure et fréquence sont obligatoires', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    patient = Patient.query.get_or_404(id_patient)
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    try:
+        heure_prevue = datetime.strptime(f"{date_str} {heure_str}", '%Y-%m-%d %H:%M')
+    except ValueError:
+        flash('Date ou heure invalide', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    prescription = Prescription(
+        id_patient=id_patient,
+        medicament=medicament,
+        dosage=dosage,
+        type_prescription='medicament',
+        prescripteur=f"{current_user.prenom} {current_user.nom}",
+        origine_prescripteur='infirmier',
+        statut='active',
+        date_debut=heure_prevue.date(),
+        date_prescription=datetime.utcnow(),
+        notes="Ajouté par l'infirmier(-ère) — non prescrit par un médecin.",
+    )
+    db.session.add(prescription)
+    db.session.flush()
+
+    admin = AdministrationMedicament(
+        prescription_id=prescription.id,
+        patient_id=id_patient,
+        medicament=medicament,
+        dose=dosage,
+        numero_dose=1,
+        intervalle_heures=intervalle,
+        heure_prevue=heure_prevue,
+        statut='a_faire',
+    )
+    db.session.add(admin)
+    db.session.commit()
+    flash(f'"{medicament}" ajouté (non prescrit) et planifié', 'success')
+    return redirect(url_for('infirmier_medicaments'))
+
+
+@app.route('/api/infirmier/medicaments/dues')
+@login_required
+def api_infirmier_medicaments_dues():
+    """Interrogé régulièrement en JS depuis l'écran médicaments (et la
+    sidebar) pour le badge/l'alerte — pas d'infrastructure de notification
+    temps réel existante dans l'appli (voir exploration), donc scrutation
+    simple côté client."""
+    from models import AdministrationMedicament, Patient
+
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        return jsonify({'count': 0, 'items': []})
+
+    dues = (
+        AdministrationMedicament.query
+        .join(Patient, AdministrationMedicament.patient_id == Patient.id)
+        .filter(
+            Patient.id_structure == current_user.id_structure,
+            AdministrationMedicament.statut == 'a_faire',
+            AdministrationMedicament.heure_prevue <= datetime.utcnow(),
+        )
+        .all()
+    )
+    return jsonify({
+        'count': len(dues),
+        'items': [
+            {
+                'id': d.id,
+                'medicament': d.medicament,
+                'dose': d.dose,
+                'patient': f"{d.patient.prenom} {d.patient.nom}" if d.patient else '',
+                'heure_prevue': d.heure_prevue.strftime('%H:%M'),
+            }
+            for d in dues
+        ],
+    })
+
+
+@app.route('/medicaments/historique')
+@login_required
+def medicaments_historique():
+    """Historique complet des administrations — accessible en lecture à
+    infirmier/médecin/admin_structure, filtrable par patient et par statut
+    (patron : "on doit revoir l'historique et tout")."""
+    from models import AdministrationMedicament, Patient
+
+    if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    id_patient = request.args.get('patient', type=int)
+    statut = request.args.get('statut', '')
+
+    query = (
+        AdministrationMedicament.query
+        .join(Patient, AdministrationMedicament.patient_id == Patient.id)
+        .filter(Patient.id_structure == current_user.id_structure)
+    )
+    if id_patient:
+        query = query.filter(AdministrationMedicament.patient_id == id_patient)
+    if statut in ('a_faire', 'fait'):
+        query = query.filter(AdministrationMedicament.statut == statut)
+
+    administrations = query.order_by(AdministrationMedicament.heure_prevue.desc()).limit(300).all()
+    patients = (
+        Patient.query.filter_by(id_structure=current_user.id_structure, archived=False)
+        .order_by(Patient.nom).all()
+    )
+
+    return render_template('medicaments/historique.html', administrations=administrations,
+                            patients=patients, patient_filtre=id_patient, statut_filtre=statut)
 
 
 @app.route('/api/actes-types/rechercher')

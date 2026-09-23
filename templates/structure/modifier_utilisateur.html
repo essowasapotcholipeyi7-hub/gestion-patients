@@ -30,9 +30,31 @@
                         
                         <div class="mb-3">
                             <label class="form-label">Rôle *</label>
+                            <!-- ⭐ Liste complète des rôles (identique à ajouter_utilisateur.html)
+                                 avec le rôle actuel présélectionné — cette liste ne proposait
+                                 avant que "medecin"/"secretaire", sans aucune option
+                                 présélectionnée pour les autres rôles (dont "infirmier") :
+                                 modifier la fiche d'un(e) infirmier(-ère) écrasait donc
+                                 silencieusement son rôle en "medecin" (1er <option>) à
+                                 l'enregistrement, lui faisant perdre son tableau de bord et
+                                 ses accès dédiés. Voir aussi le garde-fou côté serveur dans
+                                 structure_modifier_utilisateur() (app.py). -->
                             <select name="role" class="form-select" required>
                                 <option value="medecin" {% if user.role == 'medecin' %}selected{% endif %}>Médecin</option>
+                                <option value="infirmier" {% if user.role == 'infirmier' %}selected{% endif %}>Infirmier</option>
+                                <option value="sage-femme" {% if user.role == 'sage-femme' %}selected{% endif %}>Sage-femme</option>
+                                <option value="assistant_medical" {% if user.role == 'assistant_medical' %}selected{% endif %}>Assistant médical</option>
+                                <option value="technicien_superieur" {% if user.role == 'technicien_superieur' %}selected{% endif %}>Technicien supérieur</option>
                                 <option value="secretaire" {% if user.role == 'secretaire' %}selected{% endif %}>Secrétaire</option>
+                                <option value="laborantin" {% if user.role == 'laborantin' %}selected{% endif %}>Laborantin</option>
+                                <option value="radiologue" {% if user.role == 'radiologue' %}selected{% endif %}>Radiologue</option>
+                                <option value="kinésithérapeute" {% if user.role == 'kinésithérapeute' %}selected{% endif %}>Kinésithérapeute</option>
+                                <option value="psychologue" {% if user.role == 'psychologue' %}selected{% endif %}>Psychologue</option>
+                                <option value="nutritionniste" {% if user.role == 'nutritionniste' %}selected{% endif %}>Nutritionniste</option>
+                                <option value="pharmacien" {% if user.role == 'pharmacien' %}selected{% endif %}>Pharmacien</option>
+                                <option value="ambulancier" {% if user.role == 'ambulancier' %}selected{% endif %}>Ambulancier</option>
+                                <option value="accueil" {% if user.role == 'accueil' %}selected{% endif %}>Accueil</option>
+                                <option value="comptable" {% if user.role == 'comptable' %}selected{% endif %}>Comptable</option>
                             </select>
                         </div>
                         
