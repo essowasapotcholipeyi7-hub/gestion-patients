@@ -22,7 +22,7 @@
                             </label>
                             <div class="row align-items-center">
                                 <div class="col-md-8">
-                                    <input type="file" id="examenFichier" class="form-control" accept=".docx,.pdf">
+                                    <input type="file" id="examenFichier" name="fichier_source" form="examenForm" class="form-control" accept=".docx,.pdf">
                                 </div>
                                 <div class="col-md-4">
                                     <button type="button" class="btn btn-outline-secondary w-100" onclick="importerFichierExamen()">
@@ -36,7 +36,7 @@
                         </div>
                     </div>
 
-                    <form method="POST" id="examenForm">
+                    <form method="POST" id="examenForm" enctype="multipart/form-data">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Nom <span class="text-danger">*</span></label>
                             <input type="text" name="nom" id="examenNom" class="form-control"

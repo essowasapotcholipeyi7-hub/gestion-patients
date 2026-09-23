@@ -95,7 +95,8 @@ def inject_medicaments_en_retard():
 def utility_processor():
     from datetime import datetime
     return {
-        'now': datetime.now()
+        'now': datetime.now(),
+        'fichier_source_info': _fichier_source_info,
     }
 
 @app.template_filter('nl2br')
@@ -1812,6 +1813,7 @@ def patient_detail(id):
                 'prescrit_par_nom': f"{o.redacteur.prenom} {o.redacteur.nom}" if o.redacteur else '',
                 'imprimer_url': url_for('imprimer_ordonnance_consultation', id=consultation.id),
                 'historique_url': url_for('historique_ordonnances_consultation', id=consultation.id),
+                'fichier': _fichier_source_info(o.source_type, o.source_id, 'ordonnance'),
             })
 
     for hosp in hospitalisations:
@@ -1831,6 +1833,11 @@ def patient_detail(id):
                 'prescrit_par_nom': f"{hosp.createur.prenom} {hosp.createur.nom}" if hosp.createur else '',
                 'imprimer_url': url_for('imprimer_ordonnance', id=hosp.id),
                 'historique_url': url_for('historique_ordonnances_hospitalisation', id=hosp.id),
+                # ⭐ Hospitalisation.ordonnance_prescite n'a pas son propre
+                # source_type/source_id (juste le JSON copié) — seul
+                # protocole_id trace sa provenance, traité comme
+                # source_type='protocole' pour retrouver le fichier importé.
+                'fichier': _fichier_source_info('protocole', hosp.protocole_id, 'ordonnance') if hosp.protocole_id else None,
             })
 
     historique_ordonnances.sort(key=lambda x: x['date'] or datetime.min, reverse=True)
@@ -9587,6 +9594,87 @@ def liste_protocoles():
     return render_template('templates/protocoles/liste.html', protocoles=protocoles)
 
 
+def _lire_fichier_source(champ='fichier_source'):
+    """Lit le fichier optionnel joint au formulaire (docx/pdf importé) et
+    renvoie (nom, mime, data) ou (None, None, None) — patron : "le fichier
+    importé ne s'affiche pas dans le dossier du patient" : l'import ne
+    gardait jusqu'ici que le texte extrait (voir api_import_fichier_texte),
+    jamais le fichier lui-même. Utilisé par les 6 routes de création/
+    modification de protocole/ordonnance-type/examen-type."""
+    fichier = request.files.get(champ)
+    if not fichier or not fichier.filename:
+        return None, None, None
+    return fichier.filename, fichier.mimetype, fichier.read()
+
+
+def _fichier_source_info(source_type, source_id, categorie):
+    """Résout la provenance (source_type/source_id, voir Ordonnance et
+    ExamenPrescrit) d'une prescription vers le fichier importé du modèle
+    dont elle vient — directement (source_type='template') ou via le
+    ProtocoleSoins associé (source_type='protocole') — pour que ce fichier
+    réapparaisse enfin dans le dossier du patient. categorie : 'ordonnance'
+    ou 'examen'. Renvoie {'nom':..., 'url':...} ou None."""
+    if not source_id:
+        return None
+    from models import OrdonnanceType, ExamenType, ProtocoleSoins
+
+    modele = None
+    if source_type == 'template':
+        modele = (OrdonnanceType if categorie == 'ordonnance' else ExamenType).query.get(source_id)
+    elif source_type == 'protocole':
+        protocole = ProtocoleSoins.query.get(source_id)
+        if protocole:
+            modele = protocole.ordonnance_type if categorie == 'ordonnance' else protocole.examen_type
+
+    if not modele or not modele.fichier_nom:
+        return None
+
+    endpoint = 'api_telecharger_fichier_ordonnance_type' if categorie == 'ordonnance' else 'api_telecharger_fichier_examen_type'
+    return {'nom': modele.fichier_nom, 'url': url_for(endpoint, id=modele.id)}
+
+
+def _telecharger_fichier_source(modele, nom_defaut):
+    """Sert fichier_data/fichier_nom/fichier_mime d'un ProtocoleSoins/
+    OrdonnanceType/ExamenType — même patron que api_telecharger_modele_resultat."""
+    from flask import Response
+    if not modele.fichier_data:
+        return "Aucun fichier importé pour cet élément.", 404
+    return Response(
+        modele.fichier_data, mimetype=modele.fichier_mime or 'application/octet-stream',
+        headers={'Content-Disposition': f'attachment; filename="{modele.fichier_nom or nom_defaut}"'}
+    )
+
+
+@app.route('/templates/protocole/<int:id>/fichier')
+@login_required
+def api_telecharger_fichier_protocole(id):
+    from models import ProtocoleSoins
+    protocole = ProtocoleSoins.query.filter_by(id=id, structure_id=current_user.id_structure).first()
+    if not protocole:
+        return "Protocole introuvable", 404
+    return _telecharger_fichier_source(protocole, 'protocole')
+
+
+@app.route('/templates/ordonnance/<int:id>/fichier')
+@login_required
+def api_telecharger_fichier_ordonnance_type(id):
+    from models import OrdonnanceType
+    ordonnance = OrdonnanceType.query.filter_by(id=id, structure_id=current_user.id_structure).first()
+    if not ordonnance:
+        return "Ordonnance type introuvable", 404
+    return _telecharger_fichier_source(ordonnance, 'ordonnance')
+
+
+@app.route('/templates/examen/<int:id>/fichier')
+@login_required
+def api_telecharger_fichier_examen_type(id):
+    from models import ExamenType
+    examen = ExamenType.query.filter_by(id=id, structure_id=current_user.id_structure).first()
+    if not examen:
+        return "Examen type introuvable", 404
+    return _telecharger_fichier_source(examen, 'examen')
+
+
 @app.route('/templates/protocole/ajouter', methods=['GET', 'POST'])
 @login_required
 def ajouter_protocole():
@@ -9618,16 +9706,21 @@ def ajouter_protocole():
             flash('Le nom et la description sont obligatoires', 'danger')
             return redirect(url_for('ajouter_protocole'))
         
+        fichier_nom, fichier_mime, fichier_data = _lire_fichier_source()
+
         protocole = ProtocoleSoins(
             structure_id=current_user.id_structure,
             nom=nom,
             description=description,
             ordonnance_type_id=int(ordonnance_type_id) if ordonnance_type_id else None,
             examen_type_id=int(examen_type_id) if examen_type_id else None,
+            fichier_nom=fichier_nom,
+            fichier_mime=fichier_mime,
+            fichier_data=fichier_data,
             created_by=current_user.id,
             actif=True
         )
-        
+
         db.session.add(protocole)
         db.session.commit()
 
@@ -9674,6 +9767,12 @@ def modifier_protocole(id):
         protocole.examen_type_id = request.form.get('examen_type_id', type=int) or None
         protocole.actif = request.form.get('actif') == 'on'
         protocole.updated_at = datetime.utcnow()
+
+        fichier_nom, fichier_mime, fichier_data = _lire_fichier_source()
+        if fichier_nom:
+            protocole.fichier_nom = fichier_nom
+            protocole.fichier_mime = fichier_mime
+            protocole.fichier_data = fichier_data
 
         db.session.commit()
 
@@ -9765,11 +9864,16 @@ def ajouter_ordonnance():
             flash('Format des médicaments invalide', 'danger')
             return redirect(url_for('ajouter_ordonnance'))
         
+        fichier_nom, fichier_mime, fichier_data = _lire_fichier_source()
+
         ordonnance = OrdonnanceType(
             structure_id=current_user.id_structure,
             nom=nom,
             description=description,
             medicaments=medicaments_json,
+            fichier_nom=fichier_nom,
+            fichier_mime=fichier_mime,
+            fichier_data=fichier_data,
             created_by=current_user.id,
             actif=True
         )
@@ -9809,6 +9913,12 @@ def modifier_ordonnance(id):
         ordonnance.medicaments = request.form.get('medicaments_json', '[]')
         ordonnance.actif = request.form.get('actif') == 'on'
         ordonnance.updated_at = datetime.utcnow()
+
+        fichier_nom, fichier_mime, fichier_data = _lire_fichier_source()
+        if fichier_nom:
+            ordonnance.fichier_nom = fichier_nom
+            ordonnance.fichier_mime = fichier_mime
+            ordonnance.fichier_data = fichier_data
 
         db.session.commit()
 
@@ -9902,6 +10012,8 @@ def ajouter_examen():
             flash('Format des examens invalide', 'danger')
             return redirect(url_for('ajouter_examen'))
         
+        fichier_nom, fichier_mime, fichier_data = _lire_fichier_source()
+
         examen = ExamenType(
             structure_id=current_user.id_structure,
             nom=nom,
@@ -9909,6 +10021,9 @@ def ajouter_examen():
             motif=motif,
             description=description,
             examens=examens_json,
+            fichier_nom=fichier_nom,
+            fichier_mime=fichier_mime,
+            fichier_data=fichier_data,
             created_by=current_user.id,
             actif=True
         )
@@ -9950,6 +10065,12 @@ def modifier_examen(id):
         examen.examens = request.form.get('examens_json', '[]')
         examen.actif = request.form.get('actif') == 'on'
         examen.updated_at = datetime.utcnow()
+
+        fichier_nom, fichier_mime, fichier_data = _lire_fichier_source()
+        if fichier_nom:
+            examen.fichier_nom = fichier_nom
+            examen.fichier_mime = fichier_mime
+            examen.fichier_data = fichier_data
 
         db.session.commit()
 
@@ -11703,6 +11824,8 @@ def ajouter_reference_hospitalisation(id):
     return render_template('hospitalisations/ajouter_reference.html',
                          hospitalisation=hospitalisation,
                          patient=patient)
+
+
 
 
 if __name__ == '__main__':

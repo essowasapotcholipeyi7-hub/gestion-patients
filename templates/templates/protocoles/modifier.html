@@ -19,9 +19,16 @@
                             <label class="form-label fw-bold mb-1">
                                 <i class="fas fa-file-import me-1"></i>Remplacer depuis un fichier (optionnel)
                             </label>
+                            {% if protocole.fichier_nom %}
+                            <div class="mb-2 small">
+                                <i class="fas fa-paperclip me-1"></i>Fichier actuel :
+                                <a href="{{ url_for('api_telecharger_fichier_protocole', id=protocole.id) }}" target="_blank">{{ protocole.fichier_nom }}</a>
+                                — importer un nouveau fichier ci-dessous le remplacera.
+                            </div>
+                            {% endif %}
                             <div class="row align-items-center">
                                 <div class="col-md-8">
-                                    <input type="file" id="protocoleFichier" class="form-control" accept=".docx,.pdf">
+                                    <input type="file" id="protocoleFichier" name="fichier_source" form="protocoleForm" class="form-control" accept=".docx,.pdf">
                                 </div>
                                 <div class="col-md-4">
                                     <button type="button" class="btn btn-outline-secondary w-100" onclick="importerFichierProtocole()">
@@ -35,7 +42,7 @@
                         </div>
                     </div>
 
-                    <form method="POST" id="protocoleForm">
+                    <form method="POST" id="protocoleForm" enctype="multipart/form-data">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Nom du protocole <span class="text-danger">*</span></label>
                             <input type="text" name="nom" id="protocoleNom" class="form-control"

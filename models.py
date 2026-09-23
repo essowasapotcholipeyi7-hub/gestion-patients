@@ -1331,12 +1331,21 @@ class ProtocoleSoins(db.Model):
     # Associations optionnelles
     ordonnance_type_id = db.Column(db.Integer, db.ForeignKey('ordonnances_types.id'), nullable=True)
     examen_type_id = db.Column(db.Integer, db.ForeignKey('examens_types.id'), nullable=True)
-    
+
+    # ⭐ Fichier source (docx/pdf importé à la création) — l'import ne
+    # gardait jusqu'ici que le texte extrait pour préremplir le formulaire,
+    # jamais le fichier lui-même, qui ne pouvait donc jamais réapparaître
+    # ensuite (patron : "le fichier importé ne s'affiche pas dans le
+    # dossier du patient"). Même schéma que ModeleResultat.
+    fichier_nom = db.Column(db.String(255), nullable=True)
+    fichier_mime = db.Column(db.String(100), nullable=True)
+    fichier_data = db.Column(db.LargeBinary, nullable=True)
+
     # Métadonnées
     created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relations
     structure = db.relationship('Structure', backref='protocoles')
     createur = db.relationship('Utilisateur', foreign_keys=[created_by], backref='protocoles_crees')
@@ -1371,14 +1380,20 @@ class OrdonnanceType(db.Model):
     
     # Stocké en JSON : [{"medicament": "Paracétamol", "dosage": "1g", "posologie": "3x/jour", "duree": "7 jours", "quantite": "2 boîtes"}]
     medicaments = db.Column(db.Text, nullable=False, default='[]')
-    
+
     actif = db.Column(db.Boolean, default=True)
-    
+
+    # ⭐ Fichier source importé à la création — voir ProtocoleSoins pour
+    # le détail du patron.
+    fichier_nom = db.Column(db.String(255), nullable=True)
+    fichier_mime = db.Column(db.String(100), nullable=True)
+    fichier_data = db.Column(db.LargeBinary, nullable=True)
+
     # Métadonnées
     created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relations
     structure = db.relationship('Structure', backref='ordonnances_types')
     createur = db.relationship('Utilisateur', foreign_keys=[created_by], backref='ordonnances_crees')
@@ -1465,14 +1480,20 @@ class ExamenType(db.Model):
     
     # Stocké en JSON : ["NFS", "CRP", "Glycémie", ...]
     examens = db.Column(db.Text, nullable=False, default='[]')
-    
+
     actif = db.Column(db.Boolean, default=True)
-    
+
+    # ⭐ Fichier source importé à la création — voir ProtocoleSoins pour
+    # le détail du patron.
+    fichier_nom = db.Column(db.String(255), nullable=True)
+    fichier_mime = db.Column(db.String(100), nullable=True)
+    fichier_data = db.Column(db.LargeBinary, nullable=True)
+
     # Métadonnées
     created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relations
     structure = db.relationship('Structure', backref='examens_types')
     createur = db.relationship('Utilisateur', foreign_keys=[created_by], backref='examens_types_crees')

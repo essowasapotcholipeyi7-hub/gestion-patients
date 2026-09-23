@@ -20,9 +20,16 @@
                             <label class="form-label fw-bold mb-1">
                                 <i class="fas fa-file-import me-1"></i>Importer depuis un fichier (optionnel)
                             </label>
+                            {% if examen.fichier_nom %}
+                            <div class="mb-2 small">
+                                <i class="fas fa-paperclip me-1"></i>Fichier actuel :
+                                <a href="{{ url_for('api_telecharger_fichier_examen_type', id=examen.id) }}" target="_blank">{{ examen.fichier_nom }}</a>
+                                — importer un nouveau fichier ci-dessous le remplacera.
+                            </div>
+                            {% endif %}
                             <div class="row align-items-center">
                                 <div class="col-md-8">
-                                    <input type="file" id="examenFichier" class="form-control" accept=".docx,.pdf">
+                                    <input type="file" id="examenFichier" name="fichier_source" form="examenForm" class="form-control" accept=".docx,.pdf">
                                 </div>
                                 <div class="col-md-4">
                                     <button type="button" class="btn btn-outline-secondary w-100" onclick="importerFichierExamen()">
@@ -36,7 +43,7 @@
                         </div>
                     </div>
 
-                    <form method="POST" id="examenForm">
+                    <form method="POST" id="examenForm" enctype="multipart/form-data">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Nom <span class="text-danger">*</span></label>
                             <input type="text" name="nom" id="examenNom" class="form-control" value="{{ examen.nom }}" required>
