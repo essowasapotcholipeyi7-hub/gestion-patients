@@ -2898,7 +2898,6 @@ def medicaments_historique():
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
 
-    id_patient = request.args.get('patient', type=int)
     statut = request.args.get('statut', '')
 
     query = (
@@ -2906,25 +2905,19 @@ def medicaments_historique():
         .join(Patient, AdministrationMedicament.patient_id == Patient.id)
         .filter(Patient.id_structure == current_user.id_structure)
     )
-    if id_patient:
-        query = query.filter(AdministrationMedicament.patient_id == id_patient)
     if statut in ('a_faire', 'fait', 'annule'):
         query = query.filter(AdministrationMedicament.statut == statut)
 
+    # ⭐ La recherche patient est filtrée en direct côté client sur ces lignes
+    # déjà chargées (voir historique.html) : elle ne porte donc jamais que
+    # sur des patients ayant réellement une administration dans cette liste,
+    # sans requête serveur supplémentaire ni bouton à cliquer (patron :
+    # "xa devrait juste concerner aux patients qui sont dans l'historique
+    # des administrations... et la recherche doit etre en temps réel").
     administrations = query.order_by(AdministrationMedicament.heure_prevue.desc()).limit(300).all()
-    patients = (
-        Patient.query.filter_by(id_structure=current_user.id_structure, archived=False)
-        .order_by(Patient.nom).all()
-    )
-    patient_filtre_nom = None
-    if id_patient:
-        patient_actuel = next((p for p in patients if p.id == id_patient), None)
-        if patient_actuel:
-            patient_filtre_nom = f"{patient_actuel.prenom} {patient_actuel.nom}"
 
     return render_template('medicaments/historique.html', administrations=administrations,
-                            patients=patients, patient_filtre=id_patient, statut_filtre=statut,
-                            patient_filtre_nom=patient_filtre_nom)
+                            statut_filtre=statut)
 
 
 @app.route('/api/actes-types/rechercher')
@@ -5761,14 +5754,16 @@ def liste_analyses():
     search = request.args.get('search', '')
     
     # Requête de base
-    query = AnalyseDemande.query.filter_by(structure_id=current_user.id_structure)
+    # ⭐ FIX : cette page "Laboratoire Analyses" ne filtrait sur BIOLOGIE
+    # que pour le rôle laborantin — un admin_structure/médecin (qui voit
+    # les deux filières) y voyait donc aussi l'imagerie mélangée, alors
+    # que la page s'appelle "Analyses" (biologie). Filtre systématique,
+    # quel que soit le rôle.
+    query = AnalyseDemande.query.filter_by(
+        structure_id=current_user.id_structure,
+        type_analyse='BIOLOGIE',
+    )
 
-    
-    # ⭐ SI C'EST UN LABORANTIN, FILTRER UNIQUEMENT LA BIOLOGIE
-    if current_user.role == 'laborantin':
-        query = query.filter(AnalyseDemande.type_analyse == 'BIOLOGIE')
-    
-    
     # Filtrer par statut
     if statut:
         query = query.filter_by(statut=statut)
@@ -5962,8 +5957,10 @@ def saisir_resultats_analyse(id):
 
     flash('✅ Résultats enregistrés avec succès', 'success')
 
-    # ⭐ REDIRECTION SELON LE RÔLE
-    if current_user.role == 'radiologue':
+    # ⭐ REDIRECTION SELON LA FILIÈRE DE CETTE ANALYSE — pas le rôle : un
+    # admin_structure qui saisit un résultat d'imagerie était toujours
+    # renvoyé vers la page biologie (liste_analyses), jamais radiologie.
+    if analyse.type_analyse == 'IMAGERIE':
         return redirect(url_for('liste_radiologie'))
     else:
         return redirect(url_for('liste_analyses'))
@@ -6544,18 +6541,32 @@ def patient_analyses(patient_id):
         patient_id=patient_id,
         structure_id=current_user.id_structure
     )
-    
+
     # ⭐ FILTRER SELON LE RÔLE
     if current_user.role == 'laborantin':
         query = query.filter(AnalyseDemande.type_analyse == 'BIOLOGIE')
     elif current_user.role == 'radiologue':
         query = query.filter(AnalyseDemande.type_analyse == 'IMAGERIE')
-    
+    else:
+        # ⭐ FIX : un admin_structure/médecin (qui voit les deux filières)
+        # arrivait ici sans AUCUN filtre, peu importe qu'il vienne de
+        # "Voir toutes les analyses" (liste_analyses, biologie) ou "Voir
+        # tous les examens" (liste_radiologie, imagerie) — les deux
+        # listes distinctes menaient au même mélange biologie+imagerie.
+        # Ces deux pages passent maintenant explicitement leur filière
+        # (?type_analyse=BIOLOGIE|IMAGERIE) ; sans ce paramètre (ex. lien
+        # "Résultats labo/radio" du dossier patient), la vue reste
+        # volontairement complète, comme avant.
+        type_analyse_filtre = request.args.get('type_analyse')
+        if type_analyse_filtre in ('BIOLOGIE', 'IMAGERIE'):
+            query = query.filter(AnalyseDemande.type_analyse == type_analyse_filtre)
+
     analyses = query.order_by(AnalyseDemande.date_demande.desc()).all()
-    
+
     return render_template('analyses/patient_analyses.html',
                          patient=patient,
-                         analyses=analyses)
+                         analyses=analyses,
+                         type_analyse_filtre=request.args.get('type_analyse'))
 
 @app.route('/consultation/<int:id>/reference/ajouter', methods=['GET', 'POST'])
 @login_required

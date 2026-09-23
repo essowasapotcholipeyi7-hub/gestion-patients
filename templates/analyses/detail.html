@@ -18,7 +18,11 @@
             <a href="{{ url_for('page_modeles_resultats') }}" class="btn btn-outline-dark btn-sm me-2" target="_blank">
                 <i class="fas fa-file-word me-1"></i>Modèles
             </a>
-            <a href="{{ url_for('liste_analyses') if current_user.role != 'radiologue' else url_for('liste_radiologie') }}" class="btn btn-secondary" data-loading="true">
+            <!-- ⭐ FIX : se basait uniquement sur le rôle — un
+                 admin_structure/médecin revenait toujours vers la page
+                 biologie, même depuis un examen d'imagerie. Se base
+                 maintenant sur le type de CETTE analyse. -->
+            <a href="{{ url_for('liste_radiologie') if analyse.type_analyse == 'IMAGERIE' else url_for('liste_analyses') }}" class="btn btn-secondary" data-loading="true">
                 <i class="fas fa-arrow-left me-2"></i>Retour
             </a>
         </div>

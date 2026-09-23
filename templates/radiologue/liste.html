@@ -109,7 +109,10 @@
                         </div>
                     </div>
                     <div class="card-footer bg-transparent">
-                        <a href="{{ url_for('patient_analyses', patient_id=item.patient.id) }}" 
+                        <!-- ⭐ FIX : type_analyse=IMAGERIE explicite, sinon un
+                             admin_structure/médecin voyait aussi la biologie
+                             de ce patient mélangée sur cette page imagerie. -->
+                        <a href="{{ url_for('patient_analyses', patient_id=item.patient.id, type_analyse='IMAGERIE') }}"
                            class="btn btn-sm btn-primary w-100" data-loading="true">
                             <i class="fas fa-eye me-1"></i>Voir tous les examens ({{ item.analyses|length }})
                         </a>

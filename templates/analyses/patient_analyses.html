@@ -6,21 +6,28 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
+            <!-- ⭐ FIX : se basait uniquement sur le rôle (radiologue vs le
+                 reste) — un admin_structure/médecin voyait toujours le même
+                 titre/lien "Retour" quelle que soit la page d'où il venait.
+                 Se base maintenant sur type_analyse_filtre (voir
+                 patient_analyses(), app.py), cohérent avec le rôle quand
+                 celui-ci impose déjà une seule filière. -->
+            {% set vue_imagerie = current_user.role == 'radiologue' or type_analyse_filtre == 'IMAGERIE' %}
             <h1 class="h3">
                 <i class="fas fa-flask me-2 text-primary"></i>
-                {% if current_user.role == 'radiologue' %}
+                {% if vue_imagerie %}
                     Examens d'imagerie de {{ patient.prenom }} {{ patient.nom }}
                 {% else %}
                     Analyses de {{ patient.prenom }} {{ patient.nom }}
                 {% endif %}
             </h1>
             <p class="text-muted">
-                N° dossier: P{{ "%05d" % patient.id }} | 
+                N° dossier: P{{ "%05d" % patient.id }} |
                 {{ analyses|length }} examen(s) au total
             </p>
         </div>
         <div>
-            <a href="{{ url_for('liste_analyses') if current_user.role != 'radiologue' else url_for('liste_radiologie') }}" class="btn btn-secondary" data-loading="true">
+            <a href="{{ url_for('liste_radiologie') if vue_imagerie else url_for('liste_analyses') }}" class="btn btn-secondary" data-loading="true">
                 <i class="fas fa-arrow-left me-2"></i>Retour
             </a>
             {% if current_user.role in ['admin_structure', 'medecin'] %}
