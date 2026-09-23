@@ -41,7 +41,6 @@
             --hp-shadow: 0 2px 12px rgba(18, 58, 77, 0.06);
             --hp-shadow-hover: 0 8px 22px rgba(18, 58, 77, 0.10);
             --sidebar-width: 264px;
-            --sidebar-width-collapsed: 78px;
         }
 
         * { box-sizing: border-box; }
@@ -158,28 +157,28 @@
             margin: 0.75rem 0.4rem;
         }
 
-        /* Etat reduit (desktop) : icones seules */
-        body.sidebar-collapsed .sidebar { width: var(--sidebar-width-collapsed); }
-        body.sidebar-collapsed .sidebar-header h5,
-        body.sidebar-collapsed .sidebar .nav-text,
-        body.sidebar-collapsed .sidebar .nav-link .badge {
-            display: none;
+        /* ⭐ Sidebar masquée PAR DÉFAUT (hors-champ), à toutes les largeurs
+           d'écran — révélée en volet par-dessus le contenu (jamais en
+           redimensionnant .main-content) via le bouton qui reste, lui,
+           toujours visible dans la topbar. Patron : "par défaut quand on
+           rentre dans l'application que le menu latéral reste caché et
+           le bouton qui ramène ça visible" — remplace l'ancien état
+           "réduit aux icônes" (body.sidebar-collapsed), qui coexistait
+           mal avec ce nouveau comportement et n'apportait rien de plus. */
+        .sidebar {
+            transform: translateX(-100%);
+            box-shadow: 6px 0 24px rgba(0,0,0,0.18);
         }
-        body.sidebar-collapsed .sidebar .nav-link {
-            justify-content: center;
-            padding: 0.62rem;
-        }
-        body.sidebar-collapsed .main-content {
-            margin-left: var(--sidebar-width-collapsed);
+        body.sidebar-open .sidebar {
+            transform: translateX(0);
         }
 
         /* ============================================================
            CONTENU PRINCIPAL - scroll independant de la sidebar
         ============================================================ */
         .main-content {
-            margin-left: var(--sidebar-width);
+            margin-left: 0;
             min-height: 100vh;
-            transition: margin-left 0.25s ease;
         }
 
         .topbar {
@@ -221,7 +220,7 @@
             padding: 1.5rem;
         }
 
-        /* Overlay mobile (off-canvas) */
+        /* Overlay derriere le volet, a toutes les largeurs */
         .sidebar-overlay {
             display: none;
             position: fixed;
@@ -229,26 +228,124 @@
             background: rgba(15, 30, 40, 0.45);
             z-index: 1025;
         }
+        body.sidebar-open .sidebar-overlay {
+            display: block;
+        }
+        body.sidebar-open {
+            overflow: hidden;
+        }
 
-        @media (max-width: 991.98px) {
-            .sidebar {
-                transform: translateX(-100%);
-                width: var(--sidebar-width);
-                box-shadow: 6px 0 24px rgba(0,0,0,0.18);
-            }
-            .main-content,
-            body.sidebar-collapsed .main-content {
-                margin-left: 0;
-            }
-            body.sidebar-mobile-open .sidebar {
-                transform: translateX(0);
-            }
-            body.sidebar-mobile-open .sidebar-overlay {
-                display: block;
-            }
-            body.sidebar-mobile-open {
-                overflow: hidden;
-            }
+        /* ============================================================
+           MENU HORIZONTAL - acces rapide (meme principe que GHP : un
+           doublon fonctionnel de la sidebar, regroupe par domaine, pour
+           l'usage courant sans ouvrir le volet lateral). Construit "a la
+           main" (pas les dropdowns Bootstrap) pour un survol immediat
+           desktop + un clic qui bascule pareil au toucher, comme GHP.
+        ============================================================ */
+        .top-nav {
+            background: #ffffff;
+            border-bottom: 1px solid var(--hp-card-border);
+            position: sticky;
+            /* ⭐ Sous la topbar (elle aussi sticky top:0) et non par-dessus —
+               hauteur mesurée en JS (voir plus bas) pour rester exacte même
+               si la topbar change de taille (repli du texte, etc.). */
+            top: var(--topbar-height, 61px);
+            z-index: 1015;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .top-nav::-webkit-scrollbar { display: none; }
+        .top-nav .nav-group {
+            display: flex;
+            align-items: stretch;
+            height: 46px;
+            width: max-content;
+            min-width: 100%;
+            list-style: none;
+            margin: 0;
+            padding: 0 0.5rem;
+        }
+        .top-nav .nav-item {
+            position: relative;
+            display: flex;
+            align-items: stretch;
+        }
+        .top-nav .nav-link-top {
+            color: var(--hp-text-muted);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 0.84rem;
+            font-weight: 500;
+            border-bottom: 3px solid transparent;
+            white-space: nowrap;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+            cursor: pointer;
+        }
+        .top-nav .nav-link-top .arrow {
+            font-size: 0.6rem;
+            margin-left: -2px;
+            transition: transform 0.2s ease;
+        }
+        .top-nav .nav-item:hover .nav-link-top,
+        .top-nav .nav-item.open .nav-link-top {
+            background: var(--hp-primary-light);
+            color: var(--hp-primary-dark);
+            border-bottom-color: var(--hp-primary);
+        }
+        .top-nav .nav-item:hover .arrow,
+        .top-nav .nav-item.open .arrow {
+            transform: rotate(180deg);
+        }
+        .top-nav .mega-menu {
+            position: fixed;
+            min-width: 235px;
+            background: #ffffff;
+            border: 1px solid var(--hp-card-border);
+            border-radius: var(--hp-radius);
+            box-shadow: var(--hp-shadow-hover);
+            padding: 0.4rem;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(6px);
+            transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+            z-index: 1030;
+        }
+        .top-nav .nav-item:hover .mega-menu,
+        .top-nav .nav-item.open .mega-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        .top-nav .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0.5rem 0.7rem;
+            border-radius: 8px;
+            color: var(--hp-text);
+            font-size: 0.84rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .top-nav .menu-item i:first-child {
+            width: 18px;
+            text-align: center;
+            color: var(--hp-primary);
+            flex-shrink: 0;
+        }
+        .top-nav .menu-item:hover {
+            background: var(--hp-primary-light);
+            color: var(--hp-primary-dark);
+        }
+        .top-nav .menu-item .badge {
+            margin-left: auto;
+        }
+        .top-nav .menu-divider {
+            height: 1px;
+            background: var(--hp-card-border);
+            margin: 0.3rem 0.4rem;
         }
 
         /* ============================================================
@@ -644,6 +741,144 @@
             </button>
             <span class="topbar-title">{{ current_user.structure.nom if current_user.structure else 'MediLogic' }}</span>
         </div>
+
+        <!-- ============================================================ -->
+        <!-- ⭐ MENU HORIZONTAL - acces rapide, meme principe que GHP :    -->
+        <!-- doublon fonctionnel de la sidebar regroupe par domaine, pour -->
+        <!-- ne pas avoir a ouvrir le volet lateral pour l'usage courant. -->
+        <!-- Memes conditions de role que la sidebar ci-dessus.           -->
+        <!-- ============================================================ -->
+        <div class="top-nav" id="topNav">
+            <ul class="nav-group">
+                <!-- Accueil -->
+                <li class="nav-item">
+                    {% if current_user.role == 'infirmier' %}
+                    <a class="nav-link-top" href="{{ url_for('infirmier_dashboard') }}"><i class="fas fa-user-nurse"></i> Accueil</a>
+                    {% elif current_user.role == 'laborantin' %}
+                    <a class="nav-link-top" href="{{ url_for('laborantin_dashboard') }}"><i class="fas fa-flask"></i> Accueil</a>
+                    {% elif current_user.role == 'radiologue' %}
+                    <a class="nav-link-top" href="{{ url_for('radiologue_dashboard') }}"><i class="fas fa-x-ray"></i> Accueil</a>
+                    {% else %}
+                    <a class="nav-link-top" href="{{ url_for('dashboard') }}"><i class="fas fa-tachometer-alt"></i> Accueil</a>
+                    {% endif %}
+                </li>
+
+                <!-- Patients -->
+                {% if current_user.role not in ['super_admin', 'laborantin', 'radiologue'] %}
+                <li class="nav-item">
+                    <a class="nav-link-top" href="#"><i class="fas fa-users"></i> Patients <i class="fas fa-chevron-down arrow"></i></a>
+                    <div class="mega-menu">
+                        <a class="menu-item" href="{{ url_for('patients_list') }}"><i class="fas fa-users"></i> Liste des patients</a>
+                        {% if current_user.role in ['medecin', 'admin_structure'] %}
+                        <a class="menu-item" href="{{ url_for('liste_references') }}"><i class="fas fa-ambulance"></i> Références des patients</a>
+                        {% endif %}
+                    </div>
+                </li>
+                {% endif %}
+
+                <!-- Hospitalisation -->
+                {% if current_user.role not in ['laborantin', 'radiologue'] %}
+                <li class="nav-item">
+                    <a class="nav-link-top" href="#"><i class="fas fa-hospital"></i> Hospitalisation <i class="fas fa-chevron-down arrow"></i></a>
+                    <div class="mega-menu">
+                        <a class="menu-item" href="{{ url_for('liste_hospitalisations') }}"><i class="fas fa-hospital"></i> Hospitalisations</a>
+                        {% if current_user.role in ['admin_structure', 'medecin', 'secretaire'] %}
+                        <a class="menu-item" href="{{ url_for('nouvelle_hospitalisation') }}"><i class="fas fa-plus"></i> Nouvelle hospitalisation</a>
+                        {% endif %}
+                        {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}
+                        <div class="menu-divider"></div>
+                        <a class="menu-item" href="{{ url_for('acte_pose_ajouter') }}"><i class="fas fa-notes-medical"></i> Actes posés</a>
+                        <a class="menu-item" href="{{ url_for('infirmier_medicaments') }}">
+                            <i class="fas fa-syringe"></i> Médicaments à administrer
+                            {% if medicaments_en_retard_count %}<span class="badge bg-danger">{{ medicaments_en_retard_count }}</span>{% endif %}
+                        </a>
+                        <a class="menu-item" href="{{ url_for('liste_salles') }}"><i class="fas fa-bed"></i> Salles d'hospitalisation</a>
+                        {% endif %}
+                    </div>
+                </li>
+                {% endif %}
+
+                <!-- Laboratoire & Radiologie -->
+                {% if current_user.role in ['laborantin', 'radiologue', 'medecin', 'admin_structure', 'secretaire'] %}
+                <li class="nav-item">
+                    <a class="nav-link-top" href="#"><i class="fas fa-flask"></i> Labo &amp; Radio <i class="fas fa-chevron-down arrow"></i></a>
+                    <div class="mega-menu">
+                        {% if current_user.role in ['laborantin', 'medecin', 'admin_structure'] %}
+                        <a class="menu-item" href="{{ url_for('liste_analyses') }}">
+                            <i class="fas fa-flask"></i> Laboratoire Analyses
+                            {% if current_user.role == 'laborantin' %}<span class="badge bg-warning text-dark">En attente</span>{% endif %}
+                        </a>
+                        {% endif %}
+                        {% if current_user.role in ['radiologue', 'medecin', 'admin_structure'] %}
+                        <a class="menu-item" href="{{ url_for('liste_radiologie') }}">
+                            <i class="fas fa-x-ray"></i> Radiologie
+                            {% if current_user.role == 'radiologue' %}<span class="badge bg-warning text-dark">En attente</span>{% endif %}
+                        </a>
+                        {% endif %}
+                        {% if current_user.role in ['laborantin', 'radiologue', 'secretaire', 'admin_structure'] %}
+                        <div class="menu-divider"></div>
+                        <a class="menu-item" href="{{ url_for('page_modeles_resultats') }}"><i class="fas fa-file-word"></i> Modèles de résultats</a>
+                        <a class="menu-item" href="{{ url_for('page_signatures_intervenants') }}"><i class="fas fa-signature"></i> Signatures électroniques</a>
+                        {% endif %}
+                    </div>
+                </li>
+                {% endif %}
+
+                <!-- Outils -->
+                {% if current_user.role not in ['laborantin', 'radiologue', 'infirmier'] %}
+                <li class="nav-item">
+                    <a class="nav-link-top" href="#"><i class="fas fa-toolbox"></i> Outils <i class="fas fa-chevron-down arrow"></i></a>
+                    <div class="mega-menu">
+                        {% if current_user.role not in ['laborantin', 'radiologue', 'infirmier'] %}
+                        <a class="menu-item" href="{{ url_for('templates_dashboard') }}"><i class="fas fa-file-medical-alt"></i> Protocole / ordonnance / examen</a>
+                        {% endif %}
+                        {% if current_user.role in ['admin_structure', 'medecin'] %}
+                        <a class="menu-item" href="{{ url_for('statistiques') }}"><i class="fas fa-chart-bar"></i> Statistiques générales</a>
+                        {% endif %}
+                        {% if current_user.role in ['medecin', 'super_admin'] %}
+                        <a class="menu-item" href="{{ url_for('engagements.liste') }}"><i class="fas fa-file-signature"></i> Déontologie</a>
+                        {% endif %}
+                    </div>
+                </li>
+                {% endif %}
+
+                <!-- Messagerie -->
+                <li class="nav-item">
+                    <a class="nav-link-top" href="{{ url_for('messages_liste') }}">
+                        <i class="fas fa-envelope"></i> Messagerie
+                        {% if non_lus > 0 %}<span class="badge bg-danger rounded-pill">{{ non_lus }}</span>{% endif %}
+                    </a>
+                </li>
+
+                <!-- Administration (admin_structure) -->
+                {% if current_user.role == 'admin_structure' %}
+                <li class="nav-item">
+                    <a class="nav-link-top" href="#"><i class="fas fa-user-shield"></i> Administration <i class="fas fa-chevron-down arrow"></i></a>
+                    <div class="mega-menu">
+                        <a class="menu-item" href="{{ url_for('structure_utilisateurs') }}"><i class="fas fa-users-cog"></i> Utilisateurs</a>
+                        <a class="menu-item" href="{{ url_for('gestion_permissions') }}"><i class="fas fa-user-shield"></i> Permissions</a>
+                        <a class="menu-item" href="{{ url_for('parametrage_amu') }}"><i class="fas fa-file-invoice-dollar"></i> Paramétrage AMU</a>
+                        <div class="menu-divider"></div>
+                        <a class="menu-item" href="{{ url_for('sync_ghp_config') }}"><i class="fas fa-sync"></i> Sync GHP</a>
+                    </div>
+                </li>
+                {% endif %}
+
+                <!-- Super Admin -->
+                {% if current_user.role == 'super_admin' %}
+                <li class="nav-item">
+                    <a class="nav-link-top" href="#"><i class="fas fa-crown"></i> Super Admin <i class="fas fa-chevron-down arrow"></i></a>
+                    <div class="mega-menu">
+                        <a class="menu-item" href="{{ url_for('admin_dashboard') }}"><i class="fas fa-crown"></i> Administration</a>
+                        <a class="menu-item" href="{{ url_for('admin_structures') }}"><i class="fas fa-building"></i> Structures</a>
+                        <a class="menu-item" href="{{ url_for('admin_nouveau_super_admin') }}"><i class="fas fa-user-plus"></i> Nouveau Super Admin</a>
+                        <a class="menu-item" href="{{ url_for('admin_profil') }}"><i class="fas fa-user-shield"></i> Mon profil</a>
+                    </div>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+
         <div class="content-inner">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -746,36 +981,28 @@
         });
 
         /* ============================================================
-           TOGGLE DU MENU PRINCIPAL
-           - Desktop (>=992px) : reduit/etend la sidebar, etat memorise
-           - Mobile (<992px)   : menu off-canvas avec overlay
+           TOGGLE DU MENU LATERAL
+           Masque par defaut (patron : "par defaut quand on rentre dans
+           l'application que le menu lateral reste caché et le bouton
+           qui ramène ça visible") — un seul etat "ouvert" en volet,
+           a toutes les largeurs d'ecran, la préférence de l'utilisateur
+           une fois ouvert est mémorisée comme avant.
         ============================================================ */
         (function () {
             const body = document.body;
             const toggleBtn = document.getElementById('sidebarToggleBtn');
             const overlay = document.getElementById('sidebarOverlay');
-            const STORAGE_KEY = 'medilogic-sidebar-collapsed';
-
-            function isDesktop() {
-                return window.innerWidth >= 992;
-            }
+            const STORAGE_KEY = 'medilogic-sidebar-open';
 
             function applyStoredState() {
-                if (isDesktop()) {
-                    const collapsed = localStorage.getItem(STORAGE_KEY) === '1';
-                    body.classList.toggle('sidebar-collapsed', collapsed);
-                    body.classList.remove('sidebar-mobile-open');
-                }
+                const open = localStorage.getItem(STORAGE_KEY) === '1';
+                body.classList.toggle('sidebar-open', open);
             }
 
             function toggleSidebar() {
-                if (isDesktop()) {
-                    const collapsed = !body.classList.contains('sidebar-collapsed');
-                    body.classList.toggle('sidebar-collapsed', collapsed);
-                    localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0');
-                } else {
-                    body.classList.toggle('sidebar-mobile-open');
-                }
+                const open = !body.classList.contains('sidebar-open');
+                body.classList.toggle('sidebar-open', open);
+                localStorage.setItem(STORAGE_KEY, open ? '1' : '0');
             }
 
             if (toggleBtn) {
@@ -783,12 +1010,76 @@
             }
             if (overlay) {
                 overlay.addEventListener('click', function () {
-                    body.classList.remove('sidebar-mobile-open');
+                    body.classList.remove('sidebar-open');
+                    localStorage.setItem(STORAGE_KEY, '0');
                 });
             }
 
-            window.addEventListener('resize', applyStoredState);
             applyStoredState();
+        })();
+
+        /* ============================================================
+           MENU HORIZONTAL - ouverture au survol (desktop) + au clic
+           (tactile), positionnement du mega-menu recalcule a chaque
+           ouverture car la barre elle-meme peut defiler horizontalement
+           (meme principe que GHP).
+        ============================================================ */
+        (function () {
+            const topNav = document.getElementById('topNav');
+            if (!topNav) return;
+
+            // ⭐ Hauteur reelle de la topbar -> variable CSS, pour que
+            // .top-nav (sticky) se colle juste en dessous sans jamais la
+            // chevaucher (les deux barres etant sticky top:0 sinon).
+            function ajusterHauteurTopbar() {
+                const topbar = document.querySelector('.topbar');
+                if (topbar) {
+                    document.documentElement.style.setProperty('--topbar-height', topbar.offsetHeight + 'px');
+                }
+            }
+            ajusterHauteurTopbar();
+            window.addEventListener('resize', ajusterHauteurTopbar);
+
+            const navItems = topNav.querySelectorAll('.nav-item');
+
+            function positionnerMegaMenu(item) {
+                const link = item.querySelector('.nav-link-top');
+                const menu = item.querySelector('.mega-menu');
+                if (!menu) return;
+                const rect = link.getBoundingClientRect();
+                const menuWidth = Math.min(menu.offsetWidth || 235, window.innerWidth * 0.92);
+                let left = rect.left;
+                left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+                menu.style.top = rect.bottom + 'px';
+                menu.style.left = left + 'px';
+            }
+
+            navItems.forEach(function (item) {
+                const link = item.querySelector('.nav-link-top');
+                const menu = item.querySelector('.mega-menu');
+                if (!menu) return; // lien direct, pas de sous-menu
+
+                item.addEventListener('mouseenter', function () { positionnerMegaMenu(item); });
+
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const isOpen = item.classList.contains('open');
+                    navItems.forEach(function (el) { if (el !== item) el.classList.remove('open'); });
+                    if (isOpen) {
+                        item.classList.remove('open');
+                    } else {
+                        positionnerMegaMenu(item);
+                        item.classList.add('open');
+                    }
+                });
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('#topNav .nav-item')) {
+                    navItems.forEach(function (el) { el.classList.remove('open'); });
+                }
+            });
         })();
 
         console.log('MediLogic - systemes de feedback actifs');
