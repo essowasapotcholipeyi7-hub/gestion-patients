@@ -2,6 +2,11 @@
 
 {% block title %}Détail analyse - {{ analyse.nom_analyse }}{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4 no-print">
@@ -10,6 +15,9 @@
             Détail de l'analyse
         </h1>
         <div>
+            <a href="{{ url_for('page_modeles_resultats') }}" class="btn btn-outline-dark btn-sm me-2" target="_blank">
+                <i class="fas fa-file-word me-1"></i>Modèles
+            </a>
             <a href="{{ url_for('liste_analyses') if current_user.role != 'radiologue' else url_for('liste_radiologie') }}" class="btn btn-secondary" data-loading="true">
                 <i class="fas fa-arrow-left me-2"></i>Retour
             </a>
@@ -90,7 +98,26 @@
                         {% if analyse.statut == 'TERMINE' %}
                             <div class="alert alert-success">
                                 <strong>Résultats disponibles :</strong>
-                                <p class="mt-2" style="white-space: pre-wrap;">{{ analyse.resultats or 'Résultats non saisis' }}</p>
+                                {% if analyse.contenu_html %}
+                                    <div class="mt-2 p-2 bg-white border rounded">{{ analyse.contenu_html | safe }}</div>
+                                {% elif analyse.fichier_data %}
+                                    <p class="mt-2 mb-1">
+                                        <i class="fas fa-paperclip me-1"></i>Fichier joint : {{ analyse.fichier_nom }}
+                                        <a href="{{ url_for('telecharger_fichier_analyse', id=analyse.id) }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                                            <i class="fas fa-eye me-1"></i>Ouvrir
+                                        </a>
+                                    </p>
+                                {% else %}
+                                    <p class="mt-2" style="white-space: pre-wrap;">{{ analyse.resultats or 'Résultats non saisis' }}</p>
+                                {% endif %}
+                                {% if analyse.nom_interprete %}
+                                <div class="mt-2 text-end" style="font-size: 13px;">
+                                    {% if analyse.signature_data %}
+                                    <div><img src="{{ url_for('image_signature_analyse', id=analyse.id) }}" style="max-height:50px; max-width:140px;" alt="Signature"></div>
+                                    {% endif %}
+                                    {% if analyse.titre_interprete %}{{ analyse.titre_interprete }} — {% endif %}{{ analyse.nom_interprete }}
+                                </div>
+                                {% endif %}
                                 <small class="text-muted">
                                     Saisis par : {{ analyse.responsable.prenom }} {{ analyse.responsable.nom if analyse.responsable else 'Inconnu' }}
                                     le {{ analyse.date_resultats.strftime('%d/%m/%Y %H:%M') }}
@@ -121,13 +148,66 @@
                                 Saisissez les résultats pour l'analyse <strong>{{ analyse.nom_analyse }}</strong>
                             </div>
                             
-                            <form method="POST" action="{{ url_for('saisir_resultats_analyse', id=analyse.id) }}" class="no-print">
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">{{ analyse.nom_analyse }}</label>
-                                    <textarea name="resultats" class="form-control" rows="6" 
-                                              placeholder="Saisissez les résultats..."></textarea>
+                            <form method="POST" action="{{ url_for('saisir_resultats_analyse', id=analyse.id) }}" enctype="multipart/form-data" class="no-print" id="formResultat">
+                                <div class="mb-2">
+                                    <label class="form-label mb-1" id="labelInterprete">{% if analyse.type_analyse == 'BIOLOGIE' %}Le Laboratoire{% else %}Le Radiologue{% endif %} <span class="text-muted small">(facultatif)</span></label>
+                                    <select class="form-select" id="resultatSignatureSelect" name="signature_id" onchange="changerSignatureSelectionnee()">
+                                        <option value="">-- Aucune signature --</option>
+                                    </select>
+                                    <div class="text-center mt-2" id="apercuSignatureResultatZone" style="display:none;">
+                                        <img id="apercuSignatureResultat" style="max-height:60px; border:1px solid #dee2e6; border-radius:6px; padding:4px; background:#fff;">
+                                        <div class="text-muted small mt-1"><i class="fas fa-check-circle text-success me-1"></i>Signature électronique appliquée</div>
+                                    </div>
+                                    <input type="text" class="form-control mt-2" id="resultatNomInterprete" name="nom_interprete" placeholder="Nom (saisie libre, aucune signature ne sera apposée)" style="display:none;">
                                 </div>
-                                <div class="row">
+
+                                <ul class="nav nav-pills nav-fill mb-2 small" id="modeResultatTabs">
+                                    <li class="nav-item">
+                                        <button type="button" class="nav-link active" id="ongletTexte" onclick="choisirModeResultat('texte')">
+                                            <i class="fas fa-align-left me-1"></i> Texte simple
+                                        </button>
+                                    </li>
+                                    <li class="nav-item">
+                                        <button type="button" class="nav-link" id="ongletFichier" onclick="choisirModeResultat('fichier')">
+                                            <i class="fas fa-file-upload me-1"></i> Importer un fichier
+                                        </button>
+                                    </li>
+                                    <li class="nav-item">
+                                        <button type="button" class="nav-link" id="ongletEditeur" onclick="choisirModeResultat('editeur')">
+                                            <i class="fas fa-keyboard me-1"></i> Rédiger en ligne
+                                        </button>
+                                    </li>
+                                </ul>
+
+                                <div id="zoneModeTexte">
+                                    <div class="mb-2">
+                                        <textarea name="resultats" class="form-control" rows="6"
+                                                  placeholder="Saisissez les résultats..."></textarea>
+                                    </div>
+                                </div>
+
+                                <div id="zoneModeFichier" style="display:none;">
+                                    <div class="mb-2">
+                                        <label class="form-label mb-1">Fichier du résultat (PDF de préférence)</label>
+                                        <input type="file" class="form-control" name="fichier" id="resultatFichier">
+                                        <small class="text-muted">Un modèle Word/Excel peut être téléchargé, complété, puis joint ici une fois prêt.</small>
+                                    </div>
+                                </div>
+
+                                <div id="zoneModeEditeur" style="display:none;">
+                                    <div class="mb-2">
+                                        <label class="form-label mb-1">Charger un modèle (facultatif)</label>
+                                        <select class="form-select form-select-sm" id="resultatModeleSelect" onchange="chargerModeleDansEditeur()">
+                                            <option value="">-- Partir d'une page vierge --</option>
+                                        </select>
+                                    </div>
+                                    <label class="form-label mb-1">Contenu du résultat</label>
+                                    <div id="editeurResultat" style="height:220px; background:#fff;"></div>
+                                    <input type="hidden" name="contenu_html" id="resultatContenuHtml">
+                                    <input type="hidden" name="modele_utilise_id" id="resultatModeleUtiliseId">
+                                </div>
+
+                                <div class="row mt-2">
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">Statut</label>
                                         <select name="statut" class="form-select">
@@ -142,6 +222,88 @@
                                     </div>
                                 </div>
                             </form>
+
+                            <script>
+                            (function() {
+                                const TYPE_ANALYSE = {{ analyse.type_analyse | tojson }};
+                                let modeResultatActuel = 'texte';
+                                let quillEditeurResultat = null;
+
+                                window.choisirModeResultat = function(mode) {
+                                    modeResultatActuel = mode;
+                                    document.getElementById('ongletTexte').classList.toggle('active', mode === 'texte');
+                                    document.getElementById('ongletFichier').classList.toggle('active', mode === 'fichier');
+                                    document.getElementById('ongletEditeur').classList.toggle('active', mode === 'editeur');
+                                    document.getElementById('zoneModeTexte').style.display = mode === 'texte' ? 'block' : 'none';
+                                    document.getElementById('zoneModeFichier').style.display = mode === 'fichier' ? 'block' : 'none';
+                                    document.getElementById('zoneModeEditeur').style.display = mode === 'editeur' ? 'block' : 'none';
+                                    if (mode === 'editeur' && !quillEditeurResultat) {
+                                        quillEditeurResultat = new Quill('#editeurResultat', { theme: 'snow' });
+                                        quillEditeurResultat.on('text-change', () => {
+                                            document.getElementById('resultatContenuHtml').value = quillEditeurResultat.root.innerHTML;
+                                        });
+                                    }
+                                };
+
+                                window.chargerModeleDansEditeur = function() {
+                                    const modeleId = document.getElementById('resultatModeleSelect').value;
+                                    document.getElementById('resultatModeleUtiliseId').value = modeleId || '';
+                                    if (!modeleId || !quillEditeurResultat) return;
+                                    quillEditeurResultat.setText('Chargement du modèle...');
+                                    fetch(`/api/modeles-resultats/${modeleId}/convertir-html`).then(r => r.json()).then(data => {
+                                        if (document.getElementById('resultatModeleSelect').value !== modeleId) return;
+                                        if (data.success) {
+                                            quillEditeurResultat.setText('');
+                                            quillEditeurResultat.clipboard.dangerouslyPasteHTML(data.contenu_html || '');
+                                            document.getElementById('resultatContenuHtml').value = quillEditeurResultat.root.innerHTML;
+                                        } else {
+                                            quillEditeurResultat.setText('');
+                                            alert('Erreur : ' + (data.error || 'conversion impossible'));
+                                        }
+                                    });
+                                };
+
+                                window.changerSignatureSelectionnee = function() {
+                                    const val = document.getElementById('resultatSignatureSelect').value;
+                                    const apercuZone = document.getElementById('apercuSignatureResultatZone');
+                                    const texteLibre = document.getElementById('resultatNomInterprete');
+                                    if (val === '__autre__') {
+                                        apercuZone.style.display = 'none';
+                                        texteLibre.style.display = 'block';
+                                    } else if (val) {
+                                        texteLibre.style.display = 'none';
+                                        document.getElementById('apercuSignatureResultat').src = '/api/signatures-intervenants/' + val + '/image';
+                                        apercuZone.style.display = 'block';
+                                    } else {
+                                        apercuZone.style.display = 'none';
+                                        texteLibre.style.display = 'none';
+                                    }
+                                };
+
+                                const selectModele = document.getElementById('resultatModeleSelect');
+                                fetch(`/api/modeles-resultats?type_analyse=${TYPE_ANALYSE}`).then(r => r.json()).then(lignes => {
+                                    lignes.forEach(m => {
+                                        const label = m.a_contenu_html ? m.nom : `${m.nom} (Word/Excel — converti à l'ouverture)`;
+                                        selectModele.innerHTML += `<option value="${m.id}">${label}</option>`;
+                                    });
+                                });
+
+                                const select = document.getElementById('resultatSignatureSelect');
+                                fetch(`/api/signatures-intervenants?filiere=${TYPE_ANALYSE}&actif_seulement=1`)
+                                    .then(r => r.json())
+                                    .then(lignes => {
+                                        select.innerHTML = '<option value="">-- Aucune signature --</option>' +
+                                            lignes.map(s => `<option value="${s.id}">${TYPE_ANALYSE === 'BIOLOGIE' ? (s.titre + ' — ' + s.nom) : s.nom}</option>`).join('') +
+                                            '<option value="__autre__">Autre (saisie libre, sans signature)</option>';
+                                    });
+
+                                document.getElementById('formResultat').addEventListener('submit', function() {
+                                    if (modeResultatActuel === 'editeur' && quillEditeurResultat) {
+                                        document.getElementById('resultatContenuHtml').value = quillEditeurResultat.root.innerHTML;
+                                    }
+                                });
+                            })();
+                            </script>
                             
                             {% elif current_user.role == 'laborantin' and analyse.type_analyse == 'IMAGERIE' %}
                                 <div class="alert alert-warning mt-3 no-print">

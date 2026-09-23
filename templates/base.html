@@ -546,6 +546,16 @@
             </a>
             {% endif %}
 
+            <!-- ========== MODÈLES / SIGNATURES (résultats labo/radio) ========== -->
+            {% if current_user.role in ['laborantin', 'radiologue', 'secretaire', 'admin_structure'] %}
+            <a class="nav-link" href="{{ url_for('page_modeles_resultats') }}" title="Modèles de résultats">
+                <i class="fas fa-file-word"></i><span class="nav-text">Modèles de résultats</span>
+            </a>
+            <a class="nav-link" href="{{ url_for('page_signatures_intervenants') }}" title="Signatures électroniques">
+                <i class="fas fa-signature"></i><span class="nav-text">Signatures électroniques</span>
+            </a>
+            {% endif %}
+
             <!-- ========== REFERENCES ========== -->
             {% if current_user.role in ['medecin', 'admin_structure'] %}
             <a class="nav-link" href="{{ url_for('liste_references') }}" title="Références">

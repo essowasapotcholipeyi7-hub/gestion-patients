@@ -5377,46 +5377,102 @@ def detail_analyse(id):
 @app.route('/analyse/<int:id>/resultats', methods=['POST'])
 @login_required
 def saisir_resultats_analyse(id):
-    """Saisir les résultats d'une analyse (Laborantin ou Radiologue)"""
-    from models import AnalyseDemande, Consultation
+    """Saisir les résultats d'une analyse (Laborantin ou Radiologue) — texte
+    libre (historique, toujours possible), OU fichier importé, OU rédigé
+    dans l'éditeur en ligne, avec signature électronique pré-enregistrée
+    optionnelle (voir /signatures-intervenants) — même principe que GHP
+    (api_enregistrer_resultat, ResultatExamen), porté directement par
+    AnalyseDemande. Tout est optionnel/additif : la saisie texte simple
+    d'avant continue de fonctionner à l'identique si rien d'autre n'est
+    envoyé."""
+    from models import AnalyseDemande, Consultation, SignatureIntervenant
     from datetime import datetime
-    
+
     analyse = AnalyseDemande.query.get_or_404(id)
-    
+
     # ⭐ PERMISSIONS : Laborantin, Radiologue, Admin, Super Admin
     if current_user.role not in ['laborantin', 'radiologue', 'admin_structure', 'super_admin']:
         flash('Accès non autorisé - réservé au laborantin ou radiologue', 'danger')
         return redirect(url_for('dashboard'))
-    
+
     # ⭐ VÉRIFIER QUE LE RÔLE CORRESPOND AU TYPE D'ANALYSE
     if current_user.role == 'laborantin' and analyse.type_analyse != 'BIOLOGIE':
         flash('Accès non autorisé - vous ne pouvez saisir que les analyses de biologie', 'danger')
         return redirect(url_for('liste_analyses'))
-    
+
     if current_user.role == 'radiologue' and analyse.type_analyse != 'IMAGERIE':
         flash('Accès non autorisé - vous ne pouvez saisir que les examens d\'imagerie', 'danger')
         return redirect(url_for('liste_radiologie'))
-    
+
     if analyse.structure_id != current_user.id_structure:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('liste_analyses'))
-    
-    resultats = request.form.get('resultats')
+
+    resultats = (request.form.get('resultats') or '').strip()
     statut = request.form.get('statut', 'TERMINE')
-    
-    if not resultats and statut == 'TERMINE':
-        flash('Veuillez saisir les résultats', 'danger')
+    contenu_html = (request.form.get('contenu_html') or '').strip()
+    fichier = request.files.get('fichier')
+    modele_id = request.form.get('modele_utilise_id')
+    signature_choice = request.form.get('signature_id')  # id numérique, '__autre__', ou vide
+    nom_interprete_libre = (request.form.get('nom_interprete') or '').strip()
+
+    if statut == 'TERMINE' and not (resultats or contenu_html or (fichier and fichier.filename)):
+        flash('Veuillez saisir les résultats (texte, fichier ou contenu rédigé)', 'danger')
         return redirect(url_for('detail_analyse', id=id))
-    
+
+    # ⭐ Signature pré-enregistrée sélectionnée : sa signature s'appose
+    # automatiquement, COPIÉE (jamais relue plus tard) — voir le
+    # commentaire sur AnalyseDemande.signature_data (models.py).
+    nom_interprete = nom_interprete_libre or None
+    titre_interprete = None
+    signature_intervenant_id = None
+    signature_data = None
+    signature_mime = None
+    if signature_choice and signature_choice != '__autre__':
+        signature = SignatureIntervenant.query.filter_by(
+            id=signature_choice, structure_id=current_user.id_structure,
+            filiere=analyse.type_analyse, actif=True,
+        ).first()
+        if signature:
+            nom_interprete = signature.nom
+            titre_interprete = signature.titre
+            signature_intervenant_id = signature.id
+            signature_data = signature.signature_data
+            signature_mime = signature.signature_mime
+
     # Mettre à jour l'analyse
-    analyse.resultats = resultats
+    analyse.resultats = resultats or None
     analyse.statut = statut
     analyse.date_resultats = datetime.utcnow()
     analyse.resultats_par = current_user.id
-    
-    # Mettre à jour les résultats de la consultation
+    if fichier and fichier.filename:
+        analyse.fichier_nom = fichier.filename
+        analyse.fichier_mime = fichier.mimetype
+        analyse.fichier_data = fichier.read()
+        analyse.contenu_html = None
+    elif contenu_html:
+        analyse.contenu_html = contenu_html
+        analyse.fichier_nom = None
+        analyse.fichier_mime = None
+        analyse.fichier_data = None
+    if modele_id:
+        try:
+            analyse.modele_utilise_id = int(modele_id)
+        except ValueError:
+            pass
+    if nom_interprete:
+        analyse.nom_interprete = nom_interprete
+        analyse.titre_interprete = titre_interprete
+        analyse.signature_intervenant_id = signature_intervenant_id
+        analyse.signature_data = signature_data
+        analyse.signature_mime = signature_mime
+
+    # Mettre à jour les résultats de la consultation — uniquement pour le
+    # texte libre (comportement historique inchangé) ; un fichier/contenu
+    # riche reste consultable via /analyse/<id> ou l'impression, pas
+    # dupliqué en texte brut ici.
     consultation = Consultation.query.get(analyse.consultation_id)
-    if consultation:
+    if consultation and resultats:
         if analyse.type_analyse == 'BIOLOGIE':
             if consultation.resultats_biologie:
                 consultation.resultats_biologie += f"\n\n--- {analyse.nom_analyse} ---\n{resultats}"
@@ -5427,18 +5483,362 @@ def saisir_resultats_analyse(id):
                 consultation.resultats_imagerie += f"\n\n--- {analyse.nom_analyse} ---\n{resultats}"
             else:
                 consultation.resultats_imagerie = f"--- {analyse.nom_analyse} ---\n{resultats}"
-        
+
         consultation.date_resultats = datetime.utcnow()
-    
+
     db.session.commit()
-    
+
     flash('✅ Résultats enregistrés avec succès', 'success')
-    
+
     # ⭐ REDIRECTION SELON LE RÔLE
     if current_user.role == 'radiologue':
         return redirect(url_for('liste_radiologie'))
     else:
         return redirect(url_for('liste_analyses'))
+
+
+@app.route('/analyse/<int:id>/fichier')
+@login_required
+def telecharger_fichier_analyse(id):
+    """Sert le fichier de résultat joint à une AnalyseDemande (PDF de
+    préférence, Word/Excel accepté)."""
+    from models import AnalyseDemande
+    from flask import Response
+
+    analyse = AnalyseDemande.query.get_or_404(id)
+    if current_user.role != 'super_admin' and analyse.structure_id != current_user.id_structure:
+        return "Accès non autorisé", 403
+    if not analyse.fichier_data:
+        return "Ce résultat a été rédigé en ligne, pas de fichier joint.", 404
+    return Response(
+        analyse.fichier_data, mimetype=analyse.fichier_mime or 'application/octet-stream',
+        headers={'Content-Disposition': f'inline; filename="{analyse.fichier_nom or "resultat"}"'}
+    )
+
+
+@app.route('/analyse/<int:id>/signature-image')
+@login_required
+def image_signature_analyse(id):
+    """Sert l'image de signature FIGÉE sur cette analyse précise (jamais la
+    signature actuelle du registre — voir AnalyseDemande.signature_data)."""
+    from models import AnalyseDemande
+    from flask import Response
+
+    analyse = AnalyseDemande.query.get_or_404(id)
+    if current_user.role != 'super_admin' and analyse.structure_id != current_user.id_structure:
+        return "Accès non autorisé", 403
+    if not analyse.signature_data:
+        return "Introuvable", 404
+    return Response(analyse.signature_data, mimetype=analyse.signature_mime or 'image/png')
+
+
+# ================================================================
+# LABORATOIRE / RADIOLOGIE — Modèles de résultats (parité GHP)
+# ================================================================
+# ⭐ Un modèle (Word/Excel importé, ou rédigé en ligne) sert de point de
+# départ réutilisable pour la saisie d'un résultat — voir
+# saisir_resultats_analyse ci-dessus et le formulaire dans analyses/detail.html.
+def _acces_module_resultats():
+    return (current_user.role in ('laborantin', 'radiologue', 'secretaire', 'admin_structure'))
+
+
+@app.route('/modeles-resultats')
+@login_required
+def page_modeles_resultats():
+    if not _acces_module_resultats():
+        flash('Accès non autorisé pour votre rôle.', 'danger')
+        return redirect(url_for('dashboard'))
+    return render_template('analyses/modeles_liste.html')
+
+
+@app.route('/api/modeles-resultats', methods=['GET'])
+@login_required
+def api_lister_modeles_resultats():
+    from models import ModeleResultat
+    q = ModeleResultat.query.filter_by(structure_id=current_user.id_structure)
+    type_analyse = request.args.get('type_analyse')
+    if type_analyse:
+        q = q.filter_by(type_analyse=type_analyse)
+    lignes = q.order_by(ModeleResultat.type_analyse, ModeleResultat.nom).all()
+    return jsonify([{
+        'id': l.id, 'nom': l.nom, 'type_analyse': l.type_analyse,
+        'fichier_nom': l.fichier_nom, 'a_contenu_html': bool(l.contenu_html),
+        'created_at': l.created_at.strftime('%d/%m/%Y') if l.created_at else '',
+    } for l in lignes])
+
+
+@app.route('/api/modeles-resultats/<int:modele_id>/contenu', methods=['GET'])
+@login_required
+def api_contenu_modele_resultat(modele_id):
+    from models import ModeleResultat
+    modele = ModeleResultat.query.filter_by(id=modele_id, structure_id=current_user.id_structure).first()
+    if not modele:
+        return jsonify({'success': False, 'error': 'Introuvable'}), 404
+    return jsonify({'success': True, 'contenu_html': modele.contenu_html or ''})
+
+
+def _aplatir_tableaux_html(html):
+    """Remplace chaque <table> par un paragraphe par ligne — l'éditeur en
+    ligne (Quill) n'a pas de module tableau et aplatit silencieusement tout
+    <table> en un seul bloc de texte collé sans espaces ni sauts de ligne."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, 'html.parser')
+    for table in soup.find_all('table'):
+        remplacement = soup.new_tag('div')
+        for tr in table.find_all('tr'):
+            valeurs = [c.get_text(strip=True) for c in tr.find_all(['td', 'th'])]
+            valeurs = [v for v in valeurs if v]
+            if valeurs:
+                p = soup.new_tag('p')
+                p.string = ' — '.join(valeurs)
+                remplacement.append(p)
+        table.replace_with(remplacement)
+    return str(soup)
+
+
+def _convertir_fichier_en_html(fichier_data, fichier_nom, fichier_mime):
+    """Convertit un modèle Word (.docx) ou Excel (.xlsx) importé en HTML
+    éditable. Les anciens formats binaires .doc/.xls (pré-2007) ne sont pas
+    lisibles ainsi — message clair invitant à réenregistrer en .docx/.xlsx."""
+    nom = (fichier_nom or '').lower()
+    mime = (fichier_mime or '').lower()
+
+    if nom.endswith('.docx') or 'wordprocessingml' in mime:
+        import mammoth
+        from io import BytesIO
+        resultat = mammoth.convert_to_html(BytesIO(fichier_data))
+        return _aplatir_tableaux_html(resultat.value), None
+
+    if nom.endswith('.xlsx') or 'spreadsheetml' in mime:
+        import openpyxl
+        from io import BytesIO
+        from markupsafe import escape
+        wb = openpyxl.load_workbook(BytesIO(fichier_data), data_only=True)
+        ws = wb.active
+        lignes_html = []
+        for row in ws.iter_rows():
+            valeurs = [str(c.value) for c in row if c.value is not None and str(c.value).strip()]
+            if valeurs:
+                lignes_html.append(f'<p>{escape(" — ".join(valeurs))}</p>')
+        html = ''.join(lignes_html) or '<p></p>'
+        return html, None
+
+    return None, "Conversion non prise en charge pour ce type de fichier (.doc/.xls ancien format, PDF...) — réenregistrez-le en .docx/.xlsx depuis Word/Excel, ou retapez le contenu directement."
+
+
+@app.route('/api/modeles-resultats/<int:modele_id>/convertir-html', methods=['GET'])
+@login_required
+def api_convertir_modele_html(modele_id):
+    from models import ModeleResultat
+    modele = ModeleResultat.query.filter_by(id=modele_id, structure_id=current_user.id_structure).first()
+    if not modele:
+        return jsonify({'success': False, 'error': 'Introuvable'}), 404
+    if modele.contenu_html:
+        return jsonify({'success': True, 'contenu_html': modele.contenu_html})
+    if not modele.fichier_data:
+        return jsonify({'success': False, 'error': 'Aucun fichier à convertir'}), 400
+    try:
+        html, erreur = _convertir_fichier_en_html(modele.fichier_data, modele.fichier_nom, modele.fichier_mime)
+        if erreur:
+            return jsonify({'success': False, 'error': erreur}), 400
+        return jsonify({'success': True, 'contenu_html': html})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Échec de la conversion : {e}'}), 500
+
+
+@app.route('/api/modeles-resultats/<int:modele_id>/contenu', methods=['PUT'])
+@login_required
+def api_definir_contenu_modele(modele_id):
+    from models import ModeleResultat
+    try:
+        modele = ModeleResultat.query.filter_by(id=modele_id, structure_id=current_user.id_structure).first()
+        if not modele:
+            return jsonify({'success': False, 'error': 'Introuvable'}), 404
+        contenu_html = (request.json.get('contenu_html') or '').strip()
+        if not contenu_html:
+            return jsonify({'success': False, 'error': 'Contenu vide'}), 400
+        modele.contenu_html = contenu_html
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/modeles-resultats', methods=['POST'])
+@login_required
+def api_creer_modele_resultat():
+    from models import ModeleResultat
+    try:
+        nom = (request.form.get('nom') or '').strip()
+        type_analyse = request.form.get('type_analyse')
+        fichier = request.files.get('fichier')
+        contenu_html = (request.form.get('contenu_html') or '').strip()
+
+        if not nom or not (fichier or contenu_html):
+            return jsonify({'success': False, 'error': 'Nom et (fichier ou contenu) requis'}), 400
+        if type_analyse not in ('BIOLOGIE', 'IMAGERIE'):
+            return jsonify({'success': False, 'error': "type_analyse doit être 'BIOLOGIE' ou 'IMAGERIE'"}), 400
+
+        modele = ModeleResultat(
+            structure_id=current_user.id_structure, type_analyse=type_analyse, nom=nom,
+            fichier_nom=fichier.filename if fichier else None,
+            fichier_mime=fichier.mimetype if fichier else None,
+            fichier_data=fichier.read() if fichier else None,
+            contenu_html=contenu_html or None,
+            created_by=f"{current_user.prenom} {current_user.nom}",
+        )
+        db.session.add(modele)
+        db.session.commit()
+        return jsonify({'success': True, 'id': modele.id})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/modeles-resultats/<int:modele_id>/fichier', methods=['GET'])
+@login_required
+def api_telecharger_modele_resultat(modele_id):
+    from models import ModeleResultat
+    from flask import Response
+    modele = ModeleResultat.query.filter_by(id=modele_id, structure_id=current_user.id_structure).first()
+    if not modele:
+        return "Modèle introuvable", 404
+    if not modele.fichier_data:
+        return "Ce modèle est rédigé en ligne, pas de fichier à télécharger.", 404
+    return Response(
+        modele.fichier_data, mimetype=modele.fichier_mime or 'application/octet-stream',
+        headers={'Content-Disposition': f'attachment; filename="{modele.fichier_nom or "modele"}"'}
+    )
+
+
+@app.route('/api/modeles-resultats/<int:modele_id>', methods=['DELETE'])
+@login_required
+def api_supprimer_modele_resultat(modele_id):
+    from models import ModeleResultat
+    try:
+        modele = ModeleResultat.query.filter_by(id=modele_id, structure_id=current_user.id_structure).first()
+        if not modele:
+            return jsonify({'success': False, 'error': 'Introuvable'}), 404
+        db.session.delete(modele)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================================================
+# LABORATOIRE / RADIOLOGIE — Signatures électroniques (parité GHP)
+# ================================================================
+TITRES_LABORATOIRE = [
+    'Ingénieur de laboratoire',
+    'Technicien supérieur de laboratoire',
+    'Biologiste',
+    'Médecin Biologiste',
+]
+
+
+@app.route('/signatures-intervenants')
+@login_required
+def page_signatures_intervenants():
+    if not _acces_module_resultats():
+        flash('Accès non autorisé pour votre rôle.', 'danger')
+        return redirect(url_for('dashboard'))
+    return render_template('analyses/signatures_liste.html', titres_laboratoire=TITRES_LABORATOIRE)
+
+
+@app.route('/api/signatures-intervenants', methods=['GET'])
+@login_required
+def api_lister_signatures_intervenants():
+    from models import SignatureIntervenant
+    q = SignatureIntervenant.query.filter_by(structure_id=current_user.id_structure)
+    filiere = request.args.get('filiere')
+    if filiere:
+        q = q.filter_by(filiere=filiere)
+    if request.args.get('actif_seulement'):
+        q = q.filter_by(actif=True)
+    lignes = q.order_by(SignatureIntervenant.filiere, SignatureIntervenant.nom).all()
+    return jsonify([{
+        'id': l.id, 'filiere': l.filiere, 'nom': l.nom, 'titre': l.titre,
+        'actif': l.actif, 'created_at': l.created_at.strftime('%d/%m/%Y') if l.created_at else '',
+    } for l in lignes])
+
+
+@app.route('/api/signatures-intervenants', methods=['POST'])
+@login_required
+def api_creer_signature_intervenant():
+    from models import SignatureIntervenant
+    try:
+        filiere = request.form.get('filiere')
+        nom = (request.form.get('nom') or '').strip()
+        titre = (request.form.get('titre') or '').strip()
+        fichier = request.files.get('fichier')
+
+        if filiere not in ('BIOLOGIE', 'IMAGERIE'):
+            return jsonify({'success': False, 'error': "filiere doit être 'BIOLOGIE' ou 'IMAGERIE'"}), 400
+        if not nom:
+            return jsonify({'success': False, 'error': 'Le nom est obligatoire'}), 400
+        if filiere == 'BIOLOGIE' and titre not in TITRES_LABORATOIRE:
+            return jsonify({'success': False, 'error': 'Titre invalide pour un biologiste'}), 400
+        if not fichier:
+            return jsonify({'success': False, 'error': 'Image de signature requise'}), 400
+
+        signature = SignatureIntervenant(
+            structure_id=current_user.id_structure, filiere=filiere, nom=nom,
+            titre=titre if filiere == 'BIOLOGIE' else None,
+            signature_data=fichier.read(), signature_mime=fichier.mimetype,
+            created_by=f"{current_user.prenom} {current_user.nom}",
+        )
+        db.session.add(signature)
+        db.session.commit()
+        return jsonify({'success': True, 'id': signature.id})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/signatures-intervenants/<int:signature_id>/image', methods=['GET'])
+@login_required
+def api_image_signature_intervenant(signature_id):
+    from models import SignatureIntervenant
+    from flask import Response
+    signature = SignatureIntervenant.query.filter_by(id=signature_id, structure_id=current_user.id_structure).first()
+    if not signature:
+        return "Introuvable", 404
+    return Response(signature.signature_data, mimetype=signature.signature_mime or 'image/png')
+
+
+@app.route('/api/signatures-intervenants/<int:signature_id>/toggle', methods=['POST'])
+@login_required
+def api_toggle_signature_intervenant(signature_id):
+    from models import SignatureIntervenant
+    try:
+        signature = SignatureIntervenant.query.filter_by(id=signature_id, structure_id=current_user.id_structure).first()
+        if not signature:
+            return jsonify({'success': False, 'error': 'Introuvable'}), 404
+        signature.actif = not signature.actif
+        db.session.commit()
+        return jsonify({'success': True, 'actif': signature.actif})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/signatures-intervenants/<int:signature_id>', methods=['DELETE'])
+@login_required
+def api_supprimer_signature_intervenant(signature_id):
+    from models import SignatureIntervenant
+    try:
+        signature = SignatureIntervenant.query.filter_by(id=signature_id, structure_id=current_user.id_structure).first()
+        if not signature:
+            return jsonify({'success': False, 'error': 'Introuvable'}), 404
+        db.session.delete(signature)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/analyse/<int:id>/imprimer')
 @login_required

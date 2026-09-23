@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}Modèles de résultats{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h4 class="mb-0"><i class="fas fa-file-word me-2"></i>Modèles de résultats</h4>
+    <div>
+        <button class="btn btn-outline-dark btn-sm" onclick="ouvrirModalModele('fichier')">
+            <i class="fas fa-upload me-1"></i> Importer un fichier
+        </button>
+        <button class="btn btn-dark btn-sm" onclick="ouvrirModalModele('editeur')">
+            <i class="fas fa-keyboard me-1"></i> Rédiger en ligne
+        </button>
+    </div>
+</div>
+
+<div class="alert alert-info">
+    <i class="fas fa-info-circle me-1"></i>
+    Un modèle <strong>rédigé en ligne</strong> peut être chargé directement dans l'éditeur au moment de saisir un
+    résultat — plus besoin de Word/Excel. Un modèle <strong>fichier</strong> reste un simple point de départ à
+    télécharger, compléter sur votre poste, puis joindre une fois prêt.
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white"><i class="fas fa-vial me-1"></i> Biologie</div>
+            <div class="card-body p-0"><div id="listeModelesBiologie"><div class="text-center text-muted py-4">Chargement...</div></div></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white"><i class="fas fa-x-ray me-1"></i> Imagerie</div>
+            <div class="card-body p-0"><div id="listeModelesImagerie"><div class="text-center text-muted py-4">Chargement...</div></div></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalModele" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalModeleTitre"><i class="fas fa-upload me-2"></i>Importer un modèle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label mb-1">Nom du modèle <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="modeleNom" placeholder="Ex. NFS type, Radio thorax type...">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label mb-1">Filière</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="modeleType" id="modeleBiologie" value="BIOLOGIE" checked>
+                        <label class="btn btn-outline-primary" for="modeleBiologie"><i class="fas fa-vial me-1"></i>Biologie</label>
+                        <input type="radio" class="btn-check" name="modeleType" id="modeleImagerie" value="IMAGERIE">
+                        <label class="btn btn-outline-success" for="modeleImagerie"><i class="fas fa-x-ray me-1"></i>Imagerie</label>
+                    </div>
+                </div>
+                <div class="mb-2" id="modeleZoneFichier">
+                    <label class="form-label mb-1">Fichier (.docx, .xlsx...) <span class="text-danger">*</span></label>
+                    <input type="file" class="form-control" id="modeleFichier">
+                </div>
+                <div class="mb-2" id="modeleZoneEditeur" style="display:none;">
+                    <label class="form-label mb-1">Contenu du modèle</label>
+                    <div id="editeurModele" style="height:260px; background:#fff;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="enregistrerModele()">
+                    <i class="fas fa-check me-1"></i> Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let modeModeleActuel = 'fichier';
+let quillEditeurModele = null;
+let modeleEnConversionId = null;
+
+function ouvrirModalModele(mode) {
+    modeModeleActuel = mode;
+    modeleEnConversionId = null;
+    document.getElementById('modeleNom').value = '';
+    document.getElementById('modeleFichier').value = '';
+    document.getElementById('modeleBiologie').checked = true;
+    document.getElementById('modeleZoneFichier').style.display = mode === 'fichier' ? 'block' : 'none';
+    document.getElementById('modeleZoneEditeur').style.display = mode === 'editeur' ? 'block' : 'none';
+    document.getElementById('modalModeleTitre').innerHTML = mode === 'fichier'
+        ? '<i class="fas fa-upload me-2"></i>Importer un modèle'
+        : '<i class="fas fa-keyboard me-2"></i>Rédiger un modèle en ligne';
+    if (mode === 'editeur') {
+        if (!quillEditeurModele) quillEditeurModele = new Quill('#editeurModele', { theme: 'snow' });
+        quillEditeurModele.setText('');
+    }
+    new bootstrap.Modal(document.getElementById('modalModele')).show();
+}
+
+function ouvrirModeleDansEditeur(id, nom, typeAnalyse) {
+    modeModeleActuel = 'editeur';
+    modeleEnConversionId = id;
+    document.getElementById('modeleNom').value = nom;
+    document.getElementById('modeleFichier').value = '';
+    document.getElementById(typeAnalyse === 'BIOLOGIE' ? 'modeleBiologie' : 'modeleImagerie').checked = true;
+    document.getElementById('modeleZoneFichier').style.display = 'none';
+    document.getElementById('modeleZoneEditeur').style.display = 'block';
+    document.getElementById('modalModeleTitre').innerHTML = '<i class="fas fa-keyboard me-2"></i>Modifier dans l\'éditeur';
+    if (!quillEditeurModele) quillEditeurModele = new Quill('#editeurModele', { theme: 'snow' });
+    quillEditeurModele.setText('Conversion en cours...');
+    new bootstrap.Modal(document.getElementById('modalModele')).show();
+
+    fetch(`/api/modeles-resultats/${id}/convertir-html`).then(r => r.json()).then(data => {
+        if (modeleEnConversionId !== id) return;
+        if (data.success) {
+            quillEditeurModele.setText('');
+            quillEditeurModele.clipboard.dangerouslyPasteHTML(data.contenu_html || '');
+        } else {
+            quillEditeurModele.setText('');
+            alert('Erreur : ' + (data.error || 'conversion impossible'));
+        }
+    });
+}
+
+function enregistrerModele() {
+    const nom = document.getElementById('modeleNom').value.trim();
+    if (!nom) { alert('Le nom est obligatoire.'); return; }
+
+    if (modeleEnConversionId) {
+        if (!quillEditeurModele || quillEditeurModele.getText().trim().length === 0) {
+            alert('Le contenu ne peut pas être vide.'); return;
+        }
+        fetch(`/api/modeles-resultats/${modeleEnConversionId}/contenu`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contenu_html: quillEditeurModele.root.innerHTML })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('modalModele')).hide();
+                    chargerModeles();
+                } else {
+                    alert('Erreur : ' + (data.error || 'inconnue'));
+                }
+            })
+            .catch(e => alert('Erreur : ' + e));
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append('nom', nom);
+    fd.append('type_analyse', document.querySelector('input[name="modeleType"]:checked').value);
+
+    if (modeModeleActuel === 'fichier') {
+        const fichier = document.getElementById('modeleFichier').files[0];
+        if (!fichier) { alert('Choisissez un fichier.'); return; }
+        fd.append('fichier', fichier);
+    } else {
+        if (!quillEditeurModele || quillEditeurModele.getText().trim().length === 0) {
+            alert('Rédigez le contenu du modèle.'); return;
+        }
+        fd.append('contenu_html', quillEditeurModele.root.innerHTML);
+    }
+
+    fetch('/api/modeles-resultats', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('modalModele')).hide();
+                chargerModeles();
+            } else {
+                alert('Erreur : ' + (data.error || 'inconnue'));
+            }
+        })
+        .catch(e => alert('Erreur : ' + e));
+}
+
+function supprimerModele(id) {
+    if (!confirm('Supprimer ce modèle ?')) return;
+    fetch('/api/modeles-resultats/' + id, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => { if (data.success) chargerModeles(); else alert('Erreur : ' + (data.error || 'inconnue')); });
+}
+
+function chargerModeles() {
+    fetch('/api/modeles-resultats').then(r => r.json()).then(lignes => {
+        const rendre = (liste) => liste.length
+            ? '<div class="list-group list-group-flush">' + liste.map(m => `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold">${m.nom} ${m.a_contenu_html ? '<span class="badge bg-info">En ligne</span>' : '<span class="badge bg-secondary">Fichier</span>'}</div>
+                        <div class="text-muted small">${m.a_contenu_html ? 'Prêt à charger dans l\'éditeur' : m.fichier_nom} — ${m.created_at}</div>
+                    </div>
+                    <div>
+                        ${m.a_contenu_html ? '' : `
+                            <button class="btn btn-sm btn-outline-success" onclick='ouvrirModeleDansEditeur(${m.id}, ${JSON.stringify(m.nom)}, ${JSON.stringify(m.type_analyse)})' title="Ouvrir dans l'éditeur"><i class="fas fa-keyboard"></i></button>
+                            <a href="/api/modeles-resultats/${m.id}/fichier" target="_blank" class="btn btn-sm btn-outline-primary" title="Télécharger"><i class="fas fa-download"></i></a>
+                        `}
+                        <button class="btn btn-sm btn-outline-danger" onclick="supprimerModele(${m.id})" title="Supprimer"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>`).join('') + '</div>'
+            : '<div class="text-center text-muted py-4">Aucun modèle pour le moment.</div>';
+        document.getElementById('listeModelesBiologie').innerHTML = rendre(lignes.filter(l => l.type_analyse === 'BIOLOGIE'));
+        document.getElementById('listeModelesImagerie').innerHTML = rendre(lignes.filter(l => l.type_analyse === 'IMAGERIE'));
+    });
+}
+
+chargerModeles();
+</script>
+
+{% endblock %}

@@ -667,10 +667,41 @@ class AnalyseDemande(db.Model):
     # vrai lien fiable, et évite les doublons si l'examen est modifié.
     examen_prescrit_id = db.Column(db.Integer, db.ForeignKey('examens_prescrits.id'), nullable=True)
 
+    # ⭐ Résultat riche (fichier/éditeur en ligne + signature figée) — même
+    # principe que ResultatExamen côté GHP, mais porté directement par
+    # AnalyseDemande (pas de table séparée) puisqu'ici une seule saisie de
+    # résultat existe par demande, contrairement à GHP qui permet plusieurs
+    # essais/versions. `resultats` (texte libre, ci-dessus) reste le repli
+    # historique quand aucun des deux n'est utilisé. fichier_data/
+    # contenu_html : au plus un des deux rempli, jamais les deux (vérifié
+    # côté route saisir_resultats_analyse).
+    fichier_nom = db.Column(db.String(255), nullable=True)
+    fichier_mime = db.Column(db.String(100), nullable=True)
+    fichier_data = db.Column(db.LargeBinary, nullable=True)
+    contenu_html = db.Column(db.Text, nullable=True)
+    modele_utilise_id = db.Column(db.Integer, nullable=True)  # traçabilité seulement
+    nom_interprete = db.Column(db.String(200), nullable=True)  # biologiste (BIOLOGIE) / radiologue (IMAGERIE)
+    # ⭐ Signature électronique — COPIE figée (snapshot) de SignatureIntervenant
+    # au moment de la saisie, jamais une clé étrangère vive relue plus tard :
+    # si la signature enregistrée de la personne change ensuite, un résultat
+    # déjà signé dans le passé ne doit jamais changer rétroactivement.
+    signature_intervenant_id = db.Column(db.Integer, nullable=True)  # traçabilité seulement
+    titre_interprete = db.Column(db.String(100), nullable=True)
+    signature_data = db.Column(db.LargeBinary, nullable=True)
+    signature_mime = db.Column(db.String(100), nullable=True)
+
+    # ⭐ Traçabilité de synchro avec GHP (posées ici, utilisées à partir de
+    # la Phase 2/3 — voir le plan) : d'où vient cette ligne si elle a été
+    # reçue de l'autre application plutôt que saisie ici.
+    source_app = db.Column(db.String(20), nullable=True)  # 'ghp' si reçu de GHP, NULL si local
+    source_model = db.Column(db.String(50), nullable=True)
+    source_id = db.Column(db.Integer, nullable=True)
+    source_synced_at = db.Column(db.DateTime, nullable=True)
+
     # Métadonnées
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
-    
+
     # ⭐ RELATIONS
     consultation = db.relationship('Consultation', backref='analyses_demandees')
     hospitalisation = db.relationship('Hospitalisation', backref='analyses_demandees')  # ⭐ AJOUTER
@@ -678,6 +709,54 @@ class AnalyseDemande(db.Model):
     structure = db.relationship('Structure', backref='analyses_demandees')
     prescripteur = db.relationship('Utilisateur', foreign_keys=[prescrit_par], backref='analyses_prescrites')
     responsable = db.relationship('Utilisateur', foreign_keys=[resultats_par], backref='analyses_resultats')
+
+
+# ⭐ Modèle de résultat (Word/Excel importé ou rédigé en ligne) réutilisable —
+# miroir de ModeleResultat côté GHP (models.py:2601). type_analyse en
+# 'BIOLOGIE'/'IMAGERIE' pour coller au vocabulaire déjà en place dans
+# AnalyseDemande (GHP utilise 'analyse'/'examen' ; la correspondance vivra
+# dans le code de synchro, Phase 2). Stocké en base (bytea), pas sur le
+# disque du serveur.
+class ModeleResultat(db.Model):
+    __tablename__ = 'modeles_resultats'
+    id = db.Column(db.Integer, primary_key=True)
+    structure_id = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False)
+    type_analyse = db.Column(db.String(20), nullable=False)  # 'BIOLOGIE' | 'IMAGERIE'
+    nom = db.Column(db.String(200), nullable=False)
+    fichier_nom = db.Column(db.String(255), nullable=True)
+    fichier_mime = db.Column(db.String(100), nullable=True)
+    fichier_data = db.Column(db.LargeBinary, nullable=True)
+    contenu_html = db.Column(db.Text, nullable=True)
+    source_app = db.Column(db.String(20), nullable=True)
+    source_model = db.Column(db.String(50), nullable=True)
+    source_id = db.Column(db.Integer, nullable=True)
+    source_synced_at = db.Column(db.DateTime, nullable=True)
+    created_by = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    structure = db.relationship('Structure', backref='modeles_resultats')
+
+
+# ⭐ Registre des signatures électroniques pré-enregistrées — miroir de
+# SignatureIntervenant côté GHP (models.py:2677). Une signature (photo/scan
+# d'une vraie signature sur papier blanc) enregistrée une fois s'appose
+# ensuite automatiquement sur chaque résultat saisi (voir
+# AnalyseDemande.signature_data pour comment elle est figée à l'usage).
+class SignatureIntervenant(db.Model):
+    __tablename__ = 'signatures_intervenants'
+    id = db.Column(db.Integer, primary_key=True)
+    structure_id = db.Column(db.Integer, db.ForeignKey('structures.id'), nullable=False)
+    filiere = db.Column(db.String(20), nullable=False)  # 'BIOLOGIE' | 'IMAGERIE'
+    nom = db.Column(db.String(200), nullable=False)
+    titre = db.Column(db.String(100), nullable=True)  # un des titres labo ; vide pour la radio
+    signature_data = db.Column(db.LargeBinary, nullable=False)
+    signature_mime = db.Column(db.String(100), nullable=True)
+    actif = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    structure = db.relationship('Structure', backref='signatures_intervenants')
+
 
 class Reference(db.Model):
     __tablename__ = 'references'

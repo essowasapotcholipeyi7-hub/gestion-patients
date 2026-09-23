@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Signatures électroniques{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h4 class="mb-0"><i class="fas fa-signature me-2"></i>Signatures électroniques</h4>
+</div>
+
+<div class="alert alert-info">
+    <i class="fas fa-info-circle me-1"></i>
+    <strong>Comment faire :</strong> signez sur une feuille blanche, prenez-la en photo bien cadrée (fond clair, pas
+    d'ombre) ou scannez-la, puis importez cette image ici. Elle s'appliquera ensuite automatiquement sur les
+    résultats — plus besoin d'imprimer, signer à la main puis scanner à chaque fois.
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-vial me-1"></i> Laboratoire</span>
+                <button class="btn btn-sm btn-light" onclick="ouvrirModalSignature('BIOLOGIE')">
+                    <i class="fas fa-plus me-1"></i> Ajouter
+                </button>
+            </div>
+            <div class="card-body p-0"><div id="listeSignaturesBiologie"><div class="text-center text-muted py-4">Chargement...</div></div></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-x-ray me-1"></i> Radiologie</span>
+                <button class="btn btn-sm btn-light" onclick="ouvrirModalSignature('IMAGERIE')">
+                    <i class="fas fa-plus me-1"></i> Ajouter
+                </button>
+            </div>
+            <div class="card-body p-0"><div id="listeSignaturesImagerie"><div class="text-center text-muted py-4">Chargement...</div></div></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalSignature" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-signature me-2"></i>Nouvelle signature</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="signatureFiliere">
+                <div class="mb-2">
+                    <label class="form-label mb-1">Nom <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="signatureNom" placeholder="Ex. Dr Koffi Mensah">
+                </div>
+                <div class="mb-2" id="blocTitreSignature">
+                    <label class="form-label mb-1">Titre <span class="text-danger">*</span></label>
+                    <select class="form-select" id="signatureTitre">
+                        <option value="">-- Sélectionner --</option>
+                        {% for t in titres_laboratoire %}
+                        <option value="{{ t }}">{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label mb-1">Image de la signature <span class="text-danger">*</span></label>
+                    <input type="file" class="form-control" id="signatureFichier" accept="image/*" onchange="previsualiserSignature()">
+                    <div class="text-center mt-2" id="apercuSignatureZone" style="display:none;">
+                        <img id="apercuSignature" style="max-height:80px; max-width:100%; border:1px solid #dee2e6; border-radius:6px; padding:4px; background:#fff;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="enregistrerSignature()">
+                    <i class="fas fa-check me-1"></i> Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function ouvrirModalSignature(filiere) {
+    document.getElementById('signatureFiliere').value = filiere;
+    document.getElementById('signatureNom').value = '';
+    document.getElementById('signatureTitre').value = '';
+    document.getElementById('signatureFichier').value = '';
+    document.getElementById('apercuSignatureZone').style.display = 'none';
+    document.getElementById('blocTitreSignature').style.display = filiere === 'BIOLOGIE' ? '' : 'none';
+    document.querySelector('.modal-title').innerHTML = filiere === 'BIOLOGIE'
+        ? '<i class="fas fa-signature me-2"></i>Nouvelle signature — Laboratoire'
+        : '<i class="fas fa-signature me-2"></i>Nouvelle signature — Radiologie';
+    new bootstrap.Modal(document.getElementById('modalSignature')).show();
+}
+
+function previsualiserSignature() {
+    const fichier = document.getElementById('signatureFichier').files[0];
+    const zone = document.getElementById('apercuSignatureZone');
+    if (!fichier) { zone.style.display = 'none'; return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+        document.getElementById('apercuSignature').src = e.target.result;
+        zone.style.display = 'block';
+    };
+    reader.readAsDataURL(fichier);
+}
+
+function enregistrerSignature() {
+    const filiere = document.getElementById('signatureFiliere').value;
+    const nom = document.getElementById('signatureNom').value.trim();
+    const titre = document.getElementById('signatureTitre').value;
+    const fichier = document.getElementById('signatureFichier').files[0];
+    if (!nom) { alert('Le nom est obligatoire.'); return; }
+    if (filiere === 'BIOLOGIE' && !titre) { alert('Le titre est obligatoire pour le laboratoire.'); return; }
+    if (!fichier) { alert("Choisissez l'image de la signature."); return; }
+
+    const fd = new FormData();
+    fd.append('filiere', filiere);
+    fd.append('nom', nom);
+    fd.append('titre', titre);
+    fd.append('fichier', fichier);
+
+    fetch('/api/signatures-intervenants', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('modalSignature')).hide();
+                chargerSignatures();
+            } else {
+                alert('Erreur : ' + (data.error || 'inconnue'));
+            }
+        })
+        .catch(e => alert('Erreur : ' + e));
+}
+
+function toggleSignature(id) {
+    fetch('/api/signatures-intervenants/' + id + '/toggle', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => { if (data.success) chargerSignatures(); else alert('Erreur : ' + (data.error || 'inconnue')); });
+}
+
+function supprimerSignature(id) {
+    if (!confirm('Supprimer définitivement cette signature ? Les résultats déjà imprimés avec ne changent pas.')) return;
+    fetch('/api/signatures-intervenants/' + id, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => { if (data.success) chargerSignatures(); else alert('Erreur : ' + (data.error || 'inconnue')); });
+}
+
+function chargerSignatures() {
+    fetch('/api/signatures-intervenants').then(r => r.json()).then(lignes => {
+        const rendre = (liste) => liste.length
+            ? '<div class="list-group list-group-flush">' + liste.map(s => `
+                <div class="list-group-item d-flex justify-content-between align-items-center ${s.actif ? '' : 'opacity-50'}">
+                    <div class="d-flex align-items-center gap-2">
+                        <img src="/api/signatures-intervenants/${s.id}/image" style="height:36px; max-width:90px; object-fit:contain; border:1px solid #eee; border-radius:4px; background:#fff;">
+                        <div>
+                            <div class="fw-bold">${s.nom}</div>
+                            <div class="text-muted small">${s.titre || ''}${s.actif ? '' : ' — désactivée'}</div>
+                        </div>
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleSignature(${s.id})" title="${s.actif ? 'Désactiver' : 'Réactiver'}">
+                            <i class="fas fa-${s.actif ? 'eye-slash' : 'eye'}"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="supprimerSignature(${s.id})" title="Supprimer">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`).join('') + '</div>'
+            : '<div class="text-center text-muted py-4">Aucune signature enregistrée.</div>';
+        document.getElementById('listeSignaturesBiologie').innerHTML = rendre(lignes.filter(l => l.filiere === 'BIOLOGIE'));
+        document.getElementById('listeSignaturesImagerie').innerHTML = rendre(lignes.filter(l => l.filiere === 'IMAGERIE'));
+    });
+}
+
+chargerSignatures();
+</script>
+
+{% endblock %}
