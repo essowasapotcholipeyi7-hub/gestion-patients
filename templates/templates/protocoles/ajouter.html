@@ -13,16 +13,38 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST">
+                    <!-- ⭐ IMPORT DEPUIS UN FICHIER (Word/PDF) DEJA PREPARE -->
+                    <div class="card mb-3 border-secondary">
+                        <div class="card-body py-2">
+                            <label class="form-label fw-bold mb-1">
+                                <i class="fas fa-file-import me-1"></i>Importer depuis un fichier (optionnel)
+                            </label>
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <input type="file" id="protocoleFichier" class="form-control" accept=".docx,.pdf">
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="button" class="btn btn-outline-secondary w-100" onclick="importerFichierProtocole()">
+                                        <i class="fas fa-upload me-1"></i>Importer
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted mt-1 d-block">
+                                Un protocole deja redige (.docx ou .pdf) : le nom et la description sont pre-remplis a partir du texte extrait — verifiez/completez avant d'enregistrer.
+                            </small>
+                        </div>
+                    </div>
+
+                    <form method="POST" id="protocoleForm">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Nom du protocole <span class="text-danger">*</span></label>
-                            <input type="text" name="nom" class="form-control" 
+                            <input type="text" name="nom" id="protocoleNom" class="form-control"
                                    placeholder="Ex: Paludisme grave, Pneumopathie..." required>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label fw-bold">Description / Etapes <span class="text-danger">*</span></label>
-                            <textarea name="description" class="form-control" rows="6" required
+                            <textarea name="description" id="protocoleDescription" class="form-control" rows="6" required
                                       placeholder="1. Administrer Artesunate inj 2.4mg/kg a H0, H12, H24&#10;2. Surveiller les constantes toutes les 2h&#10;3. Si pas d'amelioration apres 6h, repeter la dose&#10;4. Realiser un bilan biologique : NFS, CRP, Glycemie"></textarea>
                             <small class="text-muted">Decrivez les etapes du protocole (une etape par ligne).</small>
                         </div>
@@ -64,4 +86,66 @@
         </div>
     </div>
 </div>
+
+<script>
+// ⭐ Empêche Entrée dans le champ "nom" de soumettre le formulaire avant
+// que l'utilisateur ait fini de completer/verifier la description.
+document.getElementById('protocoleForm').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.type !== 'submit') {
+        e.preventDefault();
+    }
+});
+
+// ⭐ IMPORT DEPUIS UN FICHIER (Word/PDF) — extrait le texte cote serveur
+// et pre-remplit nom/description ; l'utilisateur verifie/corrige avant
+// d'enregistrer (rien n'est sauvegarde par cet appel).
+function importerFichierProtocole() {
+    const input = document.getElementById('protocoleFichier');
+    const fichier = input.files[0];
+    if (!fichier) {
+        showToastProtocole('Choisissez un fichier .docx ou .pdf', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('fichier', fichier);
+
+    fetch('/api/import-fichier-texte', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                showToastProtocole(data.error || 'Echec de l\'import', 'danger');
+                return;
+            }
+            const nomField = document.getElementById('protocoleNom');
+            const descField = document.getElementById('protocoleDescription');
+            if (!nomField.value.trim()) {
+                nomField.value = data.nom_suggere || '';
+            }
+            descField.value = data.texte || '';
+            showToastProtocole('Fichier importe — verifiez le nom et la description', 'success');
+        })
+        .catch(() => showToastProtocole('Erreur reseau lors de l\'import', 'danger'));
+}
+
+function showToastProtocole(message, type) {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.className = `toast show bg-${type} text-white`;
+    toast.innerHTML = `
+        <div class="toast-body d-flex justify-content-between align-items-center">
+            <span>${message}</span>
+            <button type="button" class="btn-close btn-close-white" onclick="this.closest('.toast').remove()"></button>
+        </div>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+}
+</script>
 {% endblock %}

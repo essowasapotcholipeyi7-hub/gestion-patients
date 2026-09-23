@@ -6391,6 +6391,68 @@ def api_convertir_modele_html(modele_id):
         return jsonify({'success': False, 'error': f'Échec de la conversion : {e}'}), 500
 
 
+def _extraire_texte_fichier(fichier_data, fichier_nom, fichier_mime):
+    """Extrait le texte brut d'un fichier Word (.docx) ou PDF pour
+    pré-remplir un formulaire de création (protocole/ordonnance/examen déjà
+    préparé sur l'ordinateur) — best-effort, l'utilisateur reste libre de
+    corriger avant d'enregistrer. Les anciens formats binaires .doc
+    (pré-2007) ne sont pas lisibles ainsi, comme pour _convertir_fichier_en_html."""
+    nom = (fichier_nom or '').lower()
+    mime = (fichier_mime or '').lower()
+
+    if nom.endswith('.docx') or 'wordprocessingml' in mime:
+        import mammoth
+        from io import BytesIO
+        resultat = mammoth.extract_raw_text(BytesIO(fichier_data))
+        return resultat.value, None
+
+    if nom.endswith('.pdf') or 'pdf' in mime:
+        from pypdf import PdfReader
+        from io import BytesIO
+        lecteur = PdfReader(BytesIO(fichier_data))
+        pages = [(p.extract_text() or '') for p in lecteur.pages]
+        return '\n'.join(pages), None
+
+    return None, "Import non pris en charge pour ce type de fichier (.doc ancien format...) — réenregistrez-le en .docx ou PDF, ou retapez le contenu directement."
+
+
+@app.route('/api/import-fichier-texte', methods=['POST'])
+@login_required
+def api_import_fichier_texte():
+    """Extrait le texte d'un fichier Word/PDF envoyé pour pré-remplir un
+    formulaire de création de protocole/ordonnance type/examen type — le
+    fichier n'est ni stocké ni enregistré, seul le texte extrait est
+    renvoyé pour que l'utilisateur le complète/corrige avant d'enregistrer."""
+    if current_user.role not in ['admin_structure', 'medecin']:
+        return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
+    fichier = request.files.get('fichier')
+    if not fichier or not fichier.filename:
+        return jsonify({'success': False, 'error': 'Aucun fichier reçu'}), 400
+
+    donnees = fichier.read()
+    if len(donnees) > 10 * 1024 * 1024:
+        return jsonify({'success': False, 'error': 'Fichier trop volumineux (max 10 Mo)'}), 400
+
+    try:
+        texte, erreur = _extraire_texte_fichier(donnees, fichier.filename, fichier.mimetype)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erreur de lecture du fichier : {e}'}), 400
+
+    if erreur:
+        return jsonify({'success': False, 'error': erreur}), 400
+
+    lignes = [l.strip() for l in (texte or '').splitlines() if l.strip()]
+    nom_suggere = lignes[0][:200] if lignes else ''
+
+    return jsonify({
+        'success': True,
+        'nom_suggere': nom_suggere,
+        'texte': texte or '',
+        'lignes': lignes,
+    })
+
+
 @app.route('/api/modeles-resultats/<int:modele_id>/contenu', methods=['PUT'])
 @login_required
 def api_definir_contenu_modele(modele_id):
