@@ -13,10 +13,32 @@
                     </h5>
                 </div>
                 <div class="card-body">
+                    <!-- ⭐ IMPORT DEPUIS UN FICHIER (Word/PDF) DEJA PREPARE -->
+                    <div class="card mb-3 border-secondary">
+                        <div class="card-body py-2">
+                            <label class="form-label fw-bold mb-1">
+                                <i class="fas fa-file-import me-1"></i>Importer depuis un fichier (optionnel)
+                            </label>
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <input type="file" id="ordonnanceFichier" class="form-control" accept=".docx,.pdf">
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="button" class="btn btn-outline-secondary w-100" onclick="importerFichierOrdonnance()">
+                                        <i class="fas fa-upload me-1"></i>Importer
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted mt-1 d-block">
+                                Une ordonnance deja redigee (.docx ou .pdf) : une ligne est ajoutee par medicament detecte, en plus des lignes deja presentes — completez dosage/posologie/duree et verifiez avant d'enregistrer.
+                            </small>
+                        </div>
+                    </div>
+
                     <form method="POST" id="ordonnanceForm">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Nom de l'ordonnance <span class="text-danger">*</span></label>
-                            <input type="text" name="nom" class="form-control" value="{{ ordonnance.nom }}" required>
+                            <input type="text" name="nom" id="ordonnanceNom" class="form-control" value="{{ ordonnance.nom }}" required>
                         </div>
 
                         <div class="mb-3">
@@ -116,6 +138,70 @@ document.getElementById('ordonnanceForm').addEventListener('keydown', function(e
         e.preventDefault();
     }
 });
+
+// ⭐ IMPORT DEPUIS UN FICHIER (Word/PDF) — extrait le texte cote serveur et
+// ajoute une ligne par medicament detecte AUX lignes deja presentes (ne
+// remplace pas l'ordonnance existante). Dosage/posologie/duree restent a
+// completer manuellement, rien n'est auto-devine sur un dosage pour
+// eviter toute erreur. L'utilisateur verifie avant d'enregistrer.
+function importerFichierOrdonnance() {
+    const input = document.getElementById('ordonnanceFichier');
+    const fichier = input.files[0];
+    if (!fichier) {
+        showToast('Choisissez un fichier .docx ou .pdf', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('fichier', fichier);
+
+    fetch('/api/import-fichier-texte', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                showToast(data.error || "Echec de l'import", 'danger');
+                return;
+            }
+            const nomField = document.getElementById('ordonnanceNom');
+            let lignes = data.lignes || [];
+            if (!nomField.value.trim()) {
+                nomField.value = data.nom_suggere || '';
+                if (data.nom_suggere && lignes[0] === data.nom_suggere) {
+                    lignes = lignes.slice(1);
+                }
+            }
+
+            // Retire les lignes medicament encore vides avant d'importer,
+            // puis re-indexe les lignes restantes (comme supprimerMedicament).
+            document.querySelectorAll('#medicaments-list .row').forEach(row => {
+                if (!row.querySelector('.medicament-nom').value.trim()) {
+                    row.remove();
+                }
+            });
+            const rowsRestantes = document.querySelectorAll('#medicaments-list .row');
+            rowsRestantes.forEach((r, i) => { r.dataset.index = i; });
+            medicaments = new Array(rowsRestantes.length).fill({});
+
+            // N'ajoute pas un medicament deja present dans la liste (comme
+            // selectionnerMedicament).
+            const existants = Array.from(document.querySelectorAll('#medicaments-list .medicament-nom')).map(i => i.value.trim());
+            let ajoutes = 0;
+            lignes.forEach(ligne => {
+                if (existants.indexOf(ligne) === -1) {
+                    ajouterMedicament({ medicament: ligne });
+                    existants.push(ligne);
+                    ajoutes++;
+                }
+            });
+
+            if (ajoutes === 0) {
+                showToast('Fichier importe mais aucune nouvelle ligne detectee', 'warning');
+            } else {
+                showToast(ajoutes + ' ligne(s) importee(s) — completez dosage/posologie/duree', 'success');
+            }
+        })
+        .catch(() => showToast('Erreur reseau lors de l\'import', 'danger'));
+}
 
 // ============================================================ //
 // ⭐ SYSTÈME DE RECHERCHE DE MÉDICAMENTS                       //

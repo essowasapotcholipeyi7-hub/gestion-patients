@@ -14,10 +14,32 @@
                     </h5>
                 </div>
                 <div class="card-body">
+                    <!-- ⭐ IMPORT DEPUIS UN FICHIER (Word/PDF) DEJA PREPARE -->
+                    <div class="card mb-3 border-secondary">
+                        <div class="card-body py-2">
+                            <label class="form-label fw-bold mb-1">
+                                <i class="fas fa-file-import me-1"></i>Importer depuis un fichier (optionnel)
+                            </label>
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <input type="file" id="examenFichier" class="form-control" accept=".docx,.pdf">
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="button" class="btn btn-outline-secondary w-100" onclick="importerFichierExamen()">
+                                        <i class="fas fa-upload me-1"></i>Importer
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted mt-1 d-block">
+                                Une liste d'examens deja redigee (.docx ou .pdf) : une ligne du fichier = un examen ajoute, en plus de ceux deja presents — verifiez la liste avant d'enregistrer.
+                            </small>
+                        </div>
+                    </div>
+
                     <form method="POST" id="examenForm">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Nom <span class="text-danger">*</span></label>
-                            <input type="text" name="nom" class="form-control" value="{{ examen.nom }}" required>
+                            <input type="text" name="nom" id="examenNom" class="form-control" value="{{ examen.nom }}" required>
                         </div>
 
                         <div class="mb-3">
@@ -134,6 +156,64 @@ document.getElementById('examenForm').addEventListener('keydown', function(e) {
         e.preventDefault();
     }
 });
+
+// ⭐ IMPORT DEPUIS UN FICHIER (Word/PDF) — extrait le texte cote serveur et
+// ajoute une ligne par examen detecte AUX lignes deja presentes (ne
+// remplace pas la liste existante). L'utilisateur verifie avant d'enregistrer.
+function importerFichierExamen() {
+    var input = document.getElementById('examenFichier');
+    var fichier = input.files[0];
+    if (!fichier) {
+        showToast('Choisissez un fichier .docx ou .pdf', 'warning');
+        return;
+    }
+
+    var formData = new FormData();
+    formData.append('fichier', fichier);
+
+    fetch('/api/import-fichier-texte', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                showToast(data.error || "Echec de l'import", 'danger');
+                return;
+            }
+            var nomField = document.getElementById('examenNom');
+            var lignes = data.lignes || [];
+            if (!nomField.value.trim()) {
+                nomField.value = data.nom_suggere || '';
+                if (data.nom_suggere && lignes[0] === data.nom_suggere) {
+                    lignes = lignes.slice(1);
+                }
+            }
+
+            document.querySelectorAll('#examens-list .row').forEach(function(row) {
+                if (!row.querySelector('.examen-nom').value.trim()) {
+                    row.remove();
+                }
+            });
+            var rowsRestantes = document.querySelectorAll('#examens-list .row');
+            rowsRestantes.forEach(function(r, i) { r.dataset.index = i; });
+            examens = new Array(rowsRestantes.length).fill('');
+
+            var existants = Array.from(document.querySelectorAll('#examens-list .examen-nom')).map(function(i) { return i.value.trim(); });
+            var ajoutes = 0;
+            lignes.forEach(function(ligne) {
+                if (existants.indexOf(ligne) === -1) {
+                    ajouterExamenLigne(ligne);
+                    existants.push(ligne);
+                    ajoutes++;
+                }
+            });
+
+            if (ajoutes === 0) {
+                showToast('Fichier importe mais aucune nouvelle ligne detectee', 'warning');
+            } else {
+                showToast(ajoutes + ' examen(s) importe(s) — verifiez la liste', 'success');
+            }
+        })
+        .catch(function() { showToast('Erreur reseau lors de l\'import', 'danger'); });
+}
 
 // ============================================================ //
 // Systeme de recherche d'analyses                              //
