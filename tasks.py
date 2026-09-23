@@ -1,7 +1,8 @@
 # tasks.py
 from app import app, db
-from models import Prescription, ActePose, Patient, StructureMapping, HospitalisationFacturation
+from models import Prescription, ActePose, Patient, StructureMapping, HospitalisationFacturation, AnalyseDemande, ModeleResultat
 import requests
+import base64
 from datetime import datetime
 import logging
 
@@ -209,6 +210,148 @@ def sync_actes_poses_to_ghp():
 
         except Exception as e:
             logger.error(f"❌ Erreur sync actes posés: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'success': False, 'message': str(e)}
+
+
+def _type_prestation_ghp(type_analyse):
+    """BIOLOGIE/IMAGERIE (vocabulaire gestion_patients) -> analyse/examen
+    (vocabulaire GHP) — GHP n'a que ces deux catégories, 'AUTRE' bascule sur
+    'analyse' par défaut (fait rare, pas de 3e catégorie côté GHP)."""
+    return 'examen' if type_analyse == 'IMAGERIE' else 'analyse'
+
+
+def sync_resultats_examens_to_ghp():
+    """
+    Synchronise vers GHP les résultats d'analyses/examens saisis dans
+    gestion_patients (labo/radio, voir saisir_resultats_analyse) ainsi que
+    les modèles de résultats — voir /api/resultats-examens/sync-externe
+    côté GHP. Même principe multi-structure et même colonne de rattrapage
+    (`source_synced_at IS NULL`) que les autres tâches de ce module.
+
+    ⭐ `source_app` doit être NULL (pas juste absent de la boucle) : une
+    fois la Phase 3 (synchro entrante GHP -> gestion_patients) en place,
+    une ligne reçue DE GHP portera source_app='ghp' et ne doit jamais
+    repartir vers GHP (boucle infinie) — condition déjà posée ici pour ne
+    pas avoir à y revenir à ce moment-là.
+    """
+    with app.app_context():
+        try:
+            mappings = StructureMapping.query.filter_by(actif=True).all()
+            if not mappings:
+                logger.error("❌ Aucune configuration GHP active")
+                return {'success': False, 'message': 'Configuration GHP non trouvée'}
+
+            total_envoyees = 0
+            messages = []
+
+            for mapping in mappings:
+                url = f"{mapping.api_url}/api/resultats-examens/sync-externe"
+                params = {'token': mapping.api_key}
+
+                # ---- Résultats (AnalyseDemande, une fois TERMINE) ----
+                analyses = AnalyseDemande.query.filter(
+                    AnalyseDemande.structure_id == mapping.local_structure_id,
+                    AnalyseDemande.statut == 'TERMINE',
+                    AnalyseDemande.source_synced_at.is_(None),
+                    AnalyseDemande.source_app.is_(None),
+                ).all()
+
+                for a in analyses:
+                    patient = a.patient
+                    auteur_nom = None
+                    if a.responsable:
+                        auteur_nom = f"{a.responsable.prenom} {a.responsable.nom}"
+
+                    payload = {
+                        'categorie': 'resultat',
+                        'source_app': 'gestion_patients',
+                        'source_model': 'AnalyseDemande',
+                        'source_id': a.id,
+                        'patient_source_id': patient.patient_source_id if patient else None,
+                        'patient_nom': patient.nom if patient else '',
+                        'patient_prenom': patient.prenom if patient else '',
+                        'type_prestation': _type_prestation_ghp(a.type_analyse),
+                        'acte_nom': a.nom_analyse,
+                        'motif': a.description or '',
+                        'resultats_texte': a.resultats or '',
+                        'contenu_html': a.contenu_html or '',
+                        'fichier_nom': a.fichier_nom,
+                        'fichier_mime': a.fichier_mime,
+                        'fichier_data_b64': base64.b64encode(a.fichier_data).decode('ascii') if a.fichier_data else None,
+                        'nom_interprete': a.nom_interprete or '',
+                        'titre_interprete': a.titre_interprete,
+                        'signature_mime': a.signature_mime,
+                        'signature_data_b64': base64.b64encode(a.signature_data).decode('ascii') if a.signature_data else None,
+                        'modele_utilise_id': a.modele_utilise_id,
+                        'auteur_nom': auteur_nom,
+                    }
+
+                    try:
+                        response = requests.post(url, json=payload, params=params, timeout=30)
+                    except Exception as e:
+                        messages.append(f"structure {mapping.local_structure_id} analyse #{a.id}: échec réseau ({e})")
+                        logger.error(f"❌ Push résultat GHP échoué (analyse #{a.id}): {e}")
+                        continue
+
+                    if response.status_code == 200:
+                        a.source_synced_at = datetime.utcnow()
+                        db.session.commit()
+                        total_envoyees += 1
+                    else:
+                        messages.append(f"structure {mapping.local_structure_id} analyse #{a.id}: échec ({response.status_code})")
+                        logger.error(f"❌ Structure {mapping.local_structure_id} — Erreur GHP (analyse #{a.id}): {response.status_code} - {response.text[:200]}")
+
+                # ---- Modèles de résultats ----
+                modeles = ModeleResultat.query.filter(
+                    ModeleResultat.structure_id == mapping.local_structure_id,
+                    ModeleResultat.source_synced_at.is_(None),
+                    ModeleResultat.source_app.is_(None),
+                ).all()
+
+                for m in modeles:
+                    payload = {
+                        'categorie': 'modele',
+                        'source_app': 'gestion_patients',
+                        'source_model': 'ModeleResultat',
+                        'source_id': m.id,
+                        'type_prestation': _type_prestation_ghp(m.type_analyse),
+                        'nom': m.nom,
+                        'fichier_nom': m.fichier_nom,
+                        'fichier_mime': m.fichier_mime,
+                        'fichier_data_b64': base64.b64encode(m.fichier_data).decode('ascii') if m.fichier_data else None,
+                        'contenu_html': m.contenu_html or '',
+                        'auteur_nom': m.created_by,
+                    }
+
+                    try:
+                        response = requests.post(url, json=payload, params=params, timeout=30)
+                    except Exception as e:
+                        messages.append(f"structure {mapping.local_structure_id} modèle #{m.id}: échec réseau ({e})")
+                        logger.error(f"❌ Push modèle résultat GHP échoué (#{m.id}): {e}")
+                        continue
+
+                    if response.status_code == 200:
+                        m.source_synced_at = datetime.utcnow()
+                        db.session.commit()
+                        total_envoyees += 1
+                    else:
+                        messages.append(f"structure {mapping.local_structure_id} modèle #{m.id}: échec ({response.status_code})")
+                        logger.error(f"❌ Structure {mapping.local_structure_id} — Erreur GHP (modèle #{m.id}): {response.status_code} - {response.text[:200]}")
+
+            if total_envoyees == 0 and not messages:
+                logger.info("📭 Aucun résultat/modèle à synchroniser")
+                return {'success': True, 'message': 'Aucun résultat à synchroniser'}
+
+            return {
+                'success': True,
+                'message': f"✅ {total_envoyees} résultat(s)/modèle(s) synchronisé(s)" + (" — " + "; ".join(messages) if messages else ""),
+                'count': total_envoyees
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Erreur sync résultats examens: {e}")
             import traceback
             traceback.print_exc()
             return {'success': False, 'message': str(e)}

@@ -224,6 +224,17 @@ def _envoyer_prescriptions_ghp_immediat():
         print(f"⚠️ Sync immédiate GHP échouée (rattrapage automatique par le scheduler) : {e}")
 
 
+def _envoyer_resultats_examens_ghp_immediat():
+    """Même principe que _envoyer_prescriptions_ghp_immediat, pour les
+    résultats d'analyses/examens et les modèles de résultats (voir
+    tasks.sync_resultats_examens_to_ghp)."""
+    try:
+        from tasks import sync_resultats_examens_to_ghp
+        sync_resultats_examens_to_ghp()
+    except Exception as e:
+        print(f"⚠️ Sync immédiate résultats GHP échouée (rattrapage automatique par le scheduler) : {e}")
+
+
 def _pousser_rendez_vous_ghp(consultation, patient, medecin_nom):
     """Si la consultation porte une date de suivi (Consultation.prochain_rdv),
     pousse automatiquement un rendez-vous vers GHP au lieu de le laisser
@@ -5488,6 +5499,12 @@ def saisir_resultats_analyse(id):
 
     db.session.commit()
 
+    # ⭐ Miroir vers GHP dès qu'un résultat est disponible (voir
+    # _envoyer_resultats_examens_ghp_immediat) — pas avant, un résultat non
+    # terminé n'a rien à partager côté GHP.
+    if analyse.statut == 'TERMINE':
+        _envoyer_resultats_examens_ghp_immediat()
+
     flash('✅ Résultats enregistrés avec succès', 'success')
 
     # ⭐ REDIRECTION SELON LE RÔLE
@@ -5690,6 +5707,7 @@ def api_creer_modele_resultat():
         )
         db.session.add(modele)
         db.session.commit()
+        _envoyer_resultats_examens_ghp_immediat()
         return jsonify({'success': True, 'id': modele.id})
     except Exception as e:
         db.session.rollback()

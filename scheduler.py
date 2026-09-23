@@ -84,6 +84,21 @@ def scheduled_sync_hospitalisations():
         logger.error(f"❌ Erreur sync hospitalisations: {e}")
 
 
+def scheduled_sync_resultats_examens():
+    """
+    Synchronisation automatique des résultats d'analyses/examens (et
+    modèles de résultats) toutes les 5 minutes (rattrapage si l'envoi
+    immédiat à la saisie a échoué)
+    """
+    try:
+        from tasks import sync_resultats_examens_to_ghp
+        result = sync_resultats_examens_to_ghp()
+        if result.get('success'):
+            logger.info(f"🔄 Sync résultats examens: {result.get('message')}")
+    except Exception as e:
+        logger.error(f"❌ Erreur sync résultats examens: {e}")
+
+
 def start_scheduler():
     """Démarre le planificateur de tâches"""
     global scheduler
@@ -137,6 +152,15 @@ def start_scheduler():
             replace_existing=True
         )
         logger.info("🔄 Hospitalisations: Synchronisation toutes les 5 minutes")
+
+        # ---- 6. SYNCHRONISATION RÉSULTATS EXAMENS (toutes les 5 minutes) ----
+        scheduler.add_job(
+            func=scheduled_sync_resultats_examens,
+            trigger=IntervalTrigger(minutes=5),
+            id='sync_resultats_examens',
+            replace_existing=True
+        )
+        logger.info("🔄 Résultats examens: Synchronisation toutes les 5 minutes")
 
         # ---- DÉMARRAGE ----
         scheduler.start()
