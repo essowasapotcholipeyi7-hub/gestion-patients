@@ -15,16 +15,27 @@
     <!-- ALERTE IMPORTANTE -->
     <div class="alert alert-info alert-dismissible fade show" role="alert">
         <i class="fas fa-info-circle me-2"></i>
-        <strong>Note d'admission :</strong> Cette note est <strong>obligatoire</strong> et servira de 
-        <strong>référence</strong> pour tout le suivi du patient. Elle décrit l'<strong>état initial</strong> 
+        <strong>Note d'admission :</strong> Cette note est <strong>obligatoire</strong> et servira de
+        <strong>référence</strong> pour tout le suivi du patient. Elle décrit l'<strong>état initial</strong>
         à son entrée dans le service.
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 
+    {% if consultation_origine %}
+    <div class="alert alert-danger" role="alert">
+        <i class="fas fa-procedures me-2"></i>
+        <strong>Admission depuis une consultation</strong> — patient orienté vers l'hospitalisation le
+        {{ consultation_origine.date_consultation.strftime('%d/%m/%Y %H:%M') if consultation_origine.date_consultation else '' }}.
+        Motif : {{ consultation_origine.diagnostic or consultation_origine.motif or '-' }}.
+        <br><small>L'examen physique de cette consultation sera copié automatiquement — modifiable ensuite depuis la fiche d'hospitalisation.</small>
+    </div>
+    {% endif %}
+
     <div class="card">
         <div class="card-body">
             <form method="POST" id="admissionForm" novalidate>
-                
+                <input type="hidden" name="consultation_id" value="{{ consultation_origine.id if consultation_origine else '' }}">
+
                 <!-- ============================================================ -->
                 <!-- SECTION 1 : PATIENT ET ADMISSION                               -->
                 <!-- ============================================================ -->
@@ -83,7 +94,7 @@
                                 <label class="form-label fw-bold">
                                     <span class="text-danger">*</span> Motif d'hospitalisation (résumé)
                                 </label>
-                                <input type="text" name="motif" class="form-control"placeholder="Ex: Pneumopathie sévère, Suivi post-opératoire..." required>
+                                <input type="text" name="motif" class="form-control"placeholder="Ex: Pneumopathie sévère, Suivi post-opératoire..." required value="{{ (consultation_origine.diagnostic or consultation_origine.motif or '') if consultation_origine else '' }}">
                                 <small class="text-muted">Résumé en une phrase du motif d'admission</small>
                             </div>
                         </div>
@@ -508,7 +519,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('admissionForm').addEventListener('submit', function(e) {
         const patientIdValue = patientId.value;
         const serviceValue = serviceSelect.value;
-        const motifValue = document.querySelector('textarea[name="motif"]').value;
+        const motifValue = document.querySelector('input[name="motif"]').value;
         
         // Vérifier que le patient est sélectionné
         if (!patientIdValue) {
@@ -530,7 +541,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!motifValue.trim()) {
             e.preventDefault();
             alert('Veuillez saisir le motif d\'hospitalisation.');
-            document.querySelector('textarea[name="motif"]').focus();
+            document.querySelector('input[name="motif"]').focus();
             return false;
         }
         
@@ -572,6 +583,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // ========== EXPOSER LES FONCTIONS GLOBALES ==========
     window.selectPatient = selectPatient;
     window.chargerConstantesPatient = chargerConstantesPatient;
+
+    // ⭐ Pré-sélection du patient à l'arrivée depuis "Hospitalisations en
+    // attente" (liste_hospitalisations) — évite de le rechercher à nouveau.
+    {% if patient_id_prerempli and consultation_origine and consultation_origine.patient %}
+    selectPatient({{ patient_id_prerempli }}, {{ consultation_origine.patient.nom|tojson }}, {{ consultation_origine.patient.prenom|tojson }});
+    {% endif %}
 });
 </script>
 {% endblock %}

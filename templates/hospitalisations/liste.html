@@ -15,6 +15,50 @@
         </div>
     </div>
 
+    <!-- Hospitalisations en attente d'admission -->
+    {% if consultations_en_attente %}
+    <div class="card mb-4 border-danger">
+        <div class="card-header bg-danger text-white">
+            <i class="fas fa-procedures me-2"></i>Hospitalisations en attente d'admission ({{ consultations_en_attente|length }})
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Motif / Diagnostic</th>
+                            <th>Médecin</th>
+                            <th>Date de consultation</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in consultations_en_attente %}
+                        <tr>
+                            <td><strong>{{ c.patient.nom }} {{ c.patient.prenom }}</strong></td>
+                            <td>{{ c.diagnostic or c.motif or '-' }}</td>
+                            <td>{% if c.medecin %}{{ c.medecin.prenom }} {{ c.medecin.nom }}{% else %}-{% endif %}</td>
+                            <td>{{ c.date_consultation.strftime('%d/%m/%Y %H:%M') if c.date_consultation else '-' }}</td>
+                            <td>
+                                <a href="{{ url_for('consultation_detail', id=c.id) }}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-eye"></i> Consultation
+                                </a>
+                                {% if current_user.role in ['admin_structure', 'medecin', 'secretaire'] %}
+                                <a href="{{ url_for('nouvelle_hospitalisation', patient_id=c.id_patient, consultation_id=c.id) }}" class="btn btn-sm btn-danger">
+                                    <i class="fas fa-procedures"></i> Admettre
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Filtres -->
     <div class="card mb-4">
         <div class="card-body">

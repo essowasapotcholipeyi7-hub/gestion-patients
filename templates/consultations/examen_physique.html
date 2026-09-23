@@ -11,7 +11,14 @@
                 Examen Physique - {{ patient.prenom }} {{ patient.nom }}
             </h1>
             <p class="text-muted">
-                Consultation du {{ consultation.date_consultation.strftime('%d/%m/%Y %H:%M') if consultation.date_consultation else '-' }}
+                {% if hospitalisation %}
+                    Hospitalisation du {{ hospitalisation.date_debut.strftime('%d/%m/%Y %H:%M') if hospitalisation.date_debut else '-' }}
+                    {% if examen and examen.sections_origine and examen.sections_origine != '{}' %}
+                        <span class="badge bg-secondary ms-2">Pré-rempli depuis la consultation — sections modifiées en gris</span>
+                    {% endif %}
+                {% else %}
+                    Consultation du {{ consultation.date_consultation.strftime('%d/%m/%Y %H:%M') if consultation.date_consultation else '-' }}
+                {% endif %}
                 {% if examen %}
                     <span class="badge bg-success ms-2">Examen enregistré</span>
                 {% endif %}
@@ -38,7 +45,9 @@
         </button>
     </div>
 
-    <form method="POST" action="/consultation/{{ consultation.id }}/examen-physique/enregistrer" id="examenForm">
+    {% set save_url = url_for('enregistrer_examen_physique_hospitalisation', id=hospitalisation.id) if hospitalisation else url_for('enregistrer_examen_physique', id=consultation.id) %}
+    {% set retour_url = url_for('detail_hospitalisation', id=hospitalisation.id) if hospitalisation else url_for('consultation_detail', id=consultation.id) %}
+    <form method="POST" action="{{ save_url }}" id="examenForm">
         <div id="sectionsContainer">
             <div class="text-center py-5">
                 <div class="spinner-border text-primary" role="status">
@@ -65,7 +74,7 @@
         </div>
 
         <div class="d-flex justify-content-between">
-            <a href="{{ url_for('consultation_detail', id=consultation.id) }}" class="btn btn-secondary">
+            <a href="{{ retour_url }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Annuler
             </a>
             <div>
@@ -135,7 +144,10 @@ async function chargerSections() {
         {% if examen and examen.sections_modifiees %}
             sectionsModifiees = JSON.parse('{{ examen.sections_modifiees|safe }}');
         {% endif %}
-        
+        {% if examen and examen.sections_origine and examen.sections_origine != '{}' %}
+            sectionsOriginales = JSON.parse('{{ examen.sections_origine|safe }}');
+        {% endif %}
+
         afficherSections();
     } catch (error) {
         console.error('Erreur:', error);
@@ -152,19 +164,24 @@ function afficherSections() {
         div.className = 'card mb-3 section-card';
         div.id = `section-${index}`;
         
-        const isModified = sectionsModifiees[index] !== undefined;
-        const texte = isModified ? sectionsModifiees[index] : section.texte;
-        
-        if (!sectionsOriginales[index]) {
+        // ⭐ Référence de comparaison : sections_origine (instantané figé
+        // à la copie depuis la consultation, hospitalisation uniquement)
+        // si fourni par le serveur, sinon le texte par défaut du
+        // catalogue (cas normal d'une consultation) — même logique que
+        // _rendre_sections_examen_physique côté serveur (app.py).
+        if (sectionsOriginales[index] === undefined) {
             sectionsOriginales[index] = section.texte;
         }
-        
+        const reference = sectionsOriginales[index];
+        const isModified = sectionsModifiees[index] !== undefined && sectionsModifiees[index] !== reference;
+        const texte = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : reference;
+
         div.innerHTML = `
             <div class="card-header d-flex justify-content-between align-items-center">
                 <div>
                     <i class="fas ${section.icone} me-2"></i>
                     <strong>${section.nom}</strong>
-                    ${isModified ? '<span class="badge bg-warning ms-2">Modifié</span>' : '<span class="badge bg-secondary ms-2">Original</span>'}
+                    ${isModified ? '<span class="badge bg-secondary ms-2">Modifié</span>' : '<span class="badge bg-light text-dark ms-2">Original</span>'}
                 </div>
                 <div>
                     <!-- ⭐ AJOUTER type="button" POUR EMPÊCHER LA SOUMISSION -->
@@ -176,7 +193,7 @@ function afficherSections() {
                     </button>
                 </div>
             </div>
-            <div class="card-body" id="section-body-${index}">
+            <div class="card-body" id="section-body-${index}" style="${isModified ? 'background-color:#e9ecef;' : ''}">
                 <p class="mb-0" style="white-space: pre-wrap; font-size: 15px; line-height: 1.8;">${texte}</p>
             </div>
         `;
@@ -238,7 +255,8 @@ function genererResume() {
     
     let resume = '';
     sectionsData.forEach((section, index) => {
-        const texte = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : section.texte;
+        const reference = sectionsOriginales[index] !== undefined ? sectionsOriginales[index] : section.texte;
+        const texte = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : reference;
         resume += `--- ${section.nom.toUpperCase()} ---\n${texte}\n\n`;
     });
     
@@ -256,9 +274,9 @@ function enregistrerEtFermer() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enregistrement...';
     
-    const consultationId = {{ consultation.id }};
-    
-    fetch(`/consultation/${consultationId}/examen-physique/enregistrer`, {
+    const saveUrl = {{ save_url|tojson }};
+
+    fetch(saveUrl, {
         method: 'POST',
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
@@ -269,13 +287,14 @@ function enregistrerEtFermer() {
     .then(data => {
         if (data.success) {
             showToast('✅ Examen enregistré avec succès !', 'success');
-            
+
             // Transmettre l'examen à la page parente
             if (window.opener && !window.opener.closed) {
                 window.opener.postMessage({
                     type: 'EXAMEN_PHYSIQUE_ENREGISTRE',
                     examen_complet: data.examen_complet || document.getElementById('examenComplet').value,
-                    consultation_id: consultationId,
+                    consultation_id: data.consultation_id,
+                    hospitalisation_id: data.hospitalisation_id,
                     examen_id: data.examen_id
                 }, '*');
             }
@@ -335,7 +354,8 @@ function ouvrirModalModification(index) {
     if (!section) return;
     
     currentEditIndex = index;
-    const texteActuel = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : section.texte;
+    const referenceActuelle = sectionsOriginales[index] !== undefined ? sectionsOriginales[index] : section.texte;
+    const texteActuel = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : referenceActuelle;
     
     document.getElementById('editSectionName').textContent = section.nom;
     document.getElementById('editSectionDesc').textContent = section.texte.substring(0, 100) + (section.texte.length > 100 ? '...' : '');

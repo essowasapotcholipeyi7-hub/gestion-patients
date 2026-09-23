@@ -1868,6 +1868,9 @@ def consultation_ajouter():
         id_patient = request.form.get('id_patient')
         motif = request.form.get('motif')
         diagnostic = request.form.get('diagnostic')
+        orientation = request.form.get('orientation') or None
+        if orientation not in ('ambulatoire', 'hospitalisation'):
+            orientation = None
 
         # ============================================================
         # RÉCUPÉRATION DES CHAMPS HPI
@@ -2018,18 +2021,20 @@ def consultation_ajouter():
             # ⭐ MARQUER COMME DÉFINITIVE
             consultation.is_temporary = False
             consultation.statut = 'terminee'
+            consultation.orientation = orientation
             consultation.id_medecin = current_user.id
             consultation.date_consultation = datetime.utcnow()
-            
+
         else:
             # ⭐ PAS DE CONSULTATION TEMPORAIRE : EN CRÉER UNE
             print(f"⚠️ Aucune consultation temporaire trouvée pour patient #{patient.id}")
-            
+
             consultation = Consultation(
                 id_patient=int(id_patient),
                 id_medecin=current_user.id,
                 motif=motif,
                 diagnostic=diagnostic,
+                orientation=orientation,
                 tension_arterielle=tension,
                 temperature_c=float(temperature) if temperature else None,
                 pulse_bpm=int(pouls) if pouls else None,
@@ -2243,6 +2248,8 @@ def consultation_ajouter():
         _pousser_rendez_vous_ghp(consultation, patient, f"{current_user.prenom} {current_user.nom}")
 
         flash('Consultation enregistrée avec succès', 'success')
+        if orientation == 'hospitalisation':
+            flash('🛏️ Patient orienté vers une hospitalisation — visible dans "Hospitalisations en attente".', 'info')
         return redirect(url_for('patient_detail', id=id_patient))
 
     empty_consultation = Consultation()
@@ -2273,6 +2280,14 @@ def consultation_detail(id):
     from models import ActePose
     soins_poses = ActePose.query.filter_by(consultation_id=consultation.id).order_by(ActePose.date_pose.desc()).all()
 
+    # ⭐ EXAMEN PHYSIQUE — sections en lecture seule, celles qui diffèrent
+    # du texte par défaut du catalogue apparaissent grisées (patron :
+    # "fait de même pour consultation details ... là où l'examen
+    # physique apparaît").
+    from models import ExamenPhysique
+    examen_physique_obj = ExamenPhysique.query.filter_by(consultation_id=consultation.id).first()
+    examen_physique_sections = _rendre_sections_examen_physique(examen_physique_obj)
+
     return render_template('consultations/detail.html',
                          consultation=consultation,
                          patient=patient,
@@ -2280,6 +2295,7 @@ def consultation_detail(id):
                          examens_prescrits=examens_prescrits,
                          soins_poses=soins_poses,
                          actes_soins_habituels=ACTES_SOINS_HABITUELS,
+                         examen_physique_sections=examen_physique_sections,
                          now=datetime.utcnow())
 
 
@@ -2658,7 +2674,25 @@ def infirmier_medicaments():
         .order_by(Patient.nom).all()
     )
 
-    return render_template('infirmier/medicaments.html', a_planifier=a_planifier, a_faire=a_faire, patients=patients)
+    # ⭐ Protocoles de soins actifs — jusqu'ici l'infirmier ne voyait que les
+    # lignes de médicaments/examens qui en découlent, sans jamais voir le
+    # protocole lui-même (patron : "il doit voir le protocole des soins à
+    # un protocole on peut assigner une ordonnance et examens à faire").
+    from models import Hospitalisation
+    hospitalisations_avec_protocole = (
+        Hospitalisation.query
+        .join(Patient, Hospitalisation.patient_id == Patient.id)
+        .filter(
+            Patient.id_structure == current_user.id_structure,
+            Hospitalisation.statut == 'actif',
+            Hospitalisation.protocole_id.isnot(None),
+        )
+        .order_by(Hospitalisation.date_debut.desc())
+        .all()
+    )
+
+    return render_template('infirmier/medicaments.html', a_planifier=a_planifier, a_faire=a_faire, patients=patients,
+                         hospitalisations_avec_protocole=hospitalisations_avec_protocole)
 
 
 @app.route('/infirmier/medicaments/<int:prescription_id>/planifier', methods=['POST'])
@@ -3116,9 +3150,12 @@ def consultation_ajouter_avec_patient(id):
         # ═══════════════════════════════════════════
         # 1. RÉCUPÉRATION DES DONNÉES DU FORMULAIRE
         # ═══════════════════════════════════════════
-        
+
         motif = request.form.get('motif')
         diagnostic = request.form.get('diagnostic')
+        orientation = request.form.get('orientation') or None
+        if orientation not in ('ambulatoire', 'hospitalisation'):
+            orientation = None
 
         # RÉCUPÉRATION DES CHAMPS HPI
         hpi_date_debut = request.form.get('hpi_date_debut')
@@ -3259,18 +3296,20 @@ def consultation_ajouter_avec_patient(id):
             # ⭐ MARQUER COMME DÉFINITIVE
             consultation.is_temporary = False
             consultation.statut = 'terminee'
+            consultation.orientation = orientation
             consultation.id_medecin = current_user.id if current_user.role == 'medecin' else None
             consultation.date_consultation = datetime.utcnow()
-            
+
         else:
             # ⭐ PAS DE CONSULTATION TEMPORAIRE : EN CRÉER UNE
             print(f"⚠️ Aucune consultation temporaire trouvée pour patient #{patient.id}")
-            
+
             consultation = Consultation(
                 id_patient=patient.id,
                 id_medecin=current_user.id if current_user.role == 'medecin' else None,
                 motif=motif,
                 diagnostic=diagnostic,
+                orientation=orientation,
                 tension_arterielle=tension,
                 temperature_c=float(temperature) if temperature else None,
                 pulse_bpm=int(pouls) if pouls else None,
@@ -3489,6 +3528,8 @@ def consultation_ajouter_avec_patient(id):
         _pousser_rendez_vous_ghp(consultation, patient, f"{current_user.prenom} {current_user.nom}")
 
         flash(f'Consultation pour {patient.prenom} {patient.nom} enregistrée avec succès', 'success')
+        if orientation == 'hospitalisation':
+            flash('🛏️ Patient orienté vers une hospitalisation — visible dans "Hospitalisations en attente".', 'info')
         return redirect(url_for('patient_detail', id=patient.id))
     
     empty_consultation = Consultation()
@@ -4068,11 +4109,29 @@ def admin_delete_structure(id):
 @has_permission('HOSPITALISATION')
 def liste_hospitalisations():
     """Liste des hospitalisations"""
-    from models import Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, Patient
-    
+    from models import Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, Patient, Consultation
+
     if current_user.role not in ['admin_structure', 'medecin', 'infirmier', 'secretaire', 'super_admin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
+
+    # ⭐ File d'attente d'admission : consultations orientées "à
+    # hospitaliser" (Consultation.orientation) pour lesquelles aucune
+    # Hospitalisation n'a encore été créée (Hospitalisation.consultation_id)
+    # — patron : "si c'est à hospitaliser il doit apparaitre dans
+    # hospitalisation (hospitalisation en attente par exemple)".
+    consultations_query = (
+        Consultation.query
+        .join(Patient, Consultation.id_patient == Patient.id)
+        .outerjoin(Hospitalisation, Hospitalisation.consultation_id == Consultation.id)
+        .filter(
+            Consultation.orientation == 'hospitalisation',
+            Hospitalisation.id.is_(None),
+        )
+    )
+    if current_user.role != 'super_admin':
+        consultations_query = consultations_query.filter(Patient.id_structure == current_user.id_structure)
+    consultations_en_attente = consultations_query.order_by(Consultation.date_consultation.desc()).all()
     
     statut = request.args.get('statut', 'tous')
     service = request.args.get('service', '')
@@ -4124,7 +4183,8 @@ def liste_hospitalisations():
     return render_template('hospitalisations/liste.html',
                          hospitalisations=hospitalisations,
                          statut_actuel=statut,
-                         services=services)
+                         services=services,
+                         consultations_en_attente=consultations_en_attente)
 
 
 @app.route('/hospitalisation/nouvelle', methods=['GET', 'POST'])
@@ -4142,6 +4202,7 @@ def nouvelle_hospitalisation():
         # 1. RÉCUPÉRATION DES DONNÉES
         # ============================================================
         patient_id = request.form.get('patient_id')
+        consultation_id = request.form.get('consultation_id', type=int)
         motif = request.form.get('motif')
         service = request.form.get('service')
         chambre = request.form.get('chambre')
@@ -4203,6 +4264,7 @@ def nouvelle_hospitalisation():
             # --- Création de l'hospitalisation ---
             hospitalisation = Hospitalisation(
                 patient_id=int(patient_id),
+                consultation_id=consultation_id,
                 motif=motif,
                 service=service,
                 chambre=chambre,
@@ -4214,7 +4276,24 @@ def nouvelle_hospitalisation():
             )
             db.session.add(hospitalisation)
             db.session.flush()
-            
+
+            # --- Copier l'examen physique de la consultation d'origine ---
+            # (patron : "examen physique préremplie à modifier exactement
+            # comme dans consultations") — sections_origine fige la copie
+            # pour permettre, ensuite, de griser ce que le médecin change
+            # depuis l'admission (voir hospitalisation_examen_physique).
+            if consultation_id:
+                from models import ExamenPhysique
+                examen_source = ExamenPhysique.query.filter_by(consultation_id=consultation_id).first()
+                if examen_source:
+                    db.session.add(ExamenPhysique(
+                        hospitalisation_id=hospitalisation.id,
+                        sections_modifiees=examen_source.sections_modifiees,
+                        sections_origine=examen_source.sections_modifiees or '{}',
+                        examen_complet=examen_source.examen_complet,
+                        created_by=current_user.id
+                    ))
+
             # --- Assigner le lit ---
             if lit_id:
                 lit_obj = Lit.query.get(lit_id)  # ⭐ Comme avant
@@ -4312,12 +4391,24 @@ def nouvelle_hospitalisation():
         structure_id=current_user.id_structure,
         actif=True
     ).all()
-    
+
+    # ⭐ Arrivée depuis "Hospitalisations en attente" (liste_hospitalisations)
+    # — pré-sélectionne le patient et prépare le lien vers la consultation
+    # d'origine (motif pré-rempli, examen physique copié à la création).
+    from models import Consultation
+    consultation_origine = None
+    patient_id_prerempli = request.args.get('patient_id', type=int)
+    consultation_id_prerempli = request.args.get('consultation_id', type=int)
+    if consultation_id_prerempli:
+        consultation_origine = Consultation.query.get(consultation_id_prerempli)
+
     return render_template('hospitalisations/nouvelle.html',
                          patients=patients,
                          medecins=medecins,
                          infirmiers=infirmiers,
-                         services=services)
+                         services=services,
+                         consultation_origine=consultation_origine,
+                         patient_id_prerempli=patient_id_prerempli)
 
 
 @app.route('/hospitalisation/<int:id>')
@@ -4463,9 +4554,17 @@ def detail_hospitalisation(id):
             ordonnance_medicaments = []
     
     # ============================================================
+    # 10. ⭐ EXAMEN PHYSIQUE (pré-rempli depuis la consultation d'origine,
+    #     sections modifiées depuis l'admission grisées à l'affichage)
+    # ============================================================
+    from models import ExamenPhysique
+    examen_physique_obj = ExamenPhysique.query.filter_by(hospitalisation_id=hospitalisation.id).first()
+    examen_physique_sections = _rendre_sections_examen_physique(examen_physique_obj)
+
+    # ============================================================
     # 9. RENDU
     # ============================================================
-    
+
     return render_template('hospitalisations/detail.html',
                          hospitalisation=hospitalisation,
                          medecins=medecins,
@@ -4483,6 +4582,7 @@ def detail_hospitalisation(id):
                          examens_prescrits=examens_prescrits,
                          nb_examens_prescrits=nb_examens_prescrits,
                          ordonnance_medicaments=ordonnance_medicaments,
+                         examen_physique_sections=examen_physique_sections,
                          now=datetime.utcnow())
 
 # ============================================================
@@ -8030,6 +8130,49 @@ def api_sections_examen():
     return jsonify(result)
 
 
+def _rendre_sections_examen_physique(examen, lang='fr'):
+    """Reconstruit, côté serveur, la liste des sections de l'examen
+    physique avec leur texte effectif et un indicateur 'modifie' — pour
+    affichage en LECTURE SEULE (détail consultation/hospitalisation), avec
+    surlignage gris des sections modifiées (patron : "les parties
+    modifiées dans l'examen physique apparaissent sous une couleur
+    grise"). Référence de comparaison : sections_origine (instantané figé
+    à la copie, hospitalisation uniquement) si présent, sinon le
+    catalogue par défaut (cas normal d'une consultation) — même logique
+    que sectionsOriginales côté JS (examen_physique.html)."""
+    import json
+
+    if not examen:
+        return []
+
+    catalogue = get_sections_examen()
+
+    modifiees = {}
+    if examen.sections_modifiees:
+        try:
+            modifiees = json.loads(examen.sections_modifiees)
+        except (ValueError, TypeError):
+            modifiees = {}
+
+    origine = {}
+    if getattr(examen, 'sections_origine', None):
+        try:
+            origine = json.loads(examen.sections_origine)
+        except (ValueError, TypeError):
+            origine = {}
+
+    sections = []
+    for i, s in enumerate(catalogue):
+        idx = str(i)
+        defaut = s['fr'] if lang == 'fr' else s['en']
+        reference = origine.get(idx, defaut)
+        texte = modifiees.get(idx, reference if origine else defaut)
+        modifie = idx in modifiees and modifiees[idx] != reference
+        sections.append({'nom': s['nom'], 'icone': s['icone'], 'texte': texte, 'modifie': modifie})
+
+    return sections
+
+
 @app.route('/consultation/<int:id>/examen-physique')
 @login_required
 def examen_physique(id):
@@ -8226,6 +8369,138 @@ def enregistrer_examen_physique(id):
         
         flash(f'❌ Erreur: {str(e)}', 'danger')
         return redirect(url_for('consultation_detail', id=id))
+
+
+@app.route('/hospitalisation/<int:id>/examen-physique')
+@login_required
+def hospitalisation_examen_physique(id):
+    """Examen physique d'une hospitalisation — même éditeur que pour une
+    consultation (patron : "il faut prévoir l'examen physique préremplie
+    à modifier exactement comme dans consultations"). Pré-rempli à la
+    première visite avec l'examen physique de la consultation d'origine
+    (hospitalisation.consultation_id), sinon celui de la dernière
+    consultation du patient ; ensuite librement modifiable, avec
+    surlignage gris des sections changées depuis l'admission (voir
+    _rendre_sections_examen_physique)."""
+    from models import Hospitalisation, ExamenPhysique, Consultation
+    import json
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    patient = hospitalisation.patient
+
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    examen = ExamenPhysique.query.filter_by(hospitalisation_id=id).first()
+
+    if not examen:
+        # ⭐ Chercher l'examen physique source : celui de la consultation
+        # d'origine en priorité, sinon la dernière consultation du patient
+        # qui en a un.
+        examen_source = None
+        if hospitalisation.consultation_id:
+            examen_source = ExamenPhysique.query.filter_by(consultation_id=hospitalisation.consultation_id).first()
+        if not examen_source:
+            derniere_consultation = (
+                Consultation.query
+                .filter_by(id_patient=hospitalisation.patient_id)
+                .order_by(Consultation.date_consultation.desc())
+                .all()
+            )
+            for c in derniere_consultation:
+                examen_source = ExamenPhysique.query.filter_by(consultation_id=c.id).first()
+                if examen_source:
+                    break
+
+        if examen_source:
+            examen = ExamenPhysique(
+                hospitalisation_id=id,
+                sections_modifiees=examen_source.sections_modifiees,
+                sections_origine=examen_source.sections_modifiees or '{}',
+                examen_complet=examen_source.examen_complet,
+                created_by=current_user.id
+            )
+        else:
+            examen = ExamenPhysique(
+                hospitalisation_id=id,
+                sections_modifiees='{}',
+                sections_origine='{}',
+                created_by=current_user.id
+            )
+        db.session.add(examen)
+        db.session.commit()
+
+    return render_template('consultations/examen_physique.html',
+                         patient=patient,
+                         consultation=None,
+                         hospitalisation=hospitalisation,
+                         examen=examen)
+
+
+@app.route('/hospitalisation/<int:id>/examen-physique/enregistrer', methods=['POST'])
+@login_required
+def enregistrer_examen_physique_hospitalisation(id):
+    """Équivalent de enregistrer_examen_physique() pour une hospitalisation
+    — ne touche jamais sections_origine (instantané figé à la copie)."""
+    from models import Hospitalisation, ExamenPhysique
+    from datetime import datetime
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+
+    if current_user.role not in ['admin_structure', 'medecin']:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Accès non autorisé'}), 403
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    try:
+        examen_complet = request.form.get('examen_complet', '')
+        sections_modifiees = request.form.get('sections_modifiees', '{}')
+
+        examen_complet = nettoyer_examen_complet(examen_complet)
+
+        examen = ExamenPhysique.query.filter_by(hospitalisation_id=id).first()
+
+        if examen:
+            examen.examen_complet = examen_complet
+            examen.sections_modifiees = sections_modifiees
+            examen.modified_at = datetime.utcnow()
+        else:
+            examen = ExamenPhysique(
+                hospitalisation_id=id,
+                examen_complet=examen_complet,
+                sections_modifiees=sections_modifiees,
+                sections_origine='{}',
+                created_by=current_user.id
+            )
+            db.session.add(examen)
+
+        db.session.commit()
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': True,
+                'message': 'Examen enregistré avec succès',
+                'examen_id': examen.id,
+                'hospitalisation_id': hospitalisation.id,
+                'examen_complet': examen_complet
+            })
+
+        flash('✅ Examen physique enregistré avec succès', 'success')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': str(e)}), 500
+
+        flash(f'❌ Erreur: {str(e)}', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
 
 
 def nettoyer_examen_complet(examen_complet):
@@ -9652,12 +9927,17 @@ def appliquer_protocole(id):
                 # une ordonnance copiée depuis un protocole ne partait jamais vers GHP.
                 medicaments_pour_ghp = _items_nouveaux(nouveaux_medicaments, anciens_medicaments)
                 if medicaments_pour_ghp:
-                    _creer_prescriptions_miroir(
+                    prescriptions_creees = _creer_prescriptions_miroir(
                         patient_id=hospitalisation.patient_id,
                         prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
                         items=medicaments_pour_ghp,
                         type_prescription='medicament'
                     )
+                    # ⭐ Traçabilité côté infirmier : "cette dose vient du
+                    # protocole X" (patron : "à un protocole on peut
+                    # assigner une ordonnance et examens à faire").
+                    for p in prescriptions_creees:
+                        p.protocole_id = protocole.id
 
         # Si le protocole a des examens associés, les créer
         examens_pour_ghp = []
@@ -9675,7 +9955,13 @@ def appliquer_protocole(id):
                     description=examen_type.description,
                     examens=examen_type.examens,
                     statut='EN_ATTENTE',
-                    date_prescription=datetime.utcnow()
+                    date_prescription=datetime.utcnow(),
+                    # ⭐ Traçabilité (champs déjà prévus pour ça, jusqu'ici
+                    # jamais renseignés par cette route) : "cet examen vient
+                    # du protocole X".
+                    source_type='protocole',
+                    source_id=protocole.id,
+                    source_nom=protocole.nom
                 )
                 db.session.add(examen_prescrit)
                 db.session.flush()
@@ -9689,12 +9975,14 @@ def appliquer_protocole(id):
                 _creer_analyses_demandees_depuis_examen_prescrit(
                     examen_prescrit, examens_pour_ghp, current_user.id_structure
                 )
-                _creer_prescriptions_miroir(
+                examens_prescriptions_creees = _creer_prescriptions_miroir(
                     patient_id=hospitalisation.patient_id,
                     prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
                     items=examens_pour_ghp,
                     type_prescription='acte'
                 )
+                for p in examens_prescriptions_creees:
+                    p.protocole_id = protocole.id
 
         db.session.commit()
         if examens_pour_ghp or medicaments_pour_ghp:

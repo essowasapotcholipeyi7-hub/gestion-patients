@@ -69,7 +69,12 @@ class Prescription(db.Model):
     id_patient = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     id_consultation = db.Column(db.Integer, db.ForeignKey('consultations.id'))
     id_medecin = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))
-    
+    # ⭐ Traçabilité : renseigné quand cette prescription vient de
+    # l'application d'un protocole de soins (appliquer_protocole) — permet
+    # à l'infirmier de voir "cette dose vient du protocole X" au lieu
+    # d'une simple ligne de médicament sans contexte.
+    protocole_id = db.Column(db.Integer, db.ForeignKey('protocoles_soins.id'), nullable=True)
+
     type_prescription = db.Column(db.String(20), default='medicament')  # 'medicament' ou 'acte
     # Détails du médicament
     medicament = db.Column(db.String(100), nullable=False)
@@ -117,6 +122,7 @@ class Prescription(db.Model):
     patient = db.relationship('Patient', foreign_keys=[id_patient], backref='prescriptions_list')
     consultation = db.relationship('Consultation', foreign_keys=[id_consultation], backref='prescriptions_consultation_list')
     medecin = db.relationship('Utilisateur', foreign_keys=[id_medecin], backref='prescriptions_redigees')
+    protocole = db.relationship('ProtocoleSoins', foreign_keys=[protocole_id])
 
 
 # ==================== ACTES POSÉS ====================
@@ -295,6 +301,13 @@ class Consultation(db.Model):
     
     prochain_rdv = db.Column(db.DateTime)
     statut = db.Column(db.String(50), default='en_cours')
+    # ⭐ Décision du médecin à l'issue de la consultation : 'ambulatoire'
+    # (suivi normal) ou 'hospitalisation' (patient à admettre). Une
+    # consultation orientée 'hospitalisation' sans Hospitalisation encore
+    # créée pour elle (voir Hospitalisation.consultation_id) apparaît dans
+    # la liste "Hospitalisations en attente" (patron : "si c'est à
+    # hospitaliser il doit apparaitre dans hospitalisation").
+    orientation = db.Column(db.String(20), nullable=True)
     date_consultation = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer)
     
@@ -348,6 +361,7 @@ class Consultation(db.Model):
     
     # ⭐ RELATIONS (UNE SEULE FOIS CHAQUE)
     consultation_precedente = db.relationship('Consultation', remote_side=[id])
+    medecin = db.relationship('Utilisateur', foreign_keys=[id_medecin])
     protocole_applique = db.relationship('ProtocoleSoins', foreign_keys=[protocole_applique_id], backref='consultations')
     ordonnance_active = db.relationship('Ordonnance', foreign_keys=[ordonnance_active_id])
     
@@ -552,7 +566,14 @@ class Hospitalisation(db.Model):
     
     # ⭐ NOUVEAU : Lien vers la note active
     note_admission_active_id = db.Column(db.Integer, db.ForeignKey('notes_admission.id', ondelete='SET NULL'), nullable=True)
-    
+
+    # ⭐ Lien vers la consultation d'où vient la décision d'hospitaliser
+    # (Consultation.orientation == 'hospitalisation') — sert uniquement à
+    # faire disparaître le patient de la liste "en attente" une fois
+    # admis ; nullable car une hospitalisation peut aussi être créée
+    # directement (urgence, sans consultation préalable), comme avant.
+    consultation_id = db.Column(db.Integer, db.ForeignKey('consultations.id'), nullable=True)
+
     # ⭐ RELATIONS EXISTANTES (sans la relation lit qui pose problème)
     patient = db.relationship('Patient', backref='hospitalisations')
     medecins = db.relationship('HospitalisationMedecin', backref='hospitalisation', lazy='dynamic', cascade='all, delete-orphan')
@@ -592,6 +613,7 @@ class Hospitalisation(db.Model):
     )
 
     createur = db.relationship('Utilisateur', foreign_keys=[created_by], backref='hospitalisations_crees')
+    consultation = db.relationship('Consultation', foreign_keys=[consultation_id])
 
 
 class HospitalisationMedecin(db.Model):
@@ -1094,24 +1116,38 @@ class AntecedentPatient(db.Model):
 
 class ExamenPhysique(db.Model):
     __tablename__ = 'examens_physiques'
-    
+
     id = db.Column(db.Integer, primary_key=True)
-    consultation_id = db.Column(db.Integer, db.ForeignKey('consultations.id'), nullable=False)
-    
-    # Stockage des sections modifiées (JSON)
+    # ⭐ nullable : un ExamenPhysique appartient soit à une consultation,
+    # soit à une hospitalisation (hospitalisation_id ci-dessous), jamais
+    # les deux — voir _rendre_sections_examen_physique (app.py).
+    consultation_id = db.Column(db.Integer, db.ForeignKey('consultations.id'), nullable=True)
+    hospitalisation_id = db.Column(db.Integer, db.ForeignKey('hospitalisations.id'), nullable=True)
+
+    # Stockage des sections modifiées (JSON, {index: texte})
     sections_modifiees = db.Column(db.Text, nullable=True)
-    
+
+    # ⭐ Instantané figé des sections AU MOMENT DE LA COPIE depuis la
+    # consultation (hospitalisation uniquement, jamais réécrit ensuite) —
+    # sert de référence pour griser, en lecture, les sections que le
+    # médecin a modifiées DEPUIS l'admission (patron : "les parties
+    # modifiées dans l'examen physique apparaissent sous une couleur
+    # grise"). Vide/NULL pour un examen de consultation (la référence y
+    # est alors le catalogue par défaut, voir get_sections_examen()).
+    sections_origine = db.Column(db.Text, nullable=True)
+
     # Texte complet de l'examen
     examen_complet = db.Column(db.Text, nullable=True)
-    
+
     # Métadonnées
     version = db.Column(db.String(10), default='fr')
     created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     modified_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
-    
+
     # Relations
     consultation = db.relationship('Consultation', backref='examen_physique')
+    hospitalisation = db.relationship('Hospitalisation', backref=db.backref('examen_physique', uselist=False))
     createur = db.relationship('Utilisateur', backref='examens_physiques')
 
 
@@ -1471,7 +1507,7 @@ class ExamenPrescrit(db.Model):
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     medecin_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
     examen_type_id = db.Column(db.Integer, db.ForeignKey('examens_types.id'), nullable=True)
-    
+
     # Versionnement
     version = db.Column(db.Integer, nullable=False, default=1)
     est_active = db.Column(db.Boolean, default=True)

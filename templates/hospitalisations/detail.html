@@ -344,6 +344,48 @@
 </div>
 
 <!-- ========================================================== -->
+<!-- ⭐ CARTE EXAMEN PHYSIQUE (pré-rempli depuis la consultation, -->
+<!-- sections modifiées depuis l'admission grisées)              -->
+<!-- ========================================================== -->
+<div class="card mb-4 border-primary">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-stethoscope me-2"></i>
+            <strong>Examen physique</strong>
+        </div>
+        {% if current_user.role in ['admin_structure', 'medecin'] %}
+        <a href="{{ url_for('hospitalisation_examen_physique', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
+            <i class="fas fa-edit me-1"></i>{% if examen_physique_sections %}Modifier{% else %}Renseigner{% endif %}
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if examen_physique_sections %}
+            {% set nb_modifiees = examen_physique_sections|selectattr('modifie')|list|length %}
+            {% if nb_modifiees > 0 %}
+            <p class="small text-muted mb-3">
+                <i class="fas fa-circle" style="color:#adb5bd; font-size:8px;"></i>
+                {{ nb_modifiees }} section(s) modifiée(s) depuis l'admission (grisée(s) ci-dessous).
+            </p>
+            {% endif %}
+            {% for section in examen_physique_sections %}
+                {% if section.texte and section.texte.strip() %}
+                <div class="mb-3 p-2 rounded{% if section.modifie %} bg-light border-start border-4 border-secondary{% endif %}">
+                    <strong><i class="fas {{ section.icone }} me-1"></i>{{ section.nom }}</strong>
+                    {% if section.modifie %}<span class="badge bg-secondary ms-2">Modifié depuis l'admission</span>{% endif %}
+                    <p class="mb-0 mt-1" style="white-space: pre-wrap;">{{ section.texte }}</p>
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>Aucun examen physique renseigné pour cette hospitalisation.
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ========================================================== -->
 <!-- ⭐ CARTE EXAMENS AVEC HISTORIQUE                            -->
 <!-- ========================================================== -->
 <div class="card mb-4 border-info">

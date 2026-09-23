@@ -242,7 +242,7 @@
                             <p><strong>IMC :</strong> {{ consultation.imc or '-' }}</p>
                         </div>
                         <div class="col-md-3">
-                            <p><strong>Interprétation :</strong> 
+                            <p><strong>Interprétation :</strong>
                                 {% if consultation.imc %}
                                     {% if consultation.imc < 18.5 %}Maigreur
                                     {% elif consultation.imc < 25 %}Normal
@@ -256,7 +256,31 @@
                             </p>
                         </div>
                     </div>
-                    
+
+                    <!-- Examen physique -->
+                    <h5 class="mt-3 mb-3">Examen physique</h5>
+                    <hr>
+                    {% if examen_physique_sections %}
+                        {% set nb_modifiees = examen_physique_sections|selectattr('modifie')|list|length %}
+                        {% if nb_modifiees > 0 %}
+                        <p class="small text-muted mb-3">
+                            <i class="fas fa-circle" style="color:#adb5bd; font-size:8px;"></i>
+                            {{ nb_modifiees }} section(s) modifiée(s) par rapport au texte type (grisée(s) ci-dessous).
+                        </p>
+                        {% endif %}
+                        {% for section in examen_physique_sections %}
+                            {% if section.texte and section.texte.strip() %}
+                            <div class="mb-3 p-2 rounded{% if section.modifie %} bg-light border-start border-4 border-secondary{% endif %}">
+                                <strong><i class="fas {{ section.icone }} me-1"></i>{{ section.nom }}</strong>
+                                {% if section.modifie %}<span class="badge bg-secondary ms-2">Modifié</span>{% endif %}
+                                <p class="mb-0 mt-1" style="white-space: pre-wrap;">{{ section.texte }}</p>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">Aucun examen physique renseigné pour cette consultation.</p>
+                    {% endif %}
+
 
 <!-- ========================================================== -->
 <!-- ANTÉCÉDENTS DU PATIENT                                     -->

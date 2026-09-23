@@ -596,6 +596,29 @@
                 </div>
                 <input type="hidden" name="histoire_maladie" id="histoire_maladie" value="">
 
+                <!-- Orientation -->
+                <h5 class="mt-3 mb-3">Orientation à l'issue de la consultation</h5>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="form-check border rounded p-3">
+                            <input type="radio" name="orientation" value="ambulatoire" class="form-check-input" id="orientationAmbulatoire" checked>
+                            <label class="form-check-label" for="orientationAmbulatoire">
+                                <i class="fas fa-walking me-1"></i>Suivi en ambulatoire
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="form-check border rounded p-3 border-danger">
+                            <input type="radio" name="orientation" value="hospitalisation" class="form-check-input" id="orientationHospitalisation">
+                            <label class="form-check-label text-danger fw-bold" for="orientationHospitalisation">
+                                <i class="fas fa-procedures me-1"></i>À hospitaliser
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <small class="text-muted d-block mb-3">"À hospitaliser" fait apparaître le patient dans "Hospitalisations en attente" pour l'admission.</small>
+
                 <button type="submit" class="btn btn-primary mt-3">
                     <i class="fas fa-save me-2"></i>Enregistrer la consultation
                 </button>
