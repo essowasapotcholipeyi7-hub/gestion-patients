@@ -589,8 +589,18 @@ class Hospitalisation(db.Model):
     ordonnance_prescite = db.Column(db.Text, nullable=True)  # JSON avec les médicaments
 
     ordonnance_historique = db.Column(db.Text, nullable=True)  # Historique des ordonnances (JSON)
-    ordonnance_version = db.Column(db.Integer, default=1)       
-    
+    ordonnance_version = db.Column(db.Integer, default=1)
+
+    # ⭐ Ordonnance de sortie — DISTINCTE de ordonnance_prescite ci-dessus
+    # (traitement PENDANT le séjour) : médicaments à poursuivre par le
+    # patient APRÈS sa sortie, rédigée au moment ou juste après la clôture
+    # de l'hospitalisation, remise imprimée au patient. Un seul document
+    # final (pas de versionnement/historique séparé comme l'ordonnance de
+    # séjour — une correction réécrit simplement ce champ).
+    ordonnance_sortie = db.Column(db.Text, nullable=True)  # JSON avec les médicaments
+    ordonnance_sortie_date = db.Column(db.DateTime, nullable=True)
+    ordonnance_sortie_par = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
+
     # Relations
     protocole = db.relationship('ProtocoleSoins', foreign_keys=[protocole_id], backref='hospitalisations')
     
@@ -614,6 +624,7 @@ class Hospitalisation(db.Model):
 
     createur = db.relationship('Utilisateur', foreign_keys=[created_by], backref='hospitalisations_crees')
     consultation = db.relationship('Consultation', foreign_keys=[consultation_id])
+    prescripteur_sortie = db.relationship('Utilisateur', foreign_keys=[ordonnance_sortie_par])
 
 
 class HospitalisationMedecin(db.Model):

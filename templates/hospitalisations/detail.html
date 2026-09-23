@@ -461,6 +461,92 @@
 </div>
 
 <!-- ========================================================== -->
+<!-- ⭐ CARTE ORDONNANCE DE SORTIE — DISTINCTE de l'ordonnance de
+     séjour ci-dessus : médicaments à poursuivre par le patient APRÈS
+     sa sortie, remise imprimée. Rédigeable une fois l'hospitalisation
+     clôturée (voir definir_ordonnance_sortie, app.py). -->
+<!-- ========================================================== -->
+<div class="card mb-4 border-info">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-file-prescription me-2"></i>
+            <strong>Ordonnance de sortie</strong>
+            {% if hospitalisation.ordonnance_sortie %}
+                <span class="badge bg-light text-info ms-2">{{ hospitalisation.ordonnance_sortie|from_json|length }} medicament(s)</span>
+            {% else %}
+                <span class="badge bg-warning ms-2">Vide</span>
+            {% endif %}
+        </div>
+        <div>
+            {% if hospitalisation.statut != 'actif' %}
+                <button class="btn btn-outline-light btn-sm" onclick="ouvrirOrdonnanceSortie()">
+                    <i class="fas fa-{% if hospitalisation.ordonnance_sortie %}edit{% else %}plus{% endif %} me-1"></i>
+                    {% if hospitalisation.ordonnance_sortie %}Modifier{% else %}Rédiger{% endif %}
+                </button>
+            {% endif %}
+            {% if hospitalisation.ordonnance_sortie %}
+                <a href="{{ url_for('imprimer_ordonnance_sortie', id=hospitalisation.id) }}" target="_blank" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-print me-1"></i>Imprimer
+                </a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        {% if hospitalisation.ordonnance_sortie %}
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Medicament</th>
+                            <th>Dosage</th>
+                            <th>Posologie</th>
+                            <th>Duree</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for med in hospitalisation.ordonnance_sortie|from_json %}
+                        <tr>
+                            <td><strong>{{ med.medicament }}</strong></td>
+                            <td>{{ med.dosage or '-' }}</td>
+                            <td>{{ med.posologie or '-' }}</td>
+                            <td>{{ med.duree or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <small class="text-muted d-block mt-2">
+                <i class="fas fa-user-md me-1"></i>
+                Prescrit par :
+                {% if hospitalisation.prescripteur_sortie %}
+                    {{ hospitalisation.prescripteur_sortie.prenom }} {{ hospitalisation.prescripteur_sortie.nom }}
+                {% else %}
+                    -
+                {% endif %}
+                -
+                <i class="fas fa-calendar-alt me-1"></i>
+                {{ hospitalisation.ordonnance_sortie_date.strftime('%d/%m/%Y %H:%M') if hospitalisation.ordonnance_sortie_date else 'Date inconnue' }}
+            </small>
+        {% elif hospitalisation.statut == 'actif' %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Se rédige une fois l'hospitalisation clôturée.
+            </p>
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Aucune ordonnance de sortie rédigée.
+                <br>
+                <button class="btn btn-sm btn-info mt-2" onclick="ouvrirOrdonnanceSortie()">
+                    <i class="fas fa-plus me-1"></i>Rédiger l'ordonnance de sortie
+                </button>
+            </p>
+        {% endif %}
+    </div>
+</div>
+<input type="hidden" id="ordonnanceSortieJsonInitial" value="{{ hospitalisation.ordonnance_sortie or '[]' }}">
+
+<!-- ========================================================== -->
 <!-- ⭐ CARTE EXAMEN PHYSIQUE (pré-rempli depuis la consultation, -->
 <!-- sections modifiées depuis l'admission grisées)              -->
 <!-- ========================================================== -->
@@ -1826,8 +1912,30 @@ function ouvrirModificationPrescription() {
     
     // ⭐ CHARGER LES MÉDICAMENTS EXISTANTS
     chargerMedicamentsExistants();
-    
+
     // ⭐ OUVRIR LE MODAL
+    var modal = new bootstrap.Modal(document.getElementById('ordonnanceModal'));
+    modal.show();
+}
+
+// ⭐ Ordonnance de SORTIE — réutilise le même modal/formulaire que la
+// prescription de séjour (nouvelle/modification ci-dessus), juste avec
+// une action de formulaire différente. Ne pas confondre avec
+// ordonnance_prescite (traitement pendant le séjour) : ordonnance_sortie
+// est un champ séparé, chargé depuis #ordonnanceSortieJsonInitial (rendu
+// côté serveur) plutôt que depuis #medicaments_json_ordonnance qui porte
+// l'ordonnance de séjour.
+function ouvrirOrdonnanceSortie() {
+    document.getElementById('ordonnanceModalTitle').textContent = 'Ordonnance de sortie';
+    document.getElementById('ordonnanceModalAlert').innerHTML = '<i class="fas fa-info-circle me-2"></i>Médicaments à poursuivre par le patient après sa sortie — imprimable, à lui remettre.';
+    document.getElementById('ordonnanceActionType').value = 'sortie';
+    document.getElementById('ordonnanceMotifModification').style.display = 'none';
+    document.getElementById('ordonnanceSubmitBtn').innerHTML = '<i class="fas fa-save me-2"></i>Enregistrer';
+    document.getElementById('ordonnanceForm').action = "{{ url_for('definir_ordonnance_sortie', id=hospitalisation.id) }}";
+
+    document.getElementById('medicaments_json_ordonnance').value = document.getElementById('ordonnanceSortieJsonInitial').value;
+    chargerMedicamentsExistants();
+
     var modal = new bootstrap.Modal(document.getElementById('ordonnanceModal'));
     modal.show();
 }

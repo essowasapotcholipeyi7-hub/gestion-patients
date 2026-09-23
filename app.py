@@ -10192,8 +10192,120 @@ def modifier_ordonnance_hospitalisation(id):
     except Exception as e:
         db.session.rollback()
         flash(f'❌ Erreur : {str(e)}', 'danger')
-    
+
     return redirect(url_for('detail_hospitalisation', id=id))
+
+
+@app.route('/hospitalisation/<int:id>/ordonnance-sortie', methods=['POST'])
+@login_required
+def definir_ordonnance_sortie(id):
+    """Ordonnance de sortie — médicaments à poursuivre par le patient
+    APRÈS l'hospitalisation, distincte de l'ordonnance de séjour
+    (hospitalisation.ordonnance_prescite). Un seul document final (pas de
+    versionnement séparé) : ré-enregistrer ce champ le corrige simplement.
+    Rédigeable dès que l'hospitalisation n'est plus active — écrire
+    l'ordonnance de sortie pendant le séjour n'a pas de sens."""
+    from models import Hospitalisation
+    import json
+    from datetime import datetime
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    if hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+
+    if hospitalisation.statut == 'actif':
+        flash('L\'ordonnance de sortie se rédige une fois l\'hospitalisation clôturée', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    medicaments_json = request.form.get('medicaments_json', '[]')
+    try:
+        medicaments = json.loads(medicaments_json)
+    except Exception:
+        flash('Format des médicaments invalide', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    if not medicaments:
+        flash('Veuillez ajouter au moins un médicament', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    try:
+        anciens_medicaments = []
+        if hospitalisation.ordonnance_sortie:
+            try:
+                anciens_medicaments = json.loads(hospitalisation.ordonnance_sortie)
+            except Exception:
+                anciens_medicaments = []
+
+        hospitalisation.ordonnance_sortie = medicaments_json
+        hospitalisation.ordonnance_sortie_date = datetime.utcnow()
+        hospitalisation.ordonnance_sortie_par = current_user.id
+
+        # ⭐ Miroir Prescription pour la synchronisation GHP — même principe
+        # que l'ordonnance de séjour (modifier_ordonnance_hospitalisation) :
+        # uniquement les médicaments réellement nouveaux par rapport à une
+        # correction précédente, pour éviter les doublons.
+        nouveaux = _items_nouveaux(medicaments, anciens_medicaments)
+
+        db.session.commit()
+
+        if nouveaux:
+            _creer_prescriptions_miroir(
+                patient_id=hospitalisation.patient_id,
+                prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+                items=nouveaux,
+                type_prescription='medicament'
+            )
+            db.session.commit()
+            _envoyer_prescriptions_ghp_immediat()
+
+        flash('✅ Ordonnance de sortie enregistrée', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'❌ Erreur : {str(e)}', 'danger')
+
+    return redirect(url_for('detail_hospitalisation', id=id))
+
+
+@app.route('/hospitalisation/<int:id>/ordonnance-sortie/imprimer')
+@login_required
+def imprimer_ordonnance_sortie(id):
+    """Version imprimable de l'ordonnance de sortie — remise au patient."""
+    from models import Hospitalisation, Structure
+    import json
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    structure = Structure.query.get(current_user.id_structure)
+    patient = hospitalisation.patient
+
+    if not hospitalisation.ordonnance_sortie:
+        flash('Aucune ordonnance de sortie pour cette hospitalisation', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    try:
+        medicaments = json.loads(hospitalisation.ordonnance_sortie)
+    except Exception:
+        medicaments = []
+
+    prescripteur = (
+        f"{hospitalisation.prescripteur_sortie.prenom} {hospitalisation.prescripteur_sortie.nom}"
+        if hospitalisation.prescripteur_sortie
+        else f"{current_user.prenom} {current_user.nom}"
+    )
+
+    return render_template('impressions/ordonnance_sortie.html',
+                         hospitalisation=hospitalisation,
+                         structure=structure,
+                         patient=patient,
+                         medicaments=medicaments,
+                         prescripteur=prescripteur,
+                         date_ordonnance=hospitalisation.ordonnance_sortie_date)
+
 
 @app.route('/hospitalisation/<int:id>/ordonnance/historique')
 @login_required
