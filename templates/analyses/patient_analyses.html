@@ -135,7 +135,13 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if analyse.resultats %}
+                                    <!-- ⭐ FIX : un résultat saisi via l'éditeur en ligne ou un
+                                         fichier importé (voir saisir_resultats_analyse) laisse
+                                         analyse.resultats (texte libre) vide — cette colonne
+                                         affichait donc "En attente" alors que le statut et la
+                                         colonne Actions disaient déjà "Résultats disponibles".
+                                         Se base maintenant sur le statut, comme Actions. -->
+                                    {% if analyse.statut == 'TERMINE' %}
                                         <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#resultatModal{{ analyse.id }}">
                                             <i class="fas fa-eye"></i> Voir
                                         </button>
@@ -174,8 +180,9 @@
 </div>
 
 <!-- ⭐ MODALS POUR AFFICHER LES RÉSULTATS AVEC IMPRESSION -->
-<!-- Modals pour afficher les résultats -->
-{% for analyse in analyses if analyse.resultats %}
+<!-- Modals pour afficher les résultats — même fix que la colonne Résultats
+     ci-dessus : basé sur le statut, pas sur analyse.resultats seul. -->
+{% for analyse in analyses if analyse.statut == 'TERMINE' %}
 <div class="modal fade" id="resultatModal{{ analyse.id }}" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -197,7 +204,23 @@
                 </p>
                 <hr>
                 <p><strong>Résultats :</strong></p>
-                <div class="border rounded p-2 bg-light">{{ analyse.resultats|nl2br }}</div>
+                {% if analyse.contenu_html %}
+                <div class="border rounded p-2 bg-light">{{ analyse.contenu_html | safe }}</div>
+                {% elif analyse.fichier_data %}
+                <div class="border rounded p-2 bg-light">
+                    <i class="fas fa-paperclip me-1"></i>Fichier joint : {{ analyse.fichier_nom }}
+                    <a href="{{ url_for('telecharger_fichier_analyse', id=analyse.id) }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                        <i class="fas fa-eye me-1"></i>Ouvrir
+                    </a>
+                </div>
+                {% else %}
+                <div class="border rounded p-2 bg-light">{{ analyse.resultats|nl2br if analyse.resultats else 'Résultats non saisis' }}</div>
+                {% endif %}
+                {% if analyse.nom_interprete %}
+                <p class="mt-2 mb-0 text-end small">
+                    {% if analyse.titre_interprete %}{{ analyse.titre_interprete }} — {% endif %}{{ analyse.nom_interprete }}
+                </p>
+                {% endif %}
                 <small class="text-muted d-block mt-2">
                     Saisis par : {{ analyse.responsable.prenom }} {{ analyse.responsable.nom if analyse.responsable else 'Inconnu' }}
                     le {{ analyse.date_resultats.strftime('%d/%m/%Y %H:%M') }}
