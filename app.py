@@ -156,6 +156,46 @@ def _creer_prescriptions_miroir(patient_id, prescripteur_nom, items, type_prescr
     return creees
 
 
+def _creer_analyses_demandees_depuis_examen_prescrit(examen_prescrit, items, structure_id):
+    """Crée une AnalyseDemande par item d'un ExamenPrescrit (consultation ou
+    hospitalisation), pour que laborantin/radiologue le voient dans leur
+    file (/analyses) — sans ce pont, un examen prescrit pendant une
+    consultation/hospitalisation restait invisible pour eux (leur tableau
+    de bord ne lit que AnalyseDemande), alors qu'il partait déjà vers les
+    prescriptions reçues de GHP via _creer_prescriptions_miroir. Certains
+    chemins de création (hospitalisation directe, création d'examen en
+    consultation) le faisaient déjà chacun à leur façon sans lien fiable
+    vers l'ExamenPrescrit d'origine ; celle-ci pose explicitement
+    examen_prescrit_id pour fiabiliser saisir_resultats_examen ensuite.
+    `examen_prescrit.id` doit déjà exister (flush l'ExamenPrescrit avant
+    d'appeler cette fonction). Ne commit pas, l'appelant s'en charge."""
+    from models import AnalyseDemande
+
+    type_analyse = examen_prescrit.nature if examen_prescrit.nature in ('BIOLOGIE', 'IMAGERIE') else 'AUTRE'
+    creees = []
+    for item in items or []:
+        nom = str(item).strip()
+        if not nom:
+            continue
+        demande = AnalyseDemande(
+            consultation_id=examen_prescrit.consultation_id,
+            hospitalisation_id=examen_prescrit.hospitalisation_id,
+            patient_id=examen_prescrit.patient_id,
+            structure_id=structure_id,
+            type_analyse=type_analyse,
+            nom_analyse=nom,
+            description=examen_prescrit.motif or examen_prescrit.description,
+            prescrit_par=examen_prescrit.medecin_id,
+            examen_prescrit_id=examen_prescrit.id,
+            statut='EN_ATTENTE',
+            date_demande=datetime.utcnow(),
+            date_prescription=examen_prescrit.date_prescription or datetime.utcnow(),
+        )
+        db.session.add(demande)
+        creees.append(demande)
+    return creees
+
+
 def _signature_item(item):
     """Signature stable d'un item (médicament dict ou acte chaîne), pour
     comparer une nouvelle version d'ordonnance/examens à l'ancienne et ne
@@ -8570,6 +8610,7 @@ def appliquer_protocole(id):
                 hospitalisation.ordonnance_prescite = ordonnance_type.medicaments
         
         # Si le protocole a des examens associés, les créer
+        examens_pour_ghp = []
         if protocole.examen_type_id:
             examen_type = ExamenType.query.get(protocole.examen_type_id)
             if examen_type:
@@ -8587,9 +8628,28 @@ def appliquer_protocole(id):
                     date_prescription=datetime.utcnow()
                 )
                 db.session.add(examen_prescrit)
-        
+                db.session.flush()
+                try:
+                    examens_pour_ghp = json.loads(examen_type.examens) if examen_type.examens else []
+                except Exception:
+                    examens_pour_ghp = []
+                # ⭐ Pont vers /analyses (labo/radio) + synchro GHP — jusqu'ici
+                # un protocole avec examen ne faisait NI l'un NI l'autre,
+                # contrairement aux autres façons de prescrire un examen.
+                _creer_analyses_demandees_depuis_examen_prescrit(
+                    examen_prescrit, examens_pour_ghp, current_user.id_structure
+                )
+                _creer_prescriptions_miroir(
+                    patient_id=hospitalisation.patient_id,
+                    prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+                    items=examens_pour_ghp,
+                    type_prescription='acte'
+                )
+
         db.session.commit()
-        
+        if examens_pour_ghp:
+            _envoyer_prescriptions_ghp_immediat()
+
         flash(f'Protocole "{protocole.nom}" appliqué avec succès', 'success')
         
     except Exception as e:
@@ -9109,6 +9169,10 @@ def ajouter_examen_prescrit(id):
                         nom_analyse=nom_analyse.strip(),
                         description=description,
                         prescrit_par=current_user.id,
+                        # ⭐ Lien fiable vers l'ExamenPrescrit d'origine — voir
+                        # saisir_resultats_examen, qui matchait jusqu'ici sur
+                        # nom_analyse==nature (ne matchait presque jamais).
+                        examen_prescrit_id=examen_prescrit.id,
                         statut='EN_ATTENTE',
                         date_demande=datetime.utcnow()
                     )
@@ -9165,13 +9229,13 @@ def saisir_resultats_examen(id, examen_id):
     examen.date_resultats = datetime.utcnow()
     examen.updated_at = datetime.utcnow()
     
-    # ⭐ METTRE À JOUR L'ANALYSE DEMANDÉE (si elle existe)
-    analyse = AnalyseDemande.query.filter_by(
-        hospitalisation_id=id,
-        nom_analyse=examen.nature  # Ou un champ plus précis
-    ).first()
-    
-    if analyse:
+    # ⭐ METTRE À JOUR LES ANALYSES DEMANDÉES CORRESPONDANTES — matching par
+    # examen_prescrit_id (fiable) plutôt que l'ancien nom_analyse==nature
+    # (qui comparait un nom d'examen à "BIOLOGIE"/"IMAGERIE", donc ne
+    # matchait quasiment jamais). Un ExamenPrescrit peut porter plusieurs
+    # examens (un par AnalyseDemande liée) — même résultat reporté partout.
+    analyses = AnalyseDemande.query.filter_by(examen_prescrit_id=examen.id).all()
+    for analyse in analyses:
         analyse.resultats = resultats
         analyse.statut = statut
         analyse.date_resultats = datetime.utcnow()
@@ -9439,6 +9503,26 @@ def creer_ordonnance_consultation(id):
                             date_prescription=datetime.utcnow()
                         )
                         db.session.add(examen_prescrit)
+                        db.session.flush()
+                        try:
+                            examens_protocole_pour_ghp = json.loads(examen_type.examens) if examen_type.examens else []
+                        except Exception:
+                            examens_protocole_pour_ghp = []
+                        # ⭐ Pont vers /analyses (labo/radio) + synchro GHP pour
+                        # cet examen — jusqu'ici, un protocole appliqué via
+                        # "créer ordonnance" ne faisait NI l'un NI l'autre pour
+                        # l'examen (seuls les médicaments de l'ordonnance,
+                        # plus bas, étaient synchronisés).
+                        _creer_analyses_demandees_depuis_examen_prescrit(
+                            examen_prescrit, examens_protocole_pour_ghp, current_user.id_structure
+                        )
+                        _creer_prescriptions_miroir(
+                            patient_id=consultation.id_patient,
+                            prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+                            items=examens_protocole_pour_ghp,
+                            type_prescription='acte',
+                            id_consultation=consultation.id
+                        )
         
         # Désactiver les anciennes ordonnances
         consultation.ordonnances.update({'est_active': False})
@@ -9681,6 +9765,15 @@ def ajouter_examen_prescrit_consultation(id):
             db.session.add(examen_prescrit)
             examens_pour_ghp = examens
 
+        db.session.flush()
+        # ⭐ Pont vers /analyses (labo/radio) — jusqu'ici ce chemin
+        # (consultation, prescription directe) mirait bien vers GHP mais
+        # ne créait aucune AnalyseDemande, donc restait invisible pour
+        # laborantin/radiologue.
+        _creer_analyses_demandees_depuis_examen_prescrit(
+            examen_prescrit, examens_pour_ghp, current_user.id_structure
+        )
+
         # ⭐ Miroir Prescription pour la synchronisation GHP
         _creer_prescriptions_miroir(
             patient_id=consultation.id_patient,
@@ -9816,6 +9909,9 @@ def creer_examen_consultation(id):
                         nom_analyse=nom_analyse.strip(),
                         description=description,
                         prescrit_par=current_user.id,
+                        # ⭐ Lien fiable vers l'ExamenPrescrit d'origine — voir
+                        # saisir_resultats_examen.
+                        examen_prescrit_id=examen_prescrit.id,
                         statut='EN_ATTENTE',
                         date_demande=datetime.utcnow()
                     )
@@ -9905,12 +10001,20 @@ def modifier_examen_consultation(id, examen_id):
         )
         
         db.session.add(examen)
+        db.session.flush()
 
         # ⭐ Miroir Prescription pour GHP — uniquement les examens réellement
         # nouveaux par rapport à l'ancienne version.
         anciens_examens = examen_old.get_examens_list()
         nouveaux = _items_nouveaux(examens, anciens_examens)
         if nouveaux:
+            # ⭐ Pont vers /analyses (labo/radio) — même principe que le
+            # miroir GHP juste en dessous : uniquement les items réellement
+            # nouveaux, pour ne pas créer un doublon d'AnalyseDemande pour
+            # un examen déjà présent dans la version précédente.
+            _creer_analyses_demandees_depuis_examen_prescrit(
+                examen, nouveaux, current_user.id_structure
+            )
             _creer_prescriptions_miroir(
                 patient_id=consultation.id_patient,
                 prescripteur_nom=f"{current_user.prenom} {current_user.nom}",

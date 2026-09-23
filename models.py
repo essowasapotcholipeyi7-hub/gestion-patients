@@ -659,7 +659,14 @@ class AnalyseDemande(db.Model):
     
     # Fichiers joints
     fichiers = db.Column(db.Text, nullable=True)
-    
+
+    # ⭐ Lien vers l'ExamenPrescrit d'origine (consultation/hospitalisation)
+    # quand cette demande vient de là plutôt que d'une saisie directe dans
+    # /analyses — remplace un ancien matching fragile sur nom_analyse==nature
+    # (qui ne matchait quasiment jamais, voir saisir_resultats_examen) par un
+    # vrai lien fiable, et évite les doublons si l'examen est modifié.
+    examen_prescrit_id = db.Column(db.Integer, db.ForeignKey('examens_prescrits.id'), nullable=True)
+
     # Métadonnées
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
