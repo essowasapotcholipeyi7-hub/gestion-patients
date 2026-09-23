@@ -11134,15 +11134,5 @@ def ajouter_reference_hospitalisation(id):
                          patient=patient)
 
 
-@app.route('/_test_login/<int:structure_id>/<role>')
-def _test_login(structure_id, role):
-    from models import Utilisateur
-    user = Utilisateur.query.filter_by(id_structure=structure_id, role=role, actif=True).first()
-    if not user:
-        return f"Aucun utilisateur pour structure {structure_id}", 404
-    login_user(user)
-    return f"OK connecte comme {user.prenom} {user.nom} ({user.role}) structure {structure_id}"
-
-
 if __name__ == '__main__':
     app.run(debug=True)

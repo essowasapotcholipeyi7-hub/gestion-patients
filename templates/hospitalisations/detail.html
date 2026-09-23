@@ -248,7 +248,10 @@
             <strong>Ordonnance medicale</strong>
             {% if ordonnance_medicaments %}
                 <span class="badge bg-light text-success ms-2">{{ ordonnance_medicaments|length }} medicament(s)</span>
-                <span class="badge bg-light text-info ms-1">Version {{ ordonnance_version or 1 }}</span>
+                <!-- ⭐ FIX : "ordonnance_version" (sans préfixe) n'est jamais
+                     passée par detail_hospitalisation() — affichait toujours
+                     "Version 1" même après plusieurs modifications. -->
+                <span class="badge bg-light text-info ms-1">Version {{ hospitalisation.ordonnance_version or 1 }}</span>
             {% else %}
                 <span class="badge bg-warning ms-2">Vide</span>
             {% endif %}
@@ -259,23 +262,32 @@
                 <button class="btn btn-light btn-sm" onclick="ouvrirNouvellePrescription()">
                     <i class="fas fa-plus me-1"></i>Nouvelle prescription
                 </button>
-                
+
                 {% if ordonnance_medicaments %}
                     <!-- ⭐ MODIFIER -->
                     <button class="btn btn-outline-light btn-sm" onclick="ouvrirModificationPrescription()">
                         <i class="fas fa-edit me-1"></i>Modifier
                     </button>
-                    
-                    <!-- ⭐ IMPRIMER -->
-                    <a href="{{ url_for('imprimer_ordonnance', id=hospitalisation.id) }}" target="_blank" class="btn btn-outline-light btn-sm">
-                        <i class="fas fa-print me-1"></i>Imprimer
-                    </a>
-                    
-                    <!-- ⭐ HISTORIQUE -->
-                    <a href="{{ url_for('historique_ordonnances_hospitalisation', id=hospitalisation.id) }}" class="btn btn-outline-light btn-sm">
-                        <i class="fas fa-history me-1"></i>Historique
-                    </a>
                 {% endif %}
+            {% endif %}
+
+            {% if ordonnance_medicaments %}
+                <!-- ⭐ FIX : Imprimer/Historique étaient à tort dans le bloc
+                     "hospitalisation.statut == 'actif'" ci-dessus — une
+                     ordonnance déjà prescrite doit rester imprimable/
+                     consultable même après la sortie ou le transfert du
+                     patient (dossier à archiver, remettre au patient...).
+                     Seules Nouvelle prescription/Modifier ont vraiment besoin
+                     d'une hospitalisation encore active. -->
+                <!-- ⭐ IMPRIMER -->
+                <a href="{{ url_for('imprimer_ordonnance', id=hospitalisation.id) }}" target="_blank" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-print me-1"></i>Imprimer
+                </a>
+
+                <!-- ⭐ HISTORIQUE -->
+                <a href="{{ url_for('historique_ordonnances_hospitalisation', id=hospitalisation.id) }}" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-history me-1"></i>Historique
+                </a>
             {% endif %}
         </div>
     </div>

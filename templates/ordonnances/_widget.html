@@ -1,0 +1,67 @@
+{# ============================================================
+   Widget "Historique des ordonnances" — vue d'ensemble patient-wide,
+   toutes origines confondues (consultation ET hospitalisation), même
+   principe que soins/_widget.html pour les actes posés.
+   Variable attendue : historique_ordonnances (liste de dicts, voir
+   patient_detail(), app.py) — un item par consultation/hospitalisation
+   ayant une ordonnance active, triée par date décroissante. Le détail
+   complet (toutes les versions) reste accessible via "Historique" (pages
+   dédiées déjà existantes, une par consultation/hospitalisation).
+   ============================================================ #}
+<div class="card mb-4" id="ordonnancesWidget">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-prescription me-2"></i>Historique des ordonnances</h5>
+        <span class="badge bg-light text-success">{{ historique_ordonnances|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        {% if historique_ordonnances %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Origine</th>
+                        <th>Médicaments</th>
+                        <th>Prescrit par</th>
+                        <th>Version</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for o in historique_ordonnances %}
+                    <tr>
+                        <td class="small">{{ o.date.strftime('%d/%m/%Y %H:%M') if o.date else '-' }}</td>
+                        <td>
+                            <span class="badge {{ 'bg-info' if o.origine == 'Consultation' else 'bg-primary' }}">{{ o.origine }}</span>
+                            <div class="text-muted small">{{ o.origine_label }}</div>
+                        </td>
+                        <td class="small">
+                            {% for med in o.medicaments[:3] %}
+                                <div>{{ med.medicament }}{% if med.dosage %} ({{ med.dosage }}){% endif %}</div>
+                            {% endfor %}
+                            {% if o.medicaments|length > 3 %}
+                                <div class="text-muted">+{{ o.medicaments|length - 3 }} autre(s)</div>
+                            {% endif %}
+                        </td>
+                        <td class="small">{{ o.prescrit_par_nom or '-' }}</td>
+                        <td><span class="badge bg-secondary">v{{ o.version }}</span></td>
+                        <td class="text-end">
+                            <a href="{{ o.imprimer_url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Imprimer">
+                                <i class="fas fa-print"></i>
+                            </a>
+                            <a href="{{ o.historique_url }}" class="btn btn-sm btn-outline-secondary" title="Voir toutes les versions" data-loading="true">
+                                <i class="fas fa-history"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info m-3 mb-0">
+            <i class="fas fa-info-circle me-2"></i>Aucune ordonnance pour ce patient pour l'instant.
+        </div>
+        {% endif %}
+    </div>
+</div>
