@@ -197,7 +197,7 @@ function chargerModeles() {
             ? '<div class="list-group list-group-flush">' + liste.map(m => `
                 <div class="list-group-item d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="fw-bold">${m.nom} ${m.a_contenu_html ? '<span class="badge bg-info">En ligne</span>' : '<span class="badge bg-secondary">Fichier</span>'}</div>
+                        <div class="fw-bold">${m.nom} ${m.a_contenu_html ? '<span class="badge bg-info">En ligne</span>' : '<span class="badge bg-secondary">Fichier</span>'} ${m.source_app === 'ghp' ? '<span class="badge bg-primary" title="Reçu automatiquement de GHP"><i class="fas fa-sync-alt me-1"></i>Synchronisé depuis GHP</span>' : ''}</div>
                         <div class="text-muted small">${m.a_contenu_html ? 'Prêt à charger dans l\'éditeur' : m.fichier_nom} — ${m.created_at}</div>
                     </div>
                     <div>

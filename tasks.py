@@ -8,6 +8,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# ⭐ Garde-fou de taille pour le transport base64 (résultats/modèles) — un
+# fichier au-delà de cette taille est volumineux pour un simple aller-retour
+# JSON synchrone (timeout=30s des deux côtés) : on préfère le signaler
+# clairement dans les logs plutôt que de tenter l'envoi et échouer par un
+# timeout silencieux, difficile à diagnostiquer ensuite.
+TAILLE_MAX_FICHIER_SYNC = 5 * 1024 * 1024  # 5 Mo
+
+
 def sync_prescriptions_to_ghp():
     """
     Synchronise les prescriptions non envoyées vers GHP.
@@ -259,6 +267,11 @@ def sync_resultats_examens_to_ghp():
                 ).all()
 
                 for a in analyses:
+                    if a.fichier_data and len(a.fichier_data) > TAILLE_MAX_FICHIER_SYNC:
+                        messages.append(f"structure {mapping.local_structure_id} analyse #{a.id}: fichier trop volumineux ({len(a.fichier_data) // 1024} Ko), non envoyé")
+                        logger.error(f"⚠️ Fichier trop volumineux pour la synchro (analyse #{a.id}, {len(a.fichier_data) // 1024} Ko) — non envoyé, à réduire ou transmettre autrement.")
+                        continue
+
                     patient = a.patient
                     auteur_nom = None
                     if a.responsable:
@@ -311,6 +324,11 @@ def sync_resultats_examens_to_ghp():
                 ).all()
 
                 for m in modeles:
+                    if m.fichier_data and len(m.fichier_data) > TAILLE_MAX_FICHIER_SYNC:
+                        messages.append(f"structure {mapping.local_structure_id} modèle #{m.id}: fichier trop volumineux ({len(m.fichier_data) // 1024} Ko), non envoyé")
+                        logger.error(f"⚠️ Fichier trop volumineux pour la synchro (modèle #{m.id}, {len(m.fichier_data) // 1024} Ko) — non envoyé, à réduire ou transmettre autrement.")
+                        continue
+
                     payload = {
                         'categorie': 'modele',
                         'source_app': 'gestion_patients',

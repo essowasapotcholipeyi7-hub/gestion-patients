@@ -5725,6 +5725,7 @@ def api_lister_modeles_resultats():
         'id': l.id, 'nom': l.nom, 'type_analyse': l.type_analyse,
         'fichier_nom': l.fichier_nom, 'a_contenu_html': bool(l.contenu_html),
         'created_at': l.created_at.strftime('%d/%m/%Y') if l.created_at else '',
+        'source_app': l.source_app,  # ⭐ 'ghp' si synchronisé depuis GHP, sinon None (natif)
     } for l in lignes])
 
 
