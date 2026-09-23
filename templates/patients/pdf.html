@@ -303,7 +303,15 @@
                             {% elif a.statut == 'EN_COURS' %}<span class="badge badge-info">En cours</span>
                             {% elif a.statut == 'TERMINE' %}<span class="badge badge-success">Terminé</span>{% endif %}
                         </td>
-                        <td>{{ a.resultats or 'En attente' }}</td>
+                        <!-- ⭐ FIX : un résultat saisi via l'éditeur en ligne ou un fichier
+                             importé laisse a.resultats vide (voir saisir_resultats_analyse) —
+                             affichait "En attente" alors que le Statut disait déjà "Terminé". -->
+                        <td>
+                            {% if a.resultats %}{{ a.resultats }}
+                            {% elif a.contenu_html %}{{ a.contenu_html|striptags|truncate(150) }}
+                            {% elif a.fichier_data %}Fichier joint ({{ a.fichier_nom }})
+                            {% else %}En attente{% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

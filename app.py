@@ -1771,9 +1771,20 @@ def patient_detail(id):
         else:
             consultation.sections_modifiees = {}
             consultation.examen_complet = None
-        
+
         # ⭐ Ajouter les sections standard pour comparaison
         consultation.sections_standard = sections_standard_dict
+
+        # ⭐ FIX : un résultat saisi via l'éditeur en ligne ou un fichier
+        # importé (voir saisir_resultats_analyse) ne met jamais à jour
+        # consultation.resultats_biologie/imagerie (texte libre uniquement,
+        # voir le commentaire à cet endroit) — sans ceci, ce résultat
+        # n'apparaissait nulle part dans le dossier du patient, alors qu'il
+        # est bien "Terminé" et visible dans la file labo/radio.
+        consultation.resultats_riches = [
+            a for a in consultation.analyses_demandees
+            if a.statut == 'TERMINE' and (a.contenu_html or a.fichier_data)
+        ]
     
     return render_template('patients/detail.html',
                          patient=patient,

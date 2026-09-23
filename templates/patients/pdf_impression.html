@@ -143,7 +143,13 @@
                         <td>{{ a.date_demande.strftime('%d/%m/%Y') }}</td>
                         <td>{{ a.nom_analyse }}</td>
                         <td><span class="badge-{% if a.statut == 'TERMINE' %}success{% elif a.statut == 'EN_COURS' %}warning{% else %}secondary{% endif %}">{{ a.statut }}</span></td>
-                        <td>{{ a.resultats or 'En attente' }}</td>
+                        <!-- ⭐ FIX : voir le commentaire équivalent dans pdf.html -->
+                        <td>
+                            {% if a.resultats %}{{ a.resultats }}
+                            {% elif a.contenu_html %}{{ a.contenu_html|striptags|truncate(150) }}
+                            {% elif a.fichier_data %}Fichier joint ({{ a.fichier_nom }})
+                            {% else %}En attente{% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

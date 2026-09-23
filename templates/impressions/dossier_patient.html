@@ -345,6 +345,17 @@
                     <div style="font-size:10px; color:#555; margin-left:10px; padding:3px 5px; background:#f8f9fa; border-radius:3px; margin-top:2px;">
                         Résultat : {{ a.resultats|truncate(200) }}
                     </div>
+                    {% elif a.contenu_html %}
+                    <!-- ⭐ FIX : résultat saisi via l'éditeur en ligne (a.resultats vide
+                         dans ce cas, voir saisir_resultats_analyse) — affichait le badge
+                         "TERMINE" sans aucun détail. -->
+                    <div style="font-size:10px; color:#555; margin-left:10px; padding:3px 5px; background:#f8f9fa; border-radius:3px; margin-top:2px;">
+                        Résultat : {{ a.contenu_html|striptags|truncate(200) }}
+                    </div>
+                    {% elif a.fichier_data %}
+                    <div style="font-size:10px; color:#555; margin-left:10px; padding:3px 5px; background:#f8f9fa; border-radius:3px; margin-top:2px;">
+                        Résultat : fichier joint ({{ a.fichier_nom }}) — voir le dossier en ligne pour l'ouvrir
+                    </div>
                     {% endif %}
                     {% if not loop.last %}, {% endif %}
                 {% endfor %}

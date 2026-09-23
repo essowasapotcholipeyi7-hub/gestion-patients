@@ -19,13 +19,20 @@
                 <span class="badge bg-primary rounded-pill ms-1">{{ patient.engagements|length }}</span>
             </a>
             
+            <!-- ⭐ Résultats labo/radio — vue complète (y compris hospitalisation
+                 et résultats reçus de GHP, sans lien vers une consultation
+                 précise, qui n'apparaissent pas dans l'historique ci-dessous) -->
+            <a href="{{ url_for('patient_analyses', patient_id=patient.id) }}" class="btn btn-outline-primary" data-loading="true">
+                <i class="fas fa-flask me-1"></i> Résultats labo/radio
+            </a>
+
             <!-- ⭐ Imprimer le dossier complet -->
-            <a href="{{ url_for('imprimer_dossier_patient', patient_id=patient.id) }}" 
-               target="_blank" 
+            <a href="{{ url_for('imprimer_dossier_patient', patient_id=patient.id) }}"
+               target="_blank"
                class="btn btn-primary">
                 <i class="fas fa-print me-2"></i>Imprimer le dossier complet
             </a>
-            
+
             <!-- ⭐ Retour -->
             <a href="{{ url_for('patients_list') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Retour
@@ -606,7 +613,35 @@
                                         <small>Reçu le {{ consultation.date_resultats.strftime('%d/%m/%Y %H:%M') }}</small>
                                     {% endif %}
                                 </div>
-                                {% else %}
+                                {% endif %}
+
+                                <!-- ⭐ FIX : résultats saisis via l'éditeur en ligne ou un fichier
+                                     importé — jamais reflétés dans resultats_biologie/imagerie
+                                     ci-dessus (texte libre uniquement), voir patient_detail()
+                                     app.py. Affichés séparément pour ne rien perdre. -->
+                                {% if consultation.resultats_riches %}
+                                <hr>
+                                {% for analyse in consultation.resultats_riches %}
+                                <div class="alert alert-success">
+                                    <strong><i class="fas fa-file-medical-alt me-2"></i>{{ analyse.nom_analyse }} :</strong>
+                                    {% if analyse.contenu_html %}
+                                        <div class="border rounded p-2 bg-white mt-1">{{ analyse.contenu_html | safe }}</div>
+                                    {% elif analyse.fichier_data %}
+                                        <div class="border rounded p-2 bg-white mt-1">
+                                            <i class="fas fa-paperclip me-1"></i>Fichier joint : {{ analyse.fichier_nom }}
+                                            <a href="{{ url_for('telecharger_fichier_analyse', id=analyse.id) }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                                                <i class="fas fa-eye me-1"></i>Ouvrir
+                                            </a>
+                                        </div>
+                                    {% endif %}
+                                    {% if analyse.date_resultats %}
+                                        <small>Reçu le {{ analyse.date_resultats.strftime('%d/%m/%Y %H:%M') }}</small>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                                {% endif %}
+
+                                {% if not consultation.resultats_biologie and not consultation.resultats_imagerie and not consultation.resultats_riches %}
                                     {% if consultation.examens_biologie or consultation.examens_imagerie %}
                                     <hr>
                                     <div class="alert alert-warning">
