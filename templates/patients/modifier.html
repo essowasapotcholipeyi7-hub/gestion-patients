@@ -9,7 +9,7 @@
             <i class="fas fa-user-edit me-2"></i>
             Modifier patient - {{ patient.prenom }} {{ patient.nom }}
         </h1>
-        <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-secondary">
+        <a href="{{ retour or url_for('patient_detail', id=patient.id) }}" class="btn btn-secondary">
             <i class="fas fa-arrow-left me-2"></i>Retour
         </a>
     </div>
@@ -17,6 +17,7 @@
     <div class="card">
         <div class="card-body">
             <form method="POST">
+                {% if retour %}<input type="hidden" name="retour" value="{{ retour }}">{% endif %}
                 <!-- ═══════════════════════════════════════════ -->
                 <!-- IDENTITÉ -->
                 <!-- ═══════════════════════════════════════════ -->

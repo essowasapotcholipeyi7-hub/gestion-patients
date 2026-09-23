@@ -3043,12 +3043,26 @@ def patient_modifier(id):
     from datetime import datetime
     
     patient = Patient.query.get_or_404(id)
-    
-    # Vérifier l'accès
-    if current_user.role == 'medecin' and patient.id_medecin_referent != current_user.id:
+
+    # ⭐ FIX : même bug que consultation_ajouter_avec_patient — comparaison
+    # stricte contre id_medecin_referent=None (patient sans référent, ex.
+    # tout juste synchronisé depuis GHP) bloquait à tort TOUT médecin.
+    if current_user.role == 'medecin' and patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('patients_list'))
-    
+
+    # ⭐ Retour vers une autre page que le dossier complet (ex. la
+    # pré-consultation infirmier) après enregistrement — voir le bouton
+    # "Compléter les informations du patient" dans
+    # infirmier/pre_consultation.html. Sans ce paramètre, comportement
+    # inchangé (retour au dossier patient).
+    retour = request.values.get('retour') or None
+    # ⭐ N'accepte qu'un chemin interne relatif (jamais une URL externe /
+    # protocole-relative type "//autre-site") — évite une redirection
+    # ouverte via ce paramètre.
+    if retour and (not retour.startswith('/') or retour.startswith('//')):
+        retour = None
+
     # Récupérer les médecins
     medecins = Utilisateur.query.filter_by(
         id_structure=current_user.id_structure if current_user.id_structure else patient.id_structure,
@@ -3149,9 +3163,9 @@ def patient_modifier(id):
         
         db.session.commit()
         flash('✅ Patient modifié avec succès', 'success')
-        return redirect(url_for('patient_detail', id=patient.id))
-    
-    return render_template('patients/modifier.html', patient=patient, medecins=medecins)
+        return redirect(retour or url_for('patient_detail', id=patient.id))
+
+    return render_template('patients/modifier.html', patient=patient, medecins=medecins, retour=retour)
 
 # ==================== CONSULTATION AVEC PATIENT SPECIFIQUE ====================
 

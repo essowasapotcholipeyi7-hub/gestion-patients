@@ -23,14 +23,40 @@
                                 (N° P{{ "%05d" % patient.id }})
                             </small>
                         </div>
-                        <div>
-                            <span class="badge bg-light text-primary">
+                        <div class="text-end">
+                            <span class="badge bg-light text-primary d-block mb-2">
                                 Étape {{ step }}/4
                             </span>
+                            <!-- ⭐ Même formulaire que celui déjà utilisé par
+                                 admin_structure/médecin (patient_modifier) —
+                                 permet à l'infirmier de compléter/corriger
+                                 sexe, date de naissance, etc. avant de
+                                 poursuivre la pré-consultation, notamment
+                                 pour un patient tout juste synchronisé
+                                 depuis GHP dont la fiche est incomplète. -->
+                            <a href="{{ url_for('patient_modifier', id=patient.id, retour=url_for('infirmier_pre_consultation', patient_id=patient.id, step=step)) }}"
+                               class="btn btn-outline-light btn-sm" data-loading="true">
+                                <i class="fas fa-user-edit me-1"></i>Infos du patient
+                            </a>
                         </div>
                     </div>
                 </div>
                 <div class="card-body">
+
+                    {% if not patient.sexe or not patient.date_naissance %}
+                    <div class="alert alert-warning d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Fiche patient incomplète :
+                            {% if not patient.sexe %}sexe{% endif %}{% if not patient.sexe and not patient.date_naissance %}, {% endif %}{% if not patient.date_naissance %}date de naissance{% endif %}
+                            manquant{% if not patient.sexe and not patient.date_naissance %}s{% endif %}.
+                        </div>
+                        <a href="{{ url_for('patient_modifier', id=patient.id, retour=url_for('infirmier_pre_consultation', patient_id=patient.id, step=step)) }}"
+                           class="btn btn-warning btn-sm text-nowrap ms-3" data-loading="true">
+                            <i class="fas fa-user-edit me-1"></i>Compléter maintenant
+                        </a>
+                    </div>
+                    {% endif %}
 
                     <!-- Barre de progression -->
                     <div class="progress mb-4" style="height: 10px; border-radius: 10px;">
