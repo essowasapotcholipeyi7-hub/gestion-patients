@@ -9622,11 +9622,32 @@ def appliquer_protocole(id):
         hospitalisation.updated_at = datetime.utcnow()
         
         # Si le protocole a une ordonnance associée, la copier
+        medicaments_pour_ghp = []
         if protocole.ordonnance_type_id:
             ordonnance_type = OrdonnanceType.query.get(protocole.ordonnance_type_id)
             if ordonnance_type:
+                anciens_medicaments = []
+                if hospitalisation.ordonnance_prescite:
+                    try:
+                        anciens_medicaments = json.loads(hospitalisation.ordonnance_prescite)
+                    except Exception:
+                        anciens_medicaments = []
+                try:
+                    nouveaux_medicaments = json.loads(ordonnance_type.medicaments) if ordonnance_type.medicaments else []
+                except Exception:
+                    nouveaux_medicaments = []
                 hospitalisation.ordonnance_prescite = ordonnance_type.medicaments
-        
+                # ⭐ Miroir + synchro GHP — même trou que modifier/creer_ordonnance_hospitalisation :
+                # une ordonnance copiée depuis un protocole ne partait jamais vers GHP.
+                medicaments_pour_ghp = _items_nouveaux(nouveaux_medicaments, anciens_medicaments)
+                if medicaments_pour_ghp:
+                    _creer_prescriptions_miroir(
+                        patient_id=hospitalisation.patient_id,
+                        prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+                        items=medicaments_pour_ghp,
+                        type_prescription='medicament'
+                    )
+
         # Si le protocole a des examens associés, les créer
         examens_pour_ghp = []
         if protocole.examen_type_id:
@@ -9665,7 +9686,7 @@ def appliquer_protocole(id):
                 )
 
         db.session.commit()
-        if examens_pour_ghp:
+        if examens_pour_ghp or medicaments_pour_ghp:
             _envoyer_prescriptions_ghp_immediat()
 
         flash(f'Protocole "{protocole.nom}" appliqué avec succès', 'success')
@@ -9718,8 +9739,10 @@ def modifier_ordonnance_hospitalisation(id):
                 historique = []
         
         # Sauvegarder l'ancienne ordonnance dans l'historique
+        anciens_medicaments = []
         if hospitalisation.ordonnance_prescite:
             ancienne_version = json.loads(hospitalisation.ordonnance_prescite)
+            anciens_medicaments = ancienne_version
             historique.append({
                 'version': hospitalisation.ordonnance_version or 1,
                 'date': datetime.utcnow().isoformat(),
@@ -9728,20 +9751,37 @@ def modifier_ordonnance_hospitalisation(id):
                 'prescrit_par_nom': f"{current_user.prenom} {current_user.nom}",
                 'motif': motif_modification
             })
-        
+
         # Sauvegarder l'historique
         hospitalisation.ordonnance_historique = json.dumps(historique, ensure_ascii=False)
-        
+
         # Incrémenter la version
         hospitalisation.ordonnance_version = (hospitalisation.ordonnance_version or 0) + 1
-        
+
         # Mettre à jour la nouvelle ordonnance
         hospitalisation.ordonnance_prescite = medicaments_json
         hospitalisation.updated_at = datetime.utcnow()
         hospitalisation.created_by = current_user.id
-        
+
+        # ⭐ Miroir Prescription pour la synchronisation GHP — mêmes principes
+        # que creer_ordonnance_hospitalisation : seuls les médicaments
+        # réellement nouveaux par rapport à la version précédente sont
+        # renvoyés (évite les doublons à chaque modification/réimpression).
+        # Avant ce correctif, une ordonnance modifiée en hospitalisation
+        # n'apparaissait jamais dans "Prescriptions reçues" côté GHP.
+        nouveaux = _items_nouveaux(medicaments, anciens_medicaments)
+        if nouveaux:
+            _creer_prescriptions_miroir(
+                patient_id=hospitalisation.patient_id,
+                prescripteur_nom=f"{current_user.prenom} {current_user.nom}",
+                items=nouveaux,
+                type_prescription='medicament'
+            )
+
         db.session.commit()
-        
+        if nouveaux:
+            _envoyer_prescriptions_ghp_immediat()
+
         flash(f'✅ Ordonnance modifiée - Version {hospitalisation.ordonnance_version} créée', 'success')
         
     except Exception as e:
