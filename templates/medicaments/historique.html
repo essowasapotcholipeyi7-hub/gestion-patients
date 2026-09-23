@@ -21,16 +21,19 @@
 
     <div class="card mb-3">
         <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end" id="formFiltreHistorique">
-                <div class="col-md-5 position-relative">
-                    <label class="form-label small">Patient</label>
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-md-8">
+                    <label class="form-label small">Rechercher un patient</label>
                     <input type="text" id="patientSearchHist" class="form-control"
-                           placeholder="Rechercher un patient par nom, prénom..." autocomplete="off"
-                           value="{{ patient_filtre_nom or '' }}">
-                    <div id="patientResultsHist" class="list-group mt-1" style="max-height: 220px; overflow-y: auto; display: none; position: absolute; z-index: 1000; width: 100%;"></div>
-                    <input type="hidden" name="patient" id="patientIdHist" value="{{ patient_filtre or '' }}">
+                           placeholder="Nom ou prénom... (filtrage instantané, parmi les patients de cet historique)"
+                           autocomplete="off">
                 </div>
                 <div class="col-md-4">
+                    <span class="text-muted small" id="patientSearchCountHist"></span>
+                </div>
+            </div>
+            <form method="GET" class="row g-2 align-items-end">
+                <div class="col-md-9">
                     <label class="form-label small">Statut</label>
                     <select name="statut" class="form-select">
                         <option value="">Tous</option>
@@ -40,64 +43,42 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i>Filtrer</button>
+                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i>Filtrer par statut</button>
                 </div>
             </form>
         </div>
     </div>
 
     <script>
-    // ⭐ Recherche patient — même principe que actes_poses/ajouter.html
-    // (filtrer une liste préchargée au fur et à mesure de la saisie) plutôt
-    // qu'un long <select> à faire défiler (patron : "il faut prévoir une
-    // barre de recherche de patients").
-    const patientsHistorique = [
-        {% for p in patients %}
-        { id: {{ p.id }}, nom: {{ p.nom|tojson }}, prenom: {{ p.prenom|tojson }}, display: {{ (p.prenom ~ ' ' ~ p.nom)|tojson }} },
-        {% endfor %}
-    ];
-
+    // ⭐ Recherche patient en temps réel, filtrée directement sur les lignes
+    // déjà affichées (donc automatiquement limitée aux patients ayant une
+    // administration dans cet historique — plus de liste de tous les
+    // patients de la structure, plus de clic sur "Filtrer" à faire :
+    // patron "xa devrait juste concerner aux patients qui sont dans
+    // l'historique des administrations... et la recherche doit etre en
+    // temps réel au lieu de cliquer sur filtrer").
     document.addEventListener('DOMContentLoaded', function() {
         const input = document.getElementById('patientSearchHist');
-        const resultsDiv = document.getElementById('patientResultsHist');
-        const hiddenId = document.getElementById('patientIdHist');
+        const rows = Array.from(document.querySelectorAll('#corpsHistorique tr[data-patient]'));
+        const noResultRow = document.getElementById('histAucunResultatRecherche');
+        const countSpan = document.getElementById('patientSearchCountHist');
+
+        function normaliser(s) {
+            return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+        }
 
         input.addEventListener('input', function() {
-            const term = this.value.trim().toLowerCase();
-            hiddenId.value = '';
-            if (term.length < 2) {
-                resultsDiv.style.display = 'none';
-                resultsDiv.innerHTML = '';
-                return;
+            const terme = normaliser(this.value.trim().toLowerCase());
+            let visibles = 0;
+            rows.forEach(function(row) {
+                const correspond = !terme || normaliser(row.dataset.patient).includes(terme);
+                row.style.display = correspond ? '' : 'none';
+                if (correspond) visibles++;
+            });
+            if (noResultRow) {
+                noResultRow.style.display = (terme && visibles === 0) ? '' : 'none';
             }
-            const results = patientsHistorique.filter(p =>
-                p.nom.toLowerCase().includes(term) || p.prenom.toLowerCase().includes(term)
-            );
-            resultsDiv.innerHTML = '';
-            if (results.length === 0) {
-                resultsDiv.innerHTML = '<div class="list-group-item text-muted">Aucun patient trouvé</div>';
-            } else {
-                results.forEach(p => {
-                    const div = document.createElement('div');
-                    div.className = 'list-group-item list-group-item-action';
-                    div.style.cursor = 'pointer';
-                    div.textContent = p.display;
-                    div.onclick = function() {
-                        input.value = p.display;
-                        hiddenId.value = p.id;
-                        resultsDiv.style.display = 'none';
-                        document.getElementById('formFiltreHistorique').submit();
-                    };
-                    resultsDiv.appendChild(div);
-                });
-            }
-            resultsDiv.style.display = 'block';
-        });
-
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('#patientSearchHist') && !e.target.closest('#patientResultsHist')) {
-                resultsDiv.style.display = 'none';
-            }
+            countSpan.textContent = terme ? `${visibles} résultat(s)` : '';
         });
     });
     </script>
@@ -119,9 +100,9 @@
                             <th>Statut</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="corpsHistorique">
                         {% for a in administrations %}
-                        <tr>
+                        <tr data-patient="{{ (a.patient.prenom ~ ' ' ~ a.patient.nom)|lower if a.patient else '' }}">
                             <td>{% if a.patient %}<strong>{{ a.patient.prenom }} {{ a.patient.nom }}</strong>{% else %}<span class="text-muted">-</span>{% endif %}</td>
                             <td>{{ a.medicament }}</td>
                             <td>{{ a.dose or '-' }}</td>
@@ -157,6 +138,9 @@
                         {% else %}
                         <tr><td colspan="9" class="text-center text-muted py-4">Aucun historique pour l'instant</td></tr>
                         {% endfor %}
+                        <tr id="histAucunResultatRecherche" style="display: none;">
+                            <td colspan="9" class="text-center text-muted py-4">Aucun patient trouvé dans cet historique</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
