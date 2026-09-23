@@ -123,10 +123,15 @@
                             <td>{{ a.heure_prevue.strftime('%d/%m/%Y %H:%M') }}</td>
                             <td class="statut-cell"><span class="badge bg-secondary">à venir</span></td>
                             {% if current_user.role in ['admin_structure', 'infirmier'] %}
-                            <td>
-                                <form method="POST" action="{{ url_for('infirmier_medicament_marquer_fait', id=a.id) }}" onsubmit="return confirm('Confirmer l\'administration maintenant ?');">
+                            <td class="text-nowrap">
+                                <form method="POST" action="{{ url_for('infirmier_medicament_marquer_fait', id=a.id) }}" onsubmit="return confirm('Confirmer l\'administration maintenant ?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-primary">
-                                        <i class="fas fa-check me-1"></i>Marquer fait
+                                        <i class="fas fa-check me-1"></i>Fait
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('infirmier_medicament_terminer', prescription_id=a.prescription_id) }}" onsubmit="return confirm('Terminer ce traitement ? Plus aucune dose ne sera réclamée ni signalée ensuite pour « ' + {{ a.medicament|tojson }} + ' ».');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Terminer le traitement — arrête le planning et les alertes">
+                                        <i class="fas fa-stop me-1"></i>Terminer
                                     </button>
                                 </form>
                             </td>

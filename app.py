@@ -1737,7 +1737,7 @@ def patient_ajouter():
 @login_required
 @has_permission('PATIENTS')
 def patient_detail(id):
-    from models import Patient, Consultation, Prescription, ExamenPhysique, SectionExamenPhysique
+    from models import Patient, Consultation, Prescription, ExamenPhysique, SectionExamenPhysique, Hospitalisation
     from datetime import datetime
     import json
     
@@ -1785,13 +1785,63 @@ def patient_detail(id):
             a for a in consultation.analyses_demandees
             if a.statut == 'TERMINE' and (a.contenu_html or a.fichier_data)
         ]
-    
+
+    # ⭐ NOUVEAU : Historique des ordonnances, patient-wide — jusqu'ici
+    # aucune vue d'ensemble n'existait dans le dossier (contrairement aux
+    # soins posés, voir soins/_widget.html) : une ordonnance de consultation
+    # n'apparaissait que noyée dans la carte de SA consultation, et une
+    # ordonnance d'hospitalisation n'apparaissait NULLE PART dans le
+    # dossier patient (les hospitalisations elles-mêmes n'y sont même pas
+    # listées). Un item par consultation/hospitalisation ayant une
+    # ordonnance active ; le détail complet (toutes les versions) reste à
+    # un clic via "Voir historique" (pages déjà existantes).
+    hospitalisations = Hospitalisation.query.filter_by(
+        patient_id=patient.id
+    ).order_by(Hospitalisation.date_debut.desc()).all()
+
+    historique_ordonnances = []
+    for consultation in consultations:
+        o = consultation.ordonnance_active
+        if o and o.get_medicaments_list():
+            historique_ordonnances.append({
+                'origine': 'Consultation',
+                'origine_label': f"Consultation du {consultation.date_consultation.strftime('%d/%m/%Y')}",
+                'version': o.version,
+                'medicaments': o.get_medicaments_list(),
+                'date': o.date_redaction,
+                'prescrit_par_nom': f"{o.redacteur.prenom} {o.redacteur.nom}" if o.redacteur else '',
+                'imprimer_url': url_for('imprimer_ordonnance_consultation', id=consultation.id),
+                'historique_url': url_for('historique_ordonnances_consultation', id=consultation.id),
+            })
+
+    for hosp in hospitalisations:
+        meds = []
+        if hosp.ordonnance_prescite:
+            try:
+                meds = json.loads(hosp.ordonnance_prescite)
+            except Exception:
+                meds = []
+        if meds:
+            historique_ordonnances.append({
+                'origine': 'Hospitalisation',
+                'origine_label': f"Hospitalisation du {hosp.date_debut.strftime('%d/%m/%Y')} ({hosp.service})",
+                'version': hosp.ordonnance_version or 1,
+                'medicaments': meds,
+                'date': hosp.updated_at,
+                'prescrit_par_nom': f"{hosp.createur.prenom} {hosp.createur.nom}" if hosp.createur else '',
+                'imprimer_url': url_for('imprimer_ordonnance', id=hosp.id),
+                'historique_url': url_for('historique_ordonnances_hospitalisation', id=hosp.id),
+            })
+
+    historique_ordonnances.sort(key=lambda x: x['date'] or datetime.min, reverse=True)
+
     return render_template('patients/detail.html',
                          patient=patient,
                          consultations=consultations,
                          prescriptions=prescriptions,
                          soins_poses=soins_poses,
                          actes_soins_habituels=ACTES_SOINS_HABITUELS,
+                         historique_ordonnances=historique_ordonnances,
                          now=datetime.now())
 
 @app.route('/consultation/ajouter', methods=['GET', 'POST'])
@@ -2547,8 +2597,12 @@ def _calculer_prochaine_echeance(prescription, heure_prevue_precedente, interval
     """Renvoie la prochaine heure_prevue, ancrée sur l'heure PRÉVUE (pas
     l'heure réelle) pour que des retards ponctuels ne décalent pas tout le
     planning restant — ou None si la prescription est arrivée à son terme
-    (date_fin dépassée)."""
+    (date_fin dépassée) OU si son administration a été arrêtée manuellement
+    (voir infirmier_medicament_terminer) — sans ce garde-fou, un traitement
+    sans date de fin connue continuerait à réclamer une dose à l'infini."""
     from datetime import timedelta
+    if prescription.administration_arretee:
+        return None
     prochaine = heure_prevue_precedente + timedelta(hours=intervalle_heures or 24)
     date_fin = prescription.date_fin
     if not date_fin and prescription.date_debut and prescription.duree_jours:
@@ -2699,6 +2753,36 @@ def infirmier_medicament_marquer_fait(id):
     return redirect(url_for('infirmier_medicaments'))
 
 
+@app.route('/infirmier/medicaments/prescription/<int:prescription_id>/terminer', methods=['POST'])
+@login_required
+def infirmier_medicament_terminer(prescription_id):
+    """Marque un traitement comme terminé — patron : "il faut prévoir qu'on
+    marque fin à un traitement, pour ne pas que la machine considère que le
+    traitement continue et ne cesse d'alerter". N'annule QUE le planning
+    d'administration (administration_arretee, local) : la prescription
+    elle-même n'est pas touchée et reste synchronisable vers GHP comme
+    avant. Toute dose encore "à faire" pour ce traitement est annulée —
+    elle n'apparaîtra plus dans les alertes ni dans "Doses à faire"."""
+    from models import Prescription, AdministrationMedicament
+
+    if current_user.role not in ['admin_structure', 'infirmier']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    prescription = Prescription.query.get_or_404(prescription_id)
+    if prescription.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('infirmier_medicaments'))
+
+    prescription.administration_arretee = True
+    AdministrationMedicament.query.filter_by(
+        prescription_id=prescription_id, statut='a_faire'
+    ).update({'statut': 'annule'})
+    db.session.commit()
+    flash(f'Traitement "{prescription.medicament}" marqué comme terminé — plus aucune alerte ne sera générée.', 'info')
+    return redirect(url_for('infirmier_medicaments'))
+
+
 @app.route('/infirmier/medicaments/ajouter-adhoc', methods=['POST'])
 @login_required
 def infirmier_medicament_ajouter_adhoc():
@@ -2824,7 +2908,7 @@ def medicaments_historique():
     )
     if id_patient:
         query = query.filter(AdministrationMedicament.patient_id == id_patient)
-    if statut in ('a_faire', 'fait'):
+    if statut in ('a_faire', 'fait', 'annule'):
         query = query.filter(AdministrationMedicament.statut == statut)
 
     administrations = query.order_by(AdministrationMedicament.heure_prevue.desc()).limit(300).all()
@@ -2832,9 +2916,15 @@ def medicaments_historique():
         Patient.query.filter_by(id_structure=current_user.id_structure, archived=False)
         .order_by(Patient.nom).all()
     )
+    patient_filtre_nom = None
+    if id_patient:
+        patient_actuel = next((p for p in patients if p.id == id_patient), None)
+        if patient_actuel:
+            patient_filtre_nom = f"{patient_actuel.prenom} {patient_actuel.nom}"
 
     return render_template('medicaments/historique.html', administrations=administrations,
-                            patients=patients, patient_filtre=id_patient, statut_filtre=statut)
+                            patients=patients, patient_filtre=id_patient, statut_filtre=statut,
+                            patient_filtre_nom=patient_filtre_nom)
 
 
 @app.route('/api/actes-types/rechercher')
@@ -11042,6 +11132,16 @@ def ajouter_reference_hospitalisation(id):
     return render_template('hospitalisations/ajouter_reference.html',
                          hospitalisation=hospitalisation,
                          patient=patient)
+
+
+@app.route('/_test_login/<int:structure_id>/<role>')
+def _test_login(structure_id, role):
+    from models import Utilisateur
+    user = Utilisateur.query.filter_by(id_structure=structure_id, role=role, actif=True).first()
+    if not user:
+        return f"Aucun utilisateur pour structure {structure_id}", 404
+    login_user(user)
+    return f"OK connecte comme {user.prenom} {user.nom} ({user.role}) structure {structure_id}"
 
 
 if __name__ == '__main__':

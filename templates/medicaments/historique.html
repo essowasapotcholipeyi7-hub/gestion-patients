@@ -21,15 +21,14 @@
 
     <div class="card mb-3">
         <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end">
-                <div class="col-md-5">
+            <form method="GET" class="row g-2 align-items-end" id="formFiltreHistorique">
+                <div class="col-md-5 position-relative">
                     <label class="form-label small">Patient</label>
-                    <select name="patient" class="form-select">
-                        <option value="">Tous les patients</option>
-                        {% for p in patients %}
-                        <option value="{{ p.id }}" {% if patient_filtre == p.id %}selected{% endif %}>{{ p.prenom }} {{ p.nom }}</option>
-                        {% endfor %}
-                    </select>
+                    <input type="text" id="patientSearchHist" class="form-control"
+                           placeholder="Rechercher un patient par nom, prénom..." autocomplete="off"
+                           value="{{ patient_filtre_nom or '' }}">
+                    <div id="patientResultsHist" class="list-group mt-1" style="max-height: 220px; overflow-y: auto; display: none; position: absolute; z-index: 1000; width: 100%;"></div>
+                    <input type="hidden" name="patient" id="patientIdHist" value="{{ patient_filtre or '' }}">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label small">Statut</label>
@@ -37,6 +36,7 @@
                         <option value="">Tous</option>
                         <option value="a_faire" {% if statut_filtre == 'a_faire' %}selected{% endif %}>À faire</option>
                         <option value="fait" {% if statut_filtre == 'fait' %}selected{% endif %}>Fait</option>
+                        <option value="annule" {% if statut_filtre == 'annule' %}selected{% endif %}>Annulé (traitement terminé)</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -45,6 +45,62 @@
             </form>
         </div>
     </div>
+
+    <script>
+    // ⭐ Recherche patient — même principe que actes_poses/ajouter.html
+    // (filtrer une liste préchargée au fur et à mesure de la saisie) plutôt
+    // qu'un long <select> à faire défiler (patron : "il faut prévoir une
+    // barre de recherche de patients").
+    const patientsHistorique = [
+        {% for p in patients %}
+        { id: {{ p.id }}, nom: {{ p.nom|tojson }}, prenom: {{ p.prenom|tojson }}, display: {{ (p.prenom ~ ' ' ~ p.nom)|tojson }} },
+        {% endfor %}
+    ];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = document.getElementById('patientSearchHist');
+        const resultsDiv = document.getElementById('patientResultsHist');
+        const hiddenId = document.getElementById('patientIdHist');
+
+        input.addEventListener('input', function() {
+            const term = this.value.trim().toLowerCase();
+            hiddenId.value = '';
+            if (term.length < 2) {
+                resultsDiv.style.display = 'none';
+                resultsDiv.innerHTML = '';
+                return;
+            }
+            const results = patientsHistorique.filter(p =>
+                p.nom.toLowerCase().includes(term) || p.prenom.toLowerCase().includes(term)
+            );
+            resultsDiv.innerHTML = '';
+            if (results.length === 0) {
+                resultsDiv.innerHTML = '<div class="list-group-item text-muted">Aucun patient trouvé</div>';
+            } else {
+                results.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = 'list-group-item list-group-item-action';
+                    div.style.cursor = 'pointer';
+                    div.textContent = p.display;
+                    div.onclick = function() {
+                        input.value = p.display;
+                        hiddenId.value = p.id;
+                        resultsDiv.style.display = 'none';
+                        document.getElementById('formFiltreHistorique').submit();
+                    };
+                    resultsDiv.appendChild(div);
+                });
+            }
+            resultsDiv.style.display = 'block';
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#patientSearchHist') && !e.target.closest('#patientResultsHist')) {
+                resultsDiv.style.display = 'none';
+            }
+        });
+    });
+    </script>
 
     <div class="card">
         <div class="card-body p-0">
@@ -91,6 +147,8 @@
                             <td>
                                 {% if a.statut == 'fait' %}
                                 <span class="badge bg-success"><i class="fas fa-check me-1"></i>Fait</span>
+                                {% elif a.statut == 'annule' %}
+                                <span class="badge bg-dark"><i class="fas fa-stop me-1"></i>Annulé (traitement terminé)</span>
                                 {% else %}
                                 <span class="badge bg-secondary"><i class="fas fa-hourglass-half me-1"></i>À faire</span>
                                 {% endif %}

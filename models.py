@@ -92,6 +92,15 @@ class Prescription(db.Model):
     # prescriptions hors circuit normal.
     origine_prescripteur = db.Column(db.String(20), default='medecin')
     statut = db.Column(db.String(50), default='active')
+    # ⭐ Champ 100% LOCAL (jamais lu par la synchro GHP, contrairement à
+    # `statut` qui conditionne l'envoi) — arrête le planning d'administration
+    # sans toucher au statut de la prescription elle-même, pour ne jamais
+    # empêcher une prescription pas encore synchronisée de partir vers GHP
+    # juste parce que son administration a été arrêtée en cours de route.
+    # Patron : "il faut prévoir qu'on marque fin à un traitement, pour ne
+    # pas que la machine considère que le traitement continue et ne cesse
+    # d'alerter" — voir infirmier_medicament_terminer(), app.py.
+    administration_arretee = db.Column(db.Boolean, default=False)
     date_debut = db.Column(db.Date)
     date_fin = db.Column(db.Date)
     date_prescription = db.Column(db.DateTime, default=datetime.utcnow)
