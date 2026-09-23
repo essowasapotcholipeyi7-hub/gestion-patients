@@ -4593,11 +4593,22 @@ def detail_hospitalisation(id):
     examen_physique_sections = _rendre_sections_examen_physique(examen_physique_obj)
 
     # ============================================================
+    # 11. ⭐ SOINS ADMINISTRÉS (journal de soins — widget partagé avec
+    #     patients/detail.html et consultations/detail.html, jusqu'ici
+    #     jamais branché sur la page hospitalisation)
+    # ============================================================
+    from models import ActePose
+    soins_poses = ActePose.query.filter_by(
+        hospitalisation_id=hospitalisation.id
+    ).order_by(ActePose.date_pose.desc()).all()
+
+    # ============================================================
     # 9. RENDU
     # ============================================================
 
     return render_template('hospitalisations/detail.html',
                          hospitalisation=hospitalisation,
+                         patient=hospitalisation.patient,
                          medecins=medecins,
                          infirmiers=infirmiers,
                          constantes=constantes,
@@ -4614,6 +4625,8 @@ def detail_hospitalisation(id):
                          nb_examens_prescrits=nb_examens_prescrits,
                          ordonnance_medicaments=ordonnance_medicaments,
                          examen_physique_sections=examen_physique_sections,
+                         soins_poses=soins_poses,
+                         actes_soins_habituels=ACTES_SOINS_HABITUELS,
                          now=datetime.utcnow())
 
 # ============================================================

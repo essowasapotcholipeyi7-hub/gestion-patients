@@ -1,7 +1,8 @@
 {# ============================================================
    Widget "Soins administrés" — journal de soins réutilisable
    Variables attendues : patient, soins_poses, actes_soins_habituels, now
-   Variable optionnelle : consultation (pré-remplit consultation_id)
+   Variables optionnelles : consultation (pré-remplit consultation_id),
+   hospitalisation (pré-remplit hospitalisation_id)
    ============================================================ #}
 <div class="card mb-4" id="soinsWidget">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
@@ -20,6 +21,9 @@
                 <input type="hidden" name="nom" id="soinNomChoisi">
                 {% if consultation %}
                 <input type="hidden" name="consultation_id" value="{{ consultation.id }}">
+                {% endif %}
+                {% if hospitalisation %}
+                <input type="hidden" name="hospitalisation_id" value="{{ hospitalisation.id }}">
                 {% endif %}
                 <input type="hidden" name="retour_url" value="{{ request.path }}">
 
