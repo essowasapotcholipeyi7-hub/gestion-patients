@@ -5514,6 +5514,150 @@ def saisir_resultats_analyse(id):
         return redirect(url_for('liste_analyses'))
 
 
+def _type_analyse_depuis_ghp(type_prestation):
+    """analyse/examen (vocabulaire GHP) -> BIOLOGIE/IMAGERIE (vocabulaire
+    gestion_patients) — inverse de _type_prestation_ghp (tasks.py)."""
+    return 'IMAGERIE' if type_prestation == 'examen' else 'BIOLOGIE'
+
+
+@app.route('/api/resultats-examens/sync-externe', methods=['POST'])
+def api_recevoir_resultat_examen_externe():
+    """
+    Reçoit, en miroir, un résultat d'analyse/examen (ou un modèle de
+    résultat) saisi côté GHP — voir _pousser_resultat_examen_gestion_patients
+    / _pousser_modele_resultat_gestion_patients dans medilogic_ghp/app.py.
+    Même schéma que le sens gestion_patients -> GHP (voir
+    _envoyer_resultats_examens_ghp_immediat/tasks.py ici, et
+    /api/resultats-examens/sync-externe côté GHP) : token =
+    StructureMapping.api_key, upsert idempotent sur
+    (structure_id, source_app='ghp', source_model, source_id).
+
+    ⭐⭐ RÈGLE ANTI-BOUCLE ⭐⭐ : `source_synced_at` est posé IMMÉDIATEMENT sur
+    toute ligne créée/mise à jour ici (jamais laissé NULL) — sans ça, le job
+    sortant de tasks.sync_resultats_examens_to_ghp (qui ne filtre QUE sur
+    `source_synced_at IS NULL`) la repousserait vers GHP au prochain cycle,
+    créant une boucle infinie. Volontairement PAS de secret statique façon
+    /api/webhook/patient-created (WEBHOOK_SECRET) — même token que partout
+    ailleurs dans cette intégration, seule source d'auth fiable pour
+    identifier la structure appelante.
+    """
+    from models import Patient, StructureMapping, AnalyseDemande, ModeleResultat
+    import base64
+
+    token = request.args.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Token manquant'}), 401
+
+    mapping = StructureMapping.query.filter_by(api_key=token, actif=True).first()
+    if not mapping:
+        return jsonify({'success': False, 'error': 'Token invalide'}), 401
+
+    try:
+        data = request.json or {}
+        categorie = data.get('categorie')
+        if categorie not in ('resultat', 'modele'):
+            return jsonify({'success': False, 'error': 'Catégorie non synchronisable'}), 400
+
+        source_app = data.get('source_app') or 'ghp'
+        source_model = data.get('source_model')
+        source_id = data.get('source_id')
+        if not source_model or not source_id:
+            return jsonify({'success': False, 'error': 'source_model/source_id manquants'}), 400
+
+        structure_id = mapping.local_structure_id
+        auteur_nom = data.get('auteur_nom') or 'Sync GHP'
+
+        if categorie == 'modele':
+            modele = ModeleResultat.query.filter_by(
+                structure_id=structure_id, source_app=source_app,
+                source_model=source_model, source_id=source_id,
+            ).first()
+            fichier_data_b64 = data.get('fichier_data_b64')
+            if not modele:
+                modele = ModeleResultat(
+                    structure_id=structure_id, source_app=source_app,
+                    source_model=source_model, source_id=source_id,
+                )
+                db.session.add(modele)
+            modele.type_analyse = _type_analyse_depuis_ghp(data.get('type_prestation'))
+            modele.nom = data.get('nom') or 'Sans titre'
+            modele.fichier_nom = data.get('fichier_nom')
+            modele.fichier_mime = data.get('fichier_mime')
+            modele.fichier_data = base64.b64decode(fichier_data_b64) if fichier_data_b64 else None
+            modele.contenu_html = data.get('contenu_html') or None
+            modele.created_by = auteur_nom
+            modele.source_synced_at = datetime.utcnow()  # ⭐ anti-boucle, voir docstring
+            db.session.commit()
+            return jsonify({'success': True, 'modele_id': modele.id})
+
+        # categorie == 'resultat'
+        patient_source_id = data.get('patient_source_id')
+        patient_nom = data.get('patient_nom') or ''
+        patient_prenom = data.get('patient_prenom') or ''
+
+        # ⭐ Même logique de correspondance que sync_patients_from_ghp
+        # (patient_source_id + source_structure_id d'abord), repli nom/prénom.
+        patient = None
+        if patient_source_id:
+            patient = Patient.query.filter_by(
+                patient_source_id=str(patient_source_id),
+                source_structure_id=mapping.source_structure_id,
+                id_structure=structure_id,
+            ).first()
+        if not patient and patient_nom and patient_prenom:
+            patient = Patient.query.filter(
+                db.func.lower(Patient.nom) == patient_nom.strip().lower(),
+                db.func.lower(Patient.prenom) == patient_prenom.strip().lower(),
+                Patient.id_structure == structure_id,
+            ).first()
+        if not patient:
+            return jsonify({'success': False, 'error': 'patient_introuvable'}), 404
+
+        analyse = AnalyseDemande.query.filter_by(
+            structure_id=structure_id, source_app=source_app,
+            source_model=source_model, source_id=source_id,
+        ).first()
+        if not analyse:
+            analyse = AnalyseDemande(
+                structure_id=structure_id, patient_id=patient.id,
+                source_app=source_app, source_model=source_model, source_id=source_id,
+            )
+            db.session.add(analyse)
+
+        analyse.type_analyse = _type_analyse_depuis_ghp(data.get('type_prestation'))
+        analyse.nom_analyse = data.get('nom_analyse') or data.get('acte_nom') or 'Examen'
+        analyse.description = data.get('motif') or data.get('description') or ''
+        analyse.statut = 'TERMINE'
+        if not analyse.date_prescription:
+            analyse.date_prescription = datetime.utcnow()
+        if not analyse.date_demande:
+            analyse.date_demande = datetime.utcnow()
+        analyse.date_resultats = datetime.utcnow()
+
+        fichier_data_b64 = data.get('fichier_data_b64')
+        signature_data_b64 = data.get('signature_data_b64')
+        analyse.resultats = data.get('resultats_texte') or None
+        analyse.fichier_nom = data.get('fichier_nom')
+        analyse.fichier_mime = data.get('fichier_mime')
+        analyse.fichier_data = base64.b64decode(fichier_data_b64) if fichier_data_b64 else None
+        analyse.contenu_html = data.get('contenu_html') or None
+        analyse.nom_interprete = data.get('nom_interprete') or auteur_nom
+        analyse.titre_interprete = data.get('titre_interprete')
+        analyse.signature_data = base64.b64decode(signature_data_b64) if signature_data_b64 else None
+        analyse.signature_mime = data.get('signature_mime')
+        analyse.source_synced_at = datetime.utcnow()  # ⭐ anti-boucle, voir docstring
+
+        db.session.commit()
+        return jsonify({'success': True, 'analyse_id': analyse.id})
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ Erreur sync résultat depuis GHP : {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/analyse/<int:id>/fichier')
 @login_required
 def telecharger_fichier_analyse(id):
