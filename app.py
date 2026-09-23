@@ -3163,8 +3163,17 @@ def consultation_ajouter_avec_patient(id):
     import json
     
     patient = Patient.query.get_or_404(id)
-    
-    if current_user.role == 'medecin' and patient.id_medecin_referent != current_user.id:
+
+    # ⭐ FIX E2E : un patient tout juste synchronisé depuis GHP (ou sans
+    # consultation antérieure) n'a pas encore de médecin référent
+    # (id_medecin_referent=None, voir sync_patients_from_ghp) — la
+    # comparaison stricte bloquait ici TOUT médecin voulant faire la toute
+    # première consultation (même en suivant le lien "Nouvelle
+    # consultation" depuis la fiche patient, qui reste accessible tant
+    # qu'aucun référent n'est encore assigné, voir patient_detail()
+    # ci-dessus). On n'interdit donc que l'accès à un patient déjà
+    # référencé par un AUTRE médecin.
+    if current_user.role == 'medecin' and patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('patients_list'))
     
