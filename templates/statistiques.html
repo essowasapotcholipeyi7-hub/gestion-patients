@@ -26,7 +26,7 @@
     </div>
 
     <!-- FILTRES -->
-    <div class="card mb-4">
+    <div class="card mb-4 no-print">
         <div class="card-header"><i class="fas fa-filter me-2"></i>Filtres</div>
         <div class="card-body">
             <form method="GET" class="row g-3">
@@ -173,9 +173,17 @@
                                         <td class="text-center"><span class="badge bg-primary">{{ p.total }}</span></td>
                                         <td class="text-center"><span class="badge bg-success">{{ p.pourcentage }}%</span></td>
                                         <td>
-                                            {% if p.pic_mois %}
+                                            {% if p.pic_mois and p.atypique %}
+                                                <span class="badge bg-danger" title="{{ p.insight }}">
+                                                    <i class="fas fa-triangle-exclamation me-1"></i>{{ p.pic_mois|join(', ') }} (atypique)
+                                                </span>
+                                            {% elif p.pic_mois %}
                                                 <span class="badge bg-warning text-dark" title="{{ p.insight }}">
-                                                    <i class="fas fa-calendar-alt me-1"></i>{{ p.pic_mois|join(', ') }}
+                                                    {% if p.categorie_icone %}{{ p.categorie_icone }}{% else %}<i class="fas fa-calendar-alt"></i>{% endif %} {{ p.pic_mois|join(', ') }}
+                                                </span>
+                                            {% elif p.insight %}
+                                                <span class="text-muted small" title="{{ p.insight }}">
+                                                    {{ p.categorie_icone }} Régulier
                                                 </span>
                                             {% else %}
                                                 <span class="text-muted small">Régulier</span>
@@ -247,12 +255,13 @@
                         <canvas id="pathologiesChart"></canvas>
                     </div>
                     {% set insights = analyse_pathologies|selectattr('insight')|list %}
+                    {% set insights_tries = insights|sort(attribute='atypique', reverse=true) %}
                     {% if insights %}
                     <div class="mt-3">
                         <h6 class="text-muted mb-2"><i class="fas fa-lightbulb me-1"></i>Observations</h6>
-                        <ul class="mb-0">
-                            {% for p in insights[:8] %}
-                            <li>
+                        <ul class="mb-0 ps-3">
+                            {% for p in insights_tries[:8] %}
+                            <li class="{{ 'text-danger' if p.atypique else '' }} mb-1">
                                 <strong>{% if p.code %}{{ p.code }} — {% endif %}{{ p.label|truncate(50) }}</strong>
                                 : {{ p.insight }}
                             </li>
@@ -405,15 +414,26 @@
                 <div class="card-header"><i class="fas fa-hospital me-2 text-danger"></i>Hospitalisations</div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-6 text-center">
+                        <div class="col-4 text-center">
                             <h3 class="text-primary mb-0">{{ stats_hospitalisations.total }}</h3>
                             <small class="text-muted">Total</small>
                         </div>
-                        <div class="col-6 text-center">
+                        <div class="col-4 text-center">
                             <h3 class="text-success mb-0">{{ stats_hospitalisations.actives }}</h3>
                             <small class="text-muted">Actives</small>
                         </div>
+                        <div class="col-4 text-center">
+                            <h3 class="text-info mb-0">{{ stats_hospitalisations.duree_moyenne_sejour if stats_hospitalisations.duree_moyenne_sejour is not none else '-' }}</h3>
+                            <small class="text-muted">Durée moy. séjour (j)</small>
+                        </div>
                     </div>
+                    {% if stats_hospitalisations.par_periode %}
+                    <hr>
+                    <h6 class="mt-2">Admissions par période</h6>
+                    <div style="height: 140px;">
+                        <canvas id="hospPeriodeChart"></canvas>
+                    </div>
+                    {% endif %}
                     <hr>
                     <h6 class="mt-2">Par service</h6>
                     <div class="table-responsive">
@@ -505,6 +525,18 @@
 .kpi-soft-info .kpi-soft-value { color: var(--hp-info); }
 .kpi-soft-warning { background: var(--hp-warning-light); }
 .kpi-soft-warning .kpi-soft-value { color: var(--hp-warning); }
+
+/* ⭐ Impression : jusqu'ici "Imprimer" faisait juste window.print() sur la
+   page telle quelle (menu latéral, barre du haut, filtres et boutons
+   inclus) — pas de feuille de style dédiée nulle part dans l'appli. On
+   masque le superflu pour que les nouvelles sections (pathologies,
+   graphiques, admissions par période) impriment proprement. */
+@media print {
+    .sidebar, .sidebar-overlay, .topbar, form.row.g-3, .btn, .no-print { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+    .card { break-inside: avoid; border: 1px solid #ccc !important; box-shadow: none !important; }
+    canvas { max-height: 220px !important; }
+}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -582,6 +614,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 plugins: {
                     legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }
                 }
+            }
+        });
+    }
+
+    const ctx4 = document.getElementById('hospPeriodeChart');
+    if (ctx4) {
+        new Chart(ctx4, {
+            type: 'bar',
+            data: {
+                labels: {{ (stats_hospitalisations.par_periode or [])|map(attribute='periode')|list|tojson }},
+                datasets: [{
+                    label: 'Admissions',
+                    data: {{ (stats_hospitalisations.par_periode or [])|map(attribute='nb')|list|tojson }},
+                    backgroundColor: '#c94b4b'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                plugins: { legend: { display: false } }
             }
         });
     }

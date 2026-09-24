@@ -4005,6 +4005,86 @@ def _extraire_pathologies(diagnostic_text):
     return resultats
 
 
+# ⭐ Grille de lecture épidémiologique locale (climat guinéen de Lomé/Togo :
+# grande saison des pluies mi-mars à juillet, petite saison des pluies
+# septembre-octobre, saison sèche/harmattan novembre à février). Sert à
+# donner du sens aux pics saisonniers détectés statistiquement (ci-dessous)
+# au lieu de se limiter à "plus fréquent en tel mois" — reconnaît les
+# pathologies dont la saisonnalité est un fait épidémiologique bien établi
+# en Afrique de l'Ouest, et signale au contraire quand un pic tombe HORS de
+# la période attendue (potentiellement plus intéressant pour un clinicien
+# qu'une confirmation de l'attendu). Phrasé au conditionnel/"cohérent avec"
+# — jamais affirmé comme la cause certaine d'un cas particulier.
+_SAISON_PLUIES = {'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Sep', 'Oct'}
+_SAISON_HARMATTAN = {'Nov', 'Déc', 'Jan', 'Fév'}
+
+_CATEGORIES_EPIDEMIO = [
+    {
+        'icone': '🦟', 'nom': 'paludisme',
+        'codes': ('B50', 'B51', 'B52', 'B53', 'B54'),
+        'mots_cles': ('paludisme', 'palu', 'malaria'),
+        'saison_mois': _SAISON_PLUIES, 'saison_label': "la saison des pluies",
+        'explication': "la prolifération des moustiques anophèles vecteurs après les pluies",
+    },
+    {
+        'icone': '💧', 'nom': 'maladies hydriques',
+        'codes': ('A00', 'A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09'),
+        'mots_cles': ('choléra', 'cholera', 'diarrh', 'typho', 'gastro-entérite', 'gastro entérite', 'intoxication alimentaire'),
+        'saison_mois': _SAISON_PLUIES, 'saison_label': "la saison des pluies",
+        'explication': "la contamination des points d'eau et les risques d'inondation",
+    },
+    {
+        'icone': '🌬️', 'nom': 'infections respiratoires',
+        'codes': ('J',),
+        'mots_cles': ('ira', 'grippe', 'rhume', 'bronchite', 'pneumonie', 'rhinopharyngite', 'toux', 'respiratoire'),
+        'saison_mois': _SAISON_HARMATTAN, 'saison_label': "l'harmattan",
+        'explication': "l'air sec, froid la nuit et chargé de poussière, qui fragilise les voies respiratoires",
+    },
+    {
+        'icone': '🌡️', 'nom': 'méningite',
+        'codes': ('A39', 'G00', 'G01', 'G02', 'G03'),
+        'mots_cles': ('méningite', 'meningite'),
+        'saison_mois': _SAISON_HARMATTAN, 'saison_label': "la saison sèche/harmattan",
+        'explication': "la saison sèche, propice à la transmission du méningocoque en Afrique de l'Ouest",
+    },
+    {
+        'icone': '👁️', 'nom': 'conjonctivite',
+        'codes': ('H10', 'H11'),
+        'mots_cles': ('conjonctiv',),
+        'saison_mois': _SAISON_HARMATTAN, 'saison_label': "l'harmattan",
+        'explication': "la poussière de l'harmattan, irritante pour les yeux",
+    },
+    {
+        'icone': '🔴', 'nom': 'rougeole',
+        'codes': ('B05',),
+        'mots_cles': ('rougeole',),
+        'saison_mois': _SAISON_HARMATTAN, 'saison_label': "la saison sèche",
+        'explication': "la saison sèche, période de circulation accrue du virus",
+    },
+    {
+        'icone': '❤️', 'nom': 'maladie chronique non transmissible', 'chronique': True,
+        'codes': ('I10', 'I11', 'I12', 'I13', 'I14', 'I15', 'I20', 'I21', 'I22', 'I23', 'I24', 'I25', 'E10', 'E11', 'E12', 'E13', 'E14'),
+        'mots_cles': ('hypertension', 'diabète', 'diabete', 'cardiopathie', 'cardiovasculaire'),
+        'saison_mois': set(), 'saison_label': None, 'explication': None,
+    },
+]
+
+
+def _categorie_epidemiologique(code, label):
+    """Retourne la catégorie épidémiologique connue correspondant à ce code
+    CIM-10/libellé, ou None si la pathologie n'est pas dans la grille de
+    lecture locale (dans ce cas, on n'invente aucune explication — seul le
+    constat statistique brut est gardé)."""
+    code = (code or '').upper()
+    texte = (label or '').lower()
+    for cat in _CATEGORIES_EPIDEMIO:
+        if any(code.startswith(c) for c in cat['codes']):
+            return cat
+        if any(m in texte for m in cat['mots_cles']):
+            return cat
+    return None
+
+
 def _construire_analyse_pathologies(consultations):
     """Construit, à partir d'une liste d'objets Consultation (avec
     date_consultation et diagnostic déjà chargés), un classement des
@@ -4044,10 +4124,34 @@ def _construire_analyse_pathologies(consultations):
         if p['total'] >= 3 and moyenne_mensuelle > 0:
             pic_mois = [NOMS_MOIS[i] for i, n in enumerate(p['par_mois']) if n >= moyenne_mensuelle * 1.5 and n >= 2]
 
-        insight = None
+        insight_parts = []
         if pic_mois:
             ratio = max(p['par_mois']) / moyenne_mensuelle if moyenne_mensuelle else 0
-            insight = f"Nettement plus fréquent en {', '.join(pic_mois)} (jusqu'à {ratio:.1f}× la moyenne mensuelle de cette pathologie)."
+            insight_parts.append(f"Nettement plus fréquent en {', '.join(pic_mois)} (jusqu'à {ratio:.1f}× la moyenne mensuelle de cette pathologie).")
+
+        # ⭐ Interprétation contextuelle (voir _CATEGORIES_EPIDEMIO) : compare
+        # le pic détecté à la saisonnalité habituellement attendue localement.
+        # Un pic HORS saison attendue est signalé "atypique" plutôt que tu —
+        # c'est potentiellement l'observation la plus utile pour la structure.
+        atypique = False
+        categorie_icone = None
+        cat = _categorie_epidemiologique(p['code'], p['label'])
+        if cat:
+            categorie_icone = cat['icone']
+            if cat.get('chronique'):
+                if pic_mois:
+                    insight_parts.append(f"{cat['icone']} Pic ponctuel malgré une pathologie habituellement non saisonnière — probablement lié au suivi médical (renouvellements d'ordonnance, rendez-vous programmés) plutôt qu'à un facteur épidémiologique.")
+                elif p['total'] >= 3:
+                    insight_parts.append(f"{cat['icone']} Maladie chronique non transmissible : répartition stable attendue, cohérente avec un suivi régulier plutôt que saisonnier.")
+            else:
+                chevauche = bool(set(pic_mois) & cat['saison_mois'])
+                if pic_mois and chevauche:
+                    insight_parts.append(f"{cat['icone']} Cohérent avec {cat['saison_label']} à Lomé : {cat['explication']}.")
+                elif pic_mois and not chevauche:
+                    atypique = True
+                    insight_parts.append(f"{cat['icone']} Pic atypique : survient hors de {cat['saison_label']} habituellement associée à cette pathologie — à surveiller (foyer localisé, ou effectif encore faible).")
+                elif not pic_mois and p['total'] >= 3:
+                    insight_parts.append(f"{cat['icone']} Habituellement plus marqué en {cat['saison_label']} à Lomé, mais réparti ici de façon régulière sur la période analysée.")
 
         resultat.append({
             'code': p['code'],
@@ -4056,7 +4160,9 @@ def _construire_analyse_pathologies(consultations):
             'pourcentage': round(p['total'] / total_mentions * 100, 1) if total_mentions else 0,
             'par_mois': p['par_mois'],
             'pic_mois': pic_mois,
-            'insight': insight,
+            'insight': ' '.join(insight_parts) or None,
+            'categorie_icone': categorie_icone,
+            'atypique': atypique,
         })
 
     resultat.sort(key=lambda x: x['total'], reverse=True)
@@ -4163,9 +4269,15 @@ def _calculer_statistiques():
     analyse_pathologies, noms_mois = _construire_analyse_pathologies(consultations_diag)
 
     # ========== Répartition assurances ==========
+    # ⭐ FIX : comptait Patient.id une fois PAR CONSULTATION (jointure
+    # Patient-Consultation, un patient avec plusieurs consultations sur la
+    # période était compté plusieurs fois) — les pourcentages dépassaient
+    # largement 100% dès qu'un patient avait plus d'une consultation.
+    # func.count(distinct(...)) aligne ce total sur total_patients (patients
+    # UNIQUES), qui sert de dénominateur du pourcentage dans le template.
     assurances = db.session.query(
         Patient.type_assurance,
-        func.count(Patient.id).label('total')
+        func.count(func.distinct(Patient.id)).label('total')
     ).join(Consultation, Patient.id == Consultation.id_patient).filter(
         Consultation.id.in_(base_query.with_entities(Consultation.id))
     ).group_by(Patient.type_assurance).all()
@@ -4226,29 +4338,54 @@ def _calculer_statistiques():
         patient_ids = [p[0] for p in patient_ids]
         
         if patient_ids:
-            total_hosp = Hospitalisation.query.filter(
-                Hospitalisation.patient_id.in_(patient_ids)
-            ).count()
-            
-            hosp_actives = Hospitalisation.query.filter(
-                Hospitalisation.patient_id.in_(patient_ids),
-                Hospitalisation.statut == 'actif'
-            ).count()
-            
+            # ⭐ Respecte désormais les mêmes filtres de dates que le reste de
+            # la page (avant : toujours toutes dates confondues, impossible
+            # de voir l'évolution des hospitalisations sur une période).
+            hosp_query = Hospitalisation.query.filter(Hospitalisation.patient_id.in_(patient_ids))
+            if date_debut:
+                hosp_query = hosp_query.filter(Hospitalisation.date_debut >= datetime.strptime(date_debut, '%Y-%m-%d'))
+            if date_fin:
+                hosp_query = hosp_query.filter(Hospitalisation.date_debut <= datetime.strptime(date_fin, '%Y-%m-%d') + timedelta(days=1))
+            hosp_ids = hosp_query.with_entities(Hospitalisation.id)
+
+            total_hosp = hosp_query.count()
+            hosp_actives = hosp_query.filter(Hospitalisation.statut == 'actif').count()
+
             hosp_par_service = db.session.query(
                 Hospitalisation.service,
                 func.count(Hospitalisation.id).label('total')
             ).filter(
-                Hospitalisation.patient_id.in_(patient_ids)
+                Hospitalisation.id.in_(hosp_ids)
             ).group_by(Hospitalisation.service).all()
-            
+
+            # ⭐ Admissions par mois — pour voir les périodes de forte
+            # affluence (ex. pics saisonniers de paludisme grave nécessitant
+            # une hospitalisation), demandé explicitement par la structure.
+            hosp_par_periode_rows = db.session.query(
+                func.to_char(Hospitalisation.date_debut, 'YYYY-MM').label('mois'),
+                func.count(Hospitalisation.id).label('nb')
+            ).filter(
+                Hospitalisation.id.in_(hosp_ids)
+            ).group_by('mois').order_by('mois').limit(12).all()
+
+            # ⭐ Durée moyenne de séjour (jours), sur les hospitalisations
+            # déjà clôturées (date_fin renseignée) de la période filtrée.
+            duree_moyenne = db.session.query(
+                func.avg(func.extract('epoch', Hospitalisation.date_fin - Hospitalisation.date_debut) / 86400.0)
+            ).filter(
+                Hospitalisation.id.in_(hosp_ids),
+                Hospitalisation.date_fin.isnot(None)
+            ).scalar()
+
             stats_hospitalisations = {
                 'total': total_hosp,
                 'actives': hosp_actives,
-                'par_service': [{'service': s[0], 'total': s[1]} for s in hosp_par_service]
+                'par_service': [{'service': s[0], 'total': s[1]} for s in hosp_par_service],
+                'par_periode': [{'periode': h.mois, 'nb': h.nb} for h in hosp_par_periode_rows],
+                'duree_moyenne_sejour': round(duree_moyenne, 1) if duree_moyenne else None,
             }
         else:
-            stats_hospitalisations = {'total': 0, 'actives': 0, 'par_service': []}
+            stats_hospitalisations = {'total': 0, 'actives': 0, 'par_service': [], 'par_periode': [], 'duree_moyenne_sejour': None}
     
     # ========== 📊 STATISTIQUES ANALYSES ==========
     stats_analyses = {}
@@ -4387,6 +4524,8 @@ def export_statistiques_excel():
     if d['stats_hospitalisations']:
         ws.append(['Hospitalisations (total)', d['stats_hospitalisations'].get('total', 0)])
         ws.append(['Hospitalisations actives', d['stats_hospitalisations'].get('actives', 0)])
+        if d['stats_hospitalisations'].get('duree_moyenne_sejour') is not None:
+            ws.append(['Durée moyenne de séjour (jours)', d['stats_hospitalisations']['duree_moyenne_sejour']])
     if d['stats_analyses']:
         ws.append(['Analyses labo/radio (total)', d['stats_analyses'].get('total', 0)])
     for col, width in (('A', 32), ('B', 14)):
@@ -4430,6 +4569,17 @@ def export_statistiques_excel():
             ws5.append([s['service'], s['total']])
         ws5.column_dimensions['A'].width = 28
 
+        if d['stats_hospitalisations'].get('par_periode'):
+            ws5.append([])
+            row_entete_periode = ws5.max_row + 1
+            ws5.append(['Période (admissions)', 'Nombre'])
+            for cell in ws5[row_entete_periode]:
+                cell.fill = entete_fill
+                cell.font = entete_font
+                cell.alignment = Alignment(horizontal='center')
+            for h in d['stats_hospitalisations']['par_periode']:
+                ws5.append([h['periode'], h['nb']])
+
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -4462,6 +4612,8 @@ def export_statistiques_txt():
     lignes.append(f"Patients uniques : {d['total_patients']}")
     if d['stats_hospitalisations']:
         lignes.append(f"Hospitalisations : {d['stats_hospitalisations'].get('total', 0)} (dont {d['stats_hospitalisations'].get('actives', 0)} en cours)")
+        if d['stats_hospitalisations'].get('duree_moyenne_sejour') is not None:
+            lignes.append(f"Durée moyenne de séjour : {d['stats_hospitalisations']['duree_moyenne_sejour']} jours")
     if d['stats_analyses']:
         lignes.append(f"Analyses labo/radio : {d['stats_analyses'].get('total', 0)}")
     lignes.append('')
@@ -4496,6 +4648,13 @@ def export_statistiques_txt():
         lignes.append('-' * 70)
         for s in d['stats_hospitalisations']['par_service']:
             lignes.append(f"{s['service']:<30} {s['total']}")
+        lignes.append('')
+
+    if d['stats_hospitalisations'] and d['stats_hospitalisations'].get('par_periode'):
+        lignes.append('ADMISSIONS PAR PÉRIODE')
+        lignes.append('-' * 70)
+        for h in d['stats_hospitalisations']['par_periode']:
+            lignes.append(f"{h['periode']:<15} {h['nb']} admission(s)")
         lignes.append('')
 
     contenu = '\n'.join(lignes)
