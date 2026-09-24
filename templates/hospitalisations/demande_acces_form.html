@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Demande d'accès - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-user-lock me-2 text-primary"></i>
+            Demande d'accès - {{ patient.prenom }} {{ patient.nom }}
+        </h1>
+        <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Retour
+        </a>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        Ce patient est hospitalisé en <strong>{{ hospitalisation.service }}</strong>, un service dont vous n'êtes
+        pas le médecin assigné. Pour consulter son dossier, envoyez une demande — elle sera adressée à
+        <strong>{{ destinataire_label }}</strong>.
+    </div>
+
+    {% if demande_existante %}
+    <div class="alert alert-warning">
+        <i class="fas fa-clock me-2"></i>
+        Vous avez déjà une demande en attente pour ce patient, envoyée le
+        {{ demande_existante.created_at.strftime('%d/%m/%Y %H:%M') if demande_existante.created_at else '-' }}.
+    </div>
+    {% else %}
+    <form method="POST" action="{{ url_for('demander_acces_hospitalisation', id=hospitalisation.id) }}">
+        <div class="card">
+            <div class="card-body">
+                <label class="form-label fw-bold">Motif de la demande</label>
+                <textarea name="motif" class="form-control" rows="4" required placeholder="Ex. : avis demandé pour une pathologie associée, patient suivi habituellement par moi en externe..."></textarea>
+            </div>
+        </div>
+        <div class="d-flex justify-content-end mt-3">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-paper-plane me-2"></i>Envoyer la demande
+            </button>
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,409 @@
+{% extends "base.html" %}
+
+{% block title %}Visite du jour - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3">
+                <i class="fas fa-user-nurse me-2 text-primary"></i>
+                Visite du jour - {{ patient.prenom }} {{ patient.nom }}
+            </h1>
+            <p class="text-muted">
+                Hospitalisation du {{ hospitalisation.date_debut.strftime('%d/%m/%Y %H:%M') if hospitalisation.date_debut else '-' }} — {{ hospitalisation.service }}
+                {% if visite.sections_origine and visite.sections_origine != '{}' %}
+                    <span class="badge bg-secondary ms-2">Examen pré-rempli depuis le dossier — sections modifiées mises en évidence</span>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <button class="btn btn-outline-primary me-2" onclick="changerLangue()">
+                <i class="fas fa-globe me-1"></i>
+                <span id="langBtnText">🇫🇷 Français</span>
+            </button>
+            <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('enregistrer_visite_infirmiere', id=hospitalisation.id) }}" id="visiteForm">
+        <!-- Plaintes et état général -->
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-comment-medical me-2"></i>Plaintes et état général</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Plaintes du patient</label>
+                    <textarea name="plaintes_patient" class="form-control" rows="3" placeholder="Ce que le patient rapporte aujourd'hui..."></textarea>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label fw-bold">État général observé</label>
+                    <textarea name="etat_general" class="form-control" rows="2" placeholder="Conscient, fatigué, agité..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <button type="button" class="btn btn-success" onclick="ajouterAppareil()">
+                <i class="fas fa-plus me-2"></i>Ajouter un appareil non cité
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="toutReinitialiser()">
+                <i class="fas fa-undo me-2"></i>Réinitialiser tout
+            </button>
+        </div>
+
+        <h5 class="mb-3"><i class="fas fa-stethoscope me-2"></i>Examen physique — système par système</h5>
+        <div id="sectionsContainer">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Chargement...</span>
+                </div>
+                <p class="mt-2 text-muted">Chargement des sections...</p>
+            </div>
+        </div>
+
+        <!-- Texte complet de l'examen -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>Résumé de l'examen</h5>
+                <span class="badge bg-secondary">Généré automatiquement</span>
+            </div>
+            <div class="card-body">
+                <textarea name="examen_complet" id="examenComplet" class="form-control" rows="8"
+                          style="background-color: #f8f9fa; font-family: 'Courier New', monospace; font-size: 13px;"></textarea>
+            </div>
+        </div>
+
+        <!-- Appareil dysfonctionnel -->
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-triangle-exclamation me-2 text-warning"></i>Alerte</div>
+            <div class="card-body">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="appareil_dysfonctionnel" id="appareilDysfonctionnel" value="1" onchange="document.getElementById('appareilDetailWrap').hidden = !this.checked">
+                    <label class="form-check-label fw-bold" for="appareilDysfonctionnel">
+                        Un appareil/système ne fonctionne pas bien
+                    </label>
+                </div>
+                <div id="appareilDetailWrap" hidden>
+                    <textarea name="appareil_dysfonctionnel_detail" class="form-control" rows="2" placeholder="Lequel, et en quoi ?"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Décision suggérée — INDICATIVE -->
+        <div class="card mb-4 border-info">
+            <div class="card-header bg-info bg-opacity-10">
+                <i class="fas fa-lightbulb me-2"></i>Proposition pour la suite (indicative)
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning py-2 small mb-3">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Cette proposition n'est <strong>pas appliquée automatiquement</strong> — seule une
+                    <strong>consigne du médecin</strong> fait foi. Elle sert à attirer son attention.
+                </div>
+                <textarea name="decision_suggeree" class="form-control" rows="3" placeholder="Ex. : continuer le traitement en cours, envisager de le modifier, avis médical souhaité..."></textarea>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Annuler
+            </a>
+            <button type="button" class="btn btn-success" id="btnEnregistrer" onclick="enregistrerVisite()">
+                <i class="fas fa-save me-2"></i>Enregistrer la visite
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- MODAL DE MODIFICATION (identique à l'éditeur d'examen physique) -->
+<div class="modal fade" id="editSectionModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editSectionModalLabel">
+                    <i class="fas fa-edit me-2"></i>
+                    Modifier la section : <span id="editSectionName"></span>
+                </h5>
+                <button type="button" class="btn-close" id="btnCloseModal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Texte de la section</label>
+                    <textarea id="editSectionText" class="form-control" rows="8"
+                              style="font-family: 'Courier New', monospace; font-size: 14px;"></textarea>
+                    <small class="text-muted">Modifiez le texte ci-dessus. Laissez vide pour revenir au texte original.</small>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Section :</strong> <span id="editSectionDesc"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="btnAnnulerModal">
+                    <i class="fas fa-times me-1"></i>Annuler
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSaveSection">
+                    <i class="fas fa-save me-1"></i>Enregistrer les modifications
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== ÉTAT ==================== (même logique que consultations/examen_physique.html)
+let sectionsModifiees = {};
+let currentLang = 'fr';
+let sectionsData = [];
+let sectionsOriginales = {};
+let currentEditIndex = null;
+
+{% if visite.sections_modifiees %}
+    sectionsModifiees = JSON.parse('{{ visite.sections_modifiees|safe }}');
+{% endif %}
+{% if visite.sections_origine and visite.sections_origine != '{}' %}
+    sectionsOriginales = JSON.parse('{{ visite.sections_origine|safe }}');
+{% endif %}
+
+async function chargerSections() {
+    const container = document.getElementById('sectionsContainer');
+    container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Chargement...</p></div>';
+
+    try {
+        const response = await fetch(`/api/examen-physique/sections?lang=${currentLang}`);
+        const data = await response.json();
+        sectionsData = data;
+        afficherSections();
+    } catch (error) {
+        console.error('Erreur:', error);
+        container.innerHTML = `<div class="alert alert-danger">Erreur de chargement des sections. Veuillez rafraîchir la page.</div>`;
+    }
+}
+
+function afficherSections() {
+    const container = document.getElementById('sectionsContainer');
+    container.innerHTML = '';
+
+    sectionsData.forEach((section, index) => {
+        const div = document.createElement('div');
+        div.className = 'card mb-3 section-card';
+        div.id = `section-${index}`;
+
+        if (sectionsOriginales[index] === undefined) {
+            sectionsOriginales[index] = section.texte;
+        }
+        const reference = sectionsOriginales[index];
+        const isModified = sectionsModifiees[index] !== undefined && sectionsModifiees[index] !== reference;
+        const texte = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : reference;
+
+        div.innerHTML = `
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas ${section.icone} me-2"></i>
+                    <strong>${section.nom}</strong>
+                    ${isModified ? '<span class="badge ms-2" style="background: var(--hp-warning);">Modifié</span>' : '<span class="badge bg-light text-dark ms-2">Original</span>'}
+                </div>
+                <div>
+                    <button type="button" class="btn btn-sm btn-primary me-1" onclick="ouvrirModalModification(${index})">
+                        <i class="fas fa-edit me-1"></i>Modifier
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="resetSection(${index})" ${!isModified ? 'disabled' : ''}>
+                        <i class="fas fa-undo me-1"></i>Réinitialiser
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" id="section-body-${index}" style="${isModified ? 'background: var(--hp-warning-light);' : ''}">
+                <p class="mb-0${isModified ? ' fw-bold' : ''}" style="white-space: pre-wrap; font-size: 15px; line-height: 1.8;${isModified ? ' color: var(--hp-warning);' : ''}">${texte}</p>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+
+    genererResume();
+}
+
+function resetSection(index) {
+    if (confirm(`Revenir au texte original pour la section "${sectionsData[index].nom}" ?`)) {
+        delete sectionsModifiees[index];
+        afficherSections();
+        showToast('✅ Section réinitialisée', 'info');
+    }
+}
+
+function toutReinitialiser() {
+    if (confirm('Réinitialiser toutes les sections ?')) {
+        sectionsModifiees = {};
+        afficherSections();
+        showToast('✅ Tout a été réinitialisé', 'info');
+    }
+}
+
+function ajouterAppareil() {
+    const nom = prompt('Nom de l\'appareil / section :');
+    if (!nom) return;
+
+    const texte = prompt(`Texte pour "${nom}" :`);
+    if (!texte) return;
+
+    const index = sectionsData.length;
+    sectionsData.push({ nom: nom, icone: 'fa-plus-circle', texte: texte });
+
+    sectionsModifiees[index] = texte;
+    afficherSections();
+    showToast(`✅ "${nom}" ajouté`, 'success');
+}
+
+function changerLangue() {
+    currentLang = currentLang === 'fr' ? 'en' : 'fr';
+    document.getElementById('langBtnText').textContent = currentLang === 'fr' ? '🇫🇷 Français' : '🇬🇧 English';
+    chargerSections();
+}
+
+function genererResume() {
+    const examenComplet = document.getElementById('examenComplet');
+    if (!examenComplet) return;
+
+    let resume = '';
+    sectionsData.forEach((section, index) => {
+        const reference = sectionsOriginales[index] !== undefined ? sectionsOriginales[index] : section.texte;
+        const texte = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : reference;
+        resume += `--- ${section.nom.toUpperCase()} ---\n${texte}\n\n`;
+    });
+
+    examenComplet.value = resume.trim();
+}
+
+function enregistrerVisite() {
+    genererResume();
+    const form = document.getElementById('visiteForm');
+    const formData = new FormData(form);
+    formData.append('sections_modifiees', JSON.stringify(sectionsModifiees));
+
+    const btn = document.getElementById('btnEnregistrer');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enregistrement...';
+
+    fetch(form.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('✅ Visite enregistrée avec succès !', 'success');
+            setTimeout(() => { window.location.href = data.redirect; }, 800);
+        } else {
+            showToast('❌ Erreur : ' + (data.message || 'Inconnue'), 'danger');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save me-2"></i>Enregistrer la visite';
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        showToast('❌ Erreur lors de l\'enregistrement', 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-2"></i>Enregistrer la visite';
+    });
+}
+
+function showToast(message, type = 'success') {
+    document.querySelectorAll('.toast-custom').forEach(el => el.remove());
+
+    const toastContainer = document.querySelector('.toast-container') || (() => {
+        const container = document.createElement('div');
+        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        document.body.appendChild(container);
+        return container;
+    })();
+
+    const toast = document.createElement('div');
+    toast.className = `toast-custom toast show bg-${type} text-white`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="toast-body d-flex justify-content-between align-items-center">
+            <span>${message}</span>
+            <button type="button" class="btn-close btn-close-white" onclick="this.closest('.toast-custom').remove()"></button>
+        </div>
+    `;
+    toastContainer.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+let valeurOriginaleModal = '';
+
+function ouvrirModalModification(index) {
+    const section = sectionsData[index];
+    if (!section) return;
+
+    currentEditIndex = index;
+    const referenceActuelle = sectionsOriginales[index] !== undefined ? sectionsOriginales[index] : section.texte;
+    const texteActuel = sectionsModifiees[index] !== undefined ? sectionsModifiees[index] : referenceActuelle;
+
+    document.getElementById('editSectionName').textContent = section.nom;
+    document.getElementById('editSectionDesc').textContent = section.texte.substring(0, 100) + (section.texte.length > 100 ? '...' : '');
+    document.getElementById('editSectionText').value = texteActuel;
+
+    valeurOriginaleModal = texteActuel;
+
+    const modalElement = document.getElementById('editSectionModal');
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
+}
+
+function sauvegarderModification() {
+    if (currentEditIndex === null) return;
+
+    const nouveauTexte = document.getElementById('editSectionText').value;
+    const index = currentEditIndex;
+
+    if (nouveauTexte.trim() === '') {
+        delete sectionsModifiees[index];
+        showToast('Section réinitialisée', 'info');
+    } else {
+        sectionsModifiees[index] = nouveauTexte.trim();
+        showToast('Section modifiée avec succès', 'success');
+    }
+
+    fermerModal();
+    afficherSections();
+}
+
+function annulerModification() {
+    document.getElementById('editSectionText').value = valeurOriginaleModal;
+    showToast('Modifications annulées', 'info');
+    fermerModal();
+}
+
+function fermerModal() {
+    currentEditIndex = null;
+    const modalElement = document.getElementById('editSectionModal');
+    if (modalElement) {
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) modal.hide();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('btnSaveSection').addEventListener('click', sauvegarderModification);
+    document.getElementById('btnAnnulerModal').addEventListener('click', annulerModification);
+    document.getElementById('btnCloseModal').addEventListener('click', annulerModification);
+    document.getElementById('editSectionModal').addEventListener('hidden.bs.modal', function() {
+        currentEditIndex = null;
+    });
+    chargerSections();
+});
+</script>
+
+<style>
+.section-card { transition: all 0.3s ease; }
+.section-card:hover { box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+.section-card .card-body { background: #fafafa; }
+.modal-dialog { max-width: 800px; }
+.modal-body textarea { resize: vertical; min-height: 200px; }
+</style>
+{% endblock %}

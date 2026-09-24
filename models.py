@@ -605,6 +605,8 @@ class Hospitalisation(db.Model):
     infirmiers = db.relationship('HospitalisationInfirmier', backref='hospitalisation', lazy='dynamic', cascade='all, delete-orphan')
     evolutions = db.relationship('EvolutionPatient', backref='hospitalisation', lazy='dynamic', cascade='all, delete-orphan')
     constantes = db.relationship('ConstanteVitale', backref='hospitalisation', lazy='dynamic', cascade='all, delete-orphan')
+    visites_infirmieres = db.relationship('VisiteInfirmiere', backref='hospitalisation', lazy='dynamic', cascade='all, delete-orphan')
+    consignes_medicales = db.relationship('ConsigneMedicale', backref='hospitalisation', lazy='dynamic', cascade='all, delete-orphan')
 
 
     # Protocole de soins
@@ -735,6 +737,68 @@ class EvolutionPatient(db.Model):
 
     
     redacteur = db.relationship('Utilisateur', backref='evolutions_redigees')
+
+
+class VisiteInfirmiere(db.Model):
+    """⭐ Visite du jour de l'infirmier pour un patient hospitalisé — plaintes,
+    état, examen physique système par système (même structure que
+    ExamenPhysique/consultation, voir sections_modifiees/sections_origine
+    ci-dessous), et une décision suggérée qui reste INDICATIVE : c'est
+    ConsigneMedicale (ci-dessous), rédigée par le médecin, qui est
+    effectivement appliquée — jamais ce champ decision_suggeree."""
+    __tablename__ = 'visites_infirmieres'
+
+    id = db.Column(db.Integer, primary_key=True)
+    hospitalisation_id = db.Column(db.Integer, db.ForeignKey('hospitalisations.id'), nullable=False)
+    infirmier_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
+    date_visite = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    plaintes_patient = db.Column(db.Text, nullable=True)
+    etat_general = db.Column(db.Text, nullable=True)
+
+    # ⭐ Mêmes noms de colonnes que ExamenPhysique (models.py) — permet de
+    # réutiliser _rendre_sections_examen_physique() sans modification
+    # (duck-typing). sections_origine = instantané de l'ExamenPhysique
+    # courant de l'hospitalisation au moment où CETTE visite démarre, pour
+    # surligner ce que l'infirmier a changé pendant sa visite.
+    examen_complet = db.Column(db.Text, nullable=True)
+    sections_modifiees = db.Column(db.Text, nullable=True)
+    sections_origine = db.Column(db.Text, nullable=True)
+
+    appareil_dysfonctionnel = db.Column(db.Boolean, default=False)
+    appareil_dysfonctionnel_detail = db.Column(db.Text, nullable=True)
+
+    # ⭐ Indicatif uniquement — jamais appliqué automatiquement, voir
+    # ConsigneMedicale.
+    decision_suggeree = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    infirmier = db.relationship('Utilisateur', backref='visites_infirmieres_redigees')
+
+
+class ConsigneMedicale(db.Model):
+    """⭐ Décision/instruction du médecin pour la suite de la prise en charge
+    d'un patient hospitalisé — c'est CE modèle, et lui seul, qui est
+    appliqué par l'infirmier (par opposition à VisiteInfirmiere.
+    decision_suggeree, qui n'est qu'une suggestion)."""
+    __tablename__ = 'consignes_medicales'
+
+    id = db.Column(db.Integer, primary_key=True)
+    hospitalisation_id = db.Column(db.Integer, db.ForeignKey('hospitalisations.id'), nullable=False)
+    medecin_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
+    date_consigne = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    type_decision = db.Column(db.String(30), nullable=False)  # continuer_traitement, modifier_traitement, autre
+    instructions = db.Column(db.Text, nullable=False)
+
+    # Visite infirmière à laquelle cette consigne répond, le cas échéant.
+    visite_infirmiere_id = db.Column(db.Integer, db.ForeignKey('visites_infirmieres.id'), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    medecin = db.relationship('Utilisateur', backref='consignes_medicales_redigees')
+    visite_infirmiere = db.relationship('VisiteInfirmiere', backref='consignes')
 
 
 class AvisExterne(db.Model):
@@ -967,6 +1031,41 @@ class PermissionTemp(db.Model):
     grantor = db.relationship('Utilisateur', foreign_keys=[granted_by], backref='permissions_temp_donnees')
     revoker = db.relationship('Utilisateur', foreign_keys=[revoked_by], backref='permissions_temp_revoquees')
     structure = db.relationship('Structure', backref='permissions_temp')
+
+
+class DemandeAccesHospitalisation(db.Model):
+    """⭐ Demande d'un médecin pour consulter un patient hospitalisé dans un
+    autre service que le sien — routée automatiquement (voir
+    _resoudre_destinataire_demande_acces, app.py) au médecin traitant s'il y
+    en a un assigné, sinon à l'administrateur de la structure
+    (destinataire_id NULL). Acceptation = accès temporaire, borné par
+    date_fin (même patron que PermissionTemp ci-dessus)."""
+    __tablename__ = 'demandes_acces_hospitalisation'
+
+    id = db.Column(db.Integer, primary_key=True)
+    hospitalisation_id = db.Column(db.Integer, db.ForeignKey('hospitalisations.id'), nullable=False)
+    demandeur_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
+    # NULL = routée vers l'administrateur de la structure du patient.
+    destinataire_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
+
+    motif = db.Column(db.Text, nullable=False)
+
+    statut = db.Column(db.String(20), default='en_attente')  # en_attente, acceptee, refusee
+    motif_refus = db.Column(db.Text, nullable=True)
+
+    # Fenêtre d'accès, posée uniquement à l'acceptation.
+    date_debut = db.Column(db.DateTime, nullable=True)
+    date_fin = db.Column(db.DateTime, nullable=True)
+
+    traite_par = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
+    date_traitement = db.Column(db.DateTime, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    hospitalisation = db.relationship('Hospitalisation', backref='demandes_acces')
+    demandeur = db.relationship('Utilisateur', foreign_keys=[demandeur_id], backref='demandes_acces_envoyees')
+    destinataire = db.relationship('Utilisateur', foreign_keys=[destinataire_id], backref='demandes_acces_recues')
+    traiteur = db.relationship('Utilisateur', foreign_keys=[traite_par], backref='demandes_acces_traitees')
 
 
 # ==================== GESTION DES SALLES ====================

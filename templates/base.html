@@ -762,6 +762,16 @@
                 {% endif %}
             </a>
 
+            <!-- ========== DEMANDES D'ACCÈS INTER-SERVICE ========== -->
+            {% if current_user.role in ['admin_structure', 'medecin'] %}
+            <a class="nav-link" href="{{ url_for('demandes_acces_inbox') }}" title="Demandes d'accès">
+                <i class="fas fa-user-lock"></i><span class="nav-text">Demandes d'accès</span>
+                {% if demandes_acces_en_attente_count > 0 %}
+                    <span class="badge bg-danger rounded-pill">{{ demandes_acces_en_attente_count }}</span>
+                {% endif %}
+            </a>
+            {% endif %}
+
             <!-- ========== SUPER ADMIN ========== -->
             {% if current_user.role == 'super_admin' %}
             <hr>
@@ -959,6 +969,16 @@
                         {% if non_lus > 0 %}<span class="badge bg-danger rounded-pill">{{ non_lus }}</span>{% endif %}
                     </a>
                 </li>
+
+                <!-- Demandes d'accès inter-service -->
+                {% if current_user.role in ['admin_structure', 'medecin'] %}
+                <li class="nav-item">
+                    <a class="nav-link-top" href="{{ url_for('demandes_acces_inbox') }}">
+                        <i class="fas fa-user-lock"></i> Demandes d'accès
+                        {% if demandes_acces_en_attente_count > 0 %}<span class="badge bg-danger rounded-pill">{{ demandes_acces_en_attente_count }}</span>{% endif %}
+                    </a>
+                </li>
+                {% endif %}
 
                 <!-- Administration (admin_structure) -->
                 {% if current_user.role == 'admin_structure' %}

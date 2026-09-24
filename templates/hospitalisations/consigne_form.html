@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Nouvelle consigne - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-clipboard-check me-2 text-primary"></i>
+            Consigne médicale - {{ patient.prenom }} {{ patient.nom }}
+        </h1>
+        <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Retour
+        </a>
+    </div>
+
+    {% if visite_ref %}
+    <div class="card mb-4 border-info">
+        <div class="card-header bg-info bg-opacity-10">
+            <i class="fas fa-user-nurse me-2"></i>En réponse à la visite du
+            {{ visite_ref.date_visite.strftime('%d/%m/%Y %H:%M') if visite_ref.date_visite else '-' }}
+            par {{ visite_ref.infirmier.prenom }} {{ visite_ref.infirmier.nom }}
+        </div>
+        <div class="card-body">
+            {% if visite_ref.plaintes_patient %}<p class="mb-1"><strong>Plaintes :</strong> {{ visite_ref.plaintes_patient }}</p>{% endif %}
+            {% if visite_ref.appareil_dysfonctionnel %}
+            <p class="mb-1 text-danger"><strong>⚠ Appareil signalé :</strong> {{ visite_ref.appareil_dysfonctionnel_detail or '-' }}</p>
+            {% endif %}
+            {% if visite_ref.decision_suggeree %}
+            <p class="mb-0"><strong>Proposition (indicative) de l'infirmier :</strong> {{ visite_ref.decision_suggeree }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('ajouter_consigne', id=hospitalisation.id) }}">
+        {% if visite_ref %}<input type="hidden" name="visite_infirmiere_id" value="{{ visite_ref.id }}">{% endif %}
+        <div class="card">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Décision</label>
+                    <select name="type_decision" class="form-select" required>
+                        <option value="continuer_traitement">Continuer le traitement en cours</option>
+                        <option value="modifier_traitement">Modifier le traitement</option>
+                        <option value="autre">Autre</option>
+                    </select>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label fw-bold">Instructions pour l'infirmier</label>
+                    <textarea name="instructions" class="form-control" rows="5" required placeholder="Ce que l'infirmier doit appliquer concrètement..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-end mt-3">
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-save me-2"></i>Enregistrer la consigne
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

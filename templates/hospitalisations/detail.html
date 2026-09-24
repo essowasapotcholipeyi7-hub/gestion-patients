@@ -596,6 +596,92 @@
 </div>
 
 <!-- ========================================================== -->
+<!-- ⭐ CONSIGNES MÉDICALES — la seule chose que l'infirmier doit  -->
+<!-- réellement appliquer (par opposition à la proposition        -->
+<!-- indicative de la visite infirmière, ci-dessous).              -->
+<!-- ========================================================== -->
+<div class="card mb-4 border-success">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <div><i class="fas fa-clipboard-check me-2"></i><strong>Consignes médicales</strong></div>
+        {% if current_user.role in ['admin_structure', 'medecin'] %}
+        <a href="{{ url_for('ajouter_consigne', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
+            <i class="fas fa-plus me-1"></i>Nouvelle consigne
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if consigne_active %}
+            <p class="mb-1">
+                <span class="badge bg-success me-2">
+                    {% if consigne_active.type_decision == 'continuer_traitement' %}Continuer le traitement
+                    {% elif consigne_active.type_decision == 'modifier_traitement' %}Modifier le traitement
+                    {% else %}Autre{% endif %}
+                </span>
+                <small class="text-muted">
+                    par Dr {{ consigne_active.medecin.prenom }} {{ consigne_active.medecin.nom }} —
+                    {{ consigne_active.date_consigne.strftime('%d/%m/%Y %H:%M') if consigne_active.date_consigne else '-' }}
+                </small>
+            </p>
+            <p class="mb-0 fw-bold">{{ consigne_active.instructions }}</p>
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>Aucune consigne enregistrée pour l'instant.
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ========================================================== -->
+<!-- ⭐ VISITE INFIRMIÈRE DU JOUR                                 -->
+<!-- ========================================================== -->
+<div class="card mb-4 border-info">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-user-nurse me-2"></i><strong>Visite infirmière du jour</strong>
+            <span class="badge bg-light text-info ms-2">{{ hospitalisation.visites_infirmieres.count() }}</span>
+        </div>
+        <div>
+            {% if visites_infirmieres_recentes %}
+            <a href="{{ url_for('visites_infirmieres_liste', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
+                <i class="fas fa-history me-1"></i>Historique
+            </a>
+            {% endif %}
+            {% if current_user.role in ['admin_structure', 'infirmier'] %}
+            <a href="{{ url_for('nouvelle_visite_infirmiere', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
+                <i class="fas fa-plus me-1"></i>Nouvelle visite
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        {% if visites_infirmieres_recentes %}
+            {% for v in visites_infirmieres_recentes %}
+            <div class="mb-3 pb-3 {% if not loop.last %}border-bottom{% endif %}">
+                <p class="mb-1">
+                    <strong>{{ v.date_visite.strftime('%d/%m/%Y %H:%M') if v.date_visite else '-' }}</strong>
+                    <span class="text-muted">— {{ v.infirmier.prenom }} {{ v.infirmier.nom }}</span>
+                    {% if v.appareil_dysfonctionnel %}
+                    <span class="badge bg-danger ms-1"><i class="fas fa-triangle-exclamation me-1"></i>Appareil signalé</span>
+                    {% endif %}
+                </p>
+                {% if v.plaintes_patient %}<p class="mb-1 small">{{ v.plaintes_patient|truncate(120) }}</p>{% endif %}
+                {% if v.decision_suggeree %}
+                <p class="mb-0 small">
+                    <span class="badge bg-warning text-dark">Proposition indicative</span>
+                    {{ v.decision_suggeree|truncate(100) }}
+                </p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>Aucune visite infirmière enregistrée pour cette hospitalisation.
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ========================================================== -->
 <!-- ⭐ CARTE EXAMENS AVEC HISTORIQUE                            -->
 <!-- ========================================================== -->
 <div class="card mb-4 border-info">

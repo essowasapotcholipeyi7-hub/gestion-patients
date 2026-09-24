@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Visites infirmières - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-user-nurse me-2 text-primary"></i>
+            Visites infirmières - {{ patient.prenom }} {{ patient.nom }}
+        </h1>
+        <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Retour
+        </a>
+    </div>
+
+    {% if visites %}
+        {% for v in visites %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>
+                    <i class="fas fa-calendar-day me-1"></i>{{ v.date_visite.strftime('%d/%m/%Y %H:%M') if v.date_visite else '-' }}
+                    <span class="text-muted ms-2">par {{ v.infirmier.prenom }} {{ v.infirmier.nom }}</span>
+                </span>
+                {% if v.appareil_dysfonctionnel %}
+                <span class="badge bg-danger"><i class="fas fa-triangle-exclamation me-1"></i>Appareil signalé</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if v.plaintes_patient %}<p class="mb-2"><strong>Plaintes :</strong> {{ v.plaintes_patient }}</p>{% endif %}
+                {% if v.etat_general %}<p class="mb-2"><strong>État général :</strong> {{ v.etat_general }}</p>{% endif %}
+                {% if v.appareil_dysfonctionnel_detail %}
+                <p class="mb-2 text-danger"><strong>Détail :</strong> {{ v.appareil_dysfonctionnel_detail }}</p>
+                {% endif %}
+                {% if v.decision_suggeree %}
+                <div class="alert alert-warning py-2 mb-2">
+                    <i class="fas fa-lightbulb me-1"></i>
+                    <strong>Proposition indicative :</strong> {{ v.decision_suggeree }}
+                </div>
+                {% endif %}
+
+                {% if v.consignes %}
+                    {% for c in v.consignes %}
+                    <div class="alert alert-success py-2 mb-2">
+                        <i class="fas fa-clipboard-check me-1"></i>
+                        <strong>Consigne du médecin ({{ c.medecin.prenom }} {{ c.medecin.nom }}) :</strong> {{ c.instructions }}
+                    </div>
+                    {% endfor %}
+                {% elif current_user.role in ['medecin', 'admin_structure'] %}
+                <a href="{{ url_for('ajouter_consigne', id=hospitalisation.id, visite_infirmiere_id=v.id) }}" class="btn btn-sm btn-outline-success">
+                    <i class="fas fa-reply me-1"></i>Répondre par une consigne
+                </a>
+                {% endif %}
+
+                <details class="mt-2">
+                    <summary class="text-muted small">Voir l'examen physique de cette visite</summary>
+                    <p class="mt-2 mb-0 small" style="white-space: pre-wrap;">{{ v.examen_complet or 'Non renseigné' }}</p>
+                </details>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info text-center py-4">
+            <i class="fas fa-info-circle me-2"></i>Aucune visite infirmière enregistrée pour cette hospitalisation.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

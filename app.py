@@ -93,6 +93,29 @@ def inject_medicaments_en_retard():
     return dict(medicaments_en_retard_count=0)
 
 @app.context_processor
+def inject_demandes_acces_en_attente():
+    """Badge nav "Demandes d'accès" (voir base.html) — même patron que
+    inject_non_lus ci-dessus."""
+    from models import DemandeAccesHospitalisation, Hospitalisation, Patient
+    if not current_user.is_authenticated or current_user.role not in ('medecin', 'admin_structure'):
+        return dict(demandes_acces_en_attente_count=0)
+    try:
+        if current_user.role == 'medecin':
+            count = DemandeAccesHospitalisation.query.filter_by(
+                destinataire_id=current_user.id, statut='en_attente'
+            ).count()
+        else:
+            count = DemandeAccesHospitalisation.query.filter(
+                DemandeAccesHospitalisation.destinataire_id.is_(None),
+                DemandeAccesHospitalisation.statut == 'en_attente'
+            ).join(Hospitalisation).join(Patient).filter(
+                Patient.id_structure == current_user.id_structure
+            ).count()
+        return dict(demandes_acces_en_attente_count=count)
+    except Exception:
+        return dict(demandes_acces_en_attente_count=0)
+
+@app.context_processor
 def utility_processor():
     from datetime import datetime
     return {
@@ -5126,7 +5149,7 @@ def admin_delete_structure(id):
 @has_permission('HOSPITALISATION')
 def liste_hospitalisations():
     """Liste des hospitalisations"""
-    from models import Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, Patient, Consultation
+    from models import Hospitalisation, HospitalisationInfirmier, Patient, Consultation
 
     if current_user.role not in ['admin_structure', 'medecin', 'infirmier', 'secretaire', 'super_admin']:
         flash('Accès non autorisé', 'danger')
@@ -5173,12 +5196,14 @@ def liste_hospitalisations():
         query = query.filter(Hospitalisation.service.ilike(f'%{service}%'))
     
     # Filtrer selon le rôle
-    if current_user.role == 'medecin':
-        query = query.join(HospitalisationMedecin).filter(
-            HospitalisationMedecin.medecin_id == current_user.id,
-            HospitalisationMedecin.actif == True
-        )
-    elif current_user.role == 'infirmier':
+    # ⭐ Un médecin voit maintenant TOUTES les hospitalisations de sa
+    # structure (plus seulement les siennes) — condition nécessaire pour
+    # pouvoir repérer un patient d'un autre service et lui demander l'accès
+    # (voir demander_acces_hospitalisation) ; le détail clinique complet
+    # reste gated par _a_acces_hospitalisation (le nom/service/médecin
+    # assigné affichés dans cette liste sont l'équivalent d'un tableau de
+    # service hospitalier classique, pas d'information clinique).
+    if current_user.role == 'infirmier':
         query = query.join(HospitalisationInfirmier).filter(
             HospitalisationInfirmier.infirmier_id == current_user.id,
             HospitalisationInfirmier.actif == True
@@ -5428,36 +5453,66 @@ def nouvelle_hospitalisation():
                          patient_id_prerempli=patient_id_prerempli)
 
 
+def _a_acces_hospitalisation(user, hospitalisation):
+    """⭐ Un médecin/infirmier a-t-il accès à CETTE hospitalisation ? Factorise
+    la vérification dupliquée dans detail_hospitalisation/ajouter_evolution/
+    ajouter_constante, et l'étend : un médecin non assigné a aussi accès s'il
+    a une DemandeAccesHospitalisation acceptée et encore dans sa fenêtre de
+    validité (voir /hospitalisation/<id>/demande-acces). super_admin/
+    admin_structure : accès toujours vrai (inchangé)."""
+    from models import HospitalisationMedecin, HospitalisationInfirmier, DemandeAccesHospitalisation
+    from datetime import datetime
+
+    if user.role in ('super_admin', 'admin_structure'):
+        return True
+
+    if user.role == 'medecin':
+        assigne = HospitalisationMedecin.query.filter_by(
+            hospitalisation_id=hospitalisation.id,
+            medecin_id=user.id,
+            actif=True
+        ).first()
+        if assigne:
+            return True
+        acces_temp = DemandeAccesHospitalisation.query.filter_by(
+            hospitalisation_id=hospitalisation.id,
+            demandeur_id=user.id,
+            statut='acceptee'
+        ).filter(DemandeAccesHospitalisation.date_fin > datetime.utcnow()).first()
+        return acces_temp is not None
+
+    if user.role == 'infirmier':
+        assigne = HospitalisationInfirmier.query.filter_by(
+            hospitalisation_id=hospitalisation.id,
+            infirmier_id=user.id,
+            actif=True
+        ).first()
+        return assigne is not None
+
+    return False
+
+
 @app.route('/hospitalisation/<int:id>')
 @login_required
 def detail_hospitalisation(id):
     """Détails d'une hospitalisation avec note d'admission structurée"""
     from models import Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, ConstanteVitale, EvolutionPatient, NoteAdmission, ProtocoleSoins, ExamenType, ExamenPrescrit
     import json
-    
+
     hospitalisation = Hospitalisation.query.get_or_404(id)
-    
-    # Vérifier les permissions
-    if current_user.role not in ['super_admin', 'admin_structure']:
+
+    # Vérifier les permissions — voir _a_acces_hospitalisation (inclut
+    # l'accès temporaire accordé via une demande d'accès inter-service).
+    if not _a_acces_hospitalisation(current_user, hospitalisation):
+        # ⭐ Un médecin non assigné (patient d'un autre service) est envoyé
+        # vers le formulaire de demande d'accès plutôt qu'un simple refus —
+        # c'est précisément le cas d'usage de cette fonctionnalité.
         if current_user.role == 'medecin':
-            assigne = HospitalisationMedecin.query.filter_by(
-                hospitalisation_id=id,
-                medecin_id=current_user.id,
-                actif=True
-            ).first()
-            if not assigne:
-                flash('Vous n\'etes pas assigne a cette hospitalisation', 'danger')
-                return redirect(url_for('dashboard'))
-        elif current_user.role == 'infirmier':
-            assigne = HospitalisationInfirmier.query.filter_by(
-                hospitalisation_id=id,
-                infirmier_id=current_user.id,
-                actif=True
-            ).first()
-            if not assigne:
-                flash('Vous n\'etes pas assigne a cette hospitalisation', 'danger')
-                return redirect(url_for('dashboard'))
-    
+            flash('Vous n\'êtes pas assigné à cette hospitalisation — vous pouvez demander l\'accès.', 'info')
+            return redirect(url_for('demander_acces_hospitalisation', id=id))
+        flash('Vous n\'etes pas assigne a cette hospitalisation', 'danger')
+        return redirect(url_for('dashboard'))
+
     # ============================================================
     # 1. RÉCUPÉRATION DES DONNÉES ASSOCIÉES
     # ============================================================
@@ -5589,6 +5644,32 @@ def detail_hospitalisation(id):
     ).order_by(ActePose.date_pose.desc()).all()
 
     # ============================================================
+    # 12. ⭐ VISITE INFIRMIÈRE DU JOUR + CONSIGNE MÉDICALE ACTIVE
+    # ============================================================
+    from models import VisiteInfirmiere, ConsigneMedicale, DemandeAccesHospitalisation
+    visites_infirmieres_recentes = hospitalisation.visites_infirmieres.order_by(
+        VisiteInfirmiere.date_visite.desc()
+    ).limit(3).all()
+    consigne_active = hospitalisation.consignes_medicales.order_by(
+        ConsigneMedicale.date_consigne.desc()
+    ).first()
+
+    # ============================================================
+    # 13. ⭐ DEMANDE D'ACCÈS INTER-SERVICE — pour un médecin non assigné,
+    #     savoir s'il a déjà une demande en cours (pour ne pas en proposer
+    #     une nouvelle) ; il ne peut de toute façon pas arriver jusqu'ici
+    #     sans accès déjà accordé (voir _a_acces_hospitalisation), donc ce
+    #     bloc ne sert qu'aux admin/medecin déjà légitimement sur la page.
+    # ============================================================
+    demande_acces_en_cours = None
+    if current_user.role == 'medecin':
+        demande_acces_en_cours = DemandeAccesHospitalisation.query.filter_by(
+            hospitalisation_id=hospitalisation.id,
+            demandeur_id=current_user.id,
+            statut='en_attente'
+        ).first()
+
+    # ============================================================
     # 9. RENDU
     # ============================================================
 
@@ -5613,6 +5694,9 @@ def detail_hospitalisation(id):
                          examen_physique_sections=examen_physique_sections,
                          soins_poses=soins_poses,
                          actes_soins_habituels=ACTES_SOINS_HABITUELS,
+                         visites_infirmieres_recentes=visites_infirmieres_recentes,
+                         consigne_active=consigne_active,
+                         demande_acces_en_cours=demande_acces_en_cours,
                          now=datetime.utcnow())
 
 # ============================================================
@@ -5928,31 +6012,15 @@ def ajouter_evolution(id):
     if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
-    
-    if current_user.role != 'admin_structure':
-        if current_user.role == 'medecin':
-            assigne = HospitalisationMedecin.query.filter_by(
-                hospitalisation_id=id,
-                medecin_id=current_user.id,
-                actif=True
-            ).first()
-            if not assigne:
-                flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
-                return redirect(url_for('dashboard'))
-        elif current_user.role == 'infirmier':
-            assigne = HospitalisationInfirmier.query.filter_by(
-                hospitalisation_id=id,
-                infirmier_id=current_user.id,
-                actif=True
-            ).first()
-            if not assigne:
-                flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
-                return redirect(url_for('dashboard'))
-    
+
+    if not _a_acces_hospitalisation(current_user, hospitalisation):
+        flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+        return redirect(url_for('dashboard'))
+
     # ============================================================
     # 2. RÉCUPÉRATION DE LA NOTE D'ADMISSION ACTIVE (RÉFÉRENCE)
     # ============================================================
-    
+
     note_active = None
     if hospitalisation.note_admission_active_id:
         note_active = NoteAdmission.query.get(hospitalisation.note_admission_active_id)
@@ -6052,6 +6120,340 @@ def ajouter_evolution(id):
                          tendance=tendance,
                          now=datetime.utcnow())
 
+
+# ==================== VISITE INFIRMIÈRE DU JOUR ====================
+# ⭐ Pendant du suivi médecin (EvolutionPatient/ajouter_evolution) côté
+# infirmier, mais avec un vrai examen physique système par système (comme
+# en consultation) et une proposition de décision explicitement INDICATIVE
+# — seule ConsigneMedicale (ci-dessous) est appliquée. Voir plan :
+# "l'infirmier fait la visite du jour, il peut mettre une décision mais
+# c'est juste indicationnel, c'est pour le médecin qui sera appliqué".
+
+@app.route('/hospitalisation/<int:id>/visite-infirmiere/ajouter')
+@login_required
+def nouvelle_visite_infirmiere(id):
+    from models import Hospitalisation, ExamenPhysique, VisiteInfirmiere
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    patient = hospitalisation.patient
+
+    if current_user.role not in ('admin_structure', 'infirmier'):
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    if not _a_acces_hospitalisation(current_user, hospitalisation):
+        flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # ⭐ Formulaire pré-rempli avec l'examen physique COURANT de
+    # l'hospitalisation (dossier officiel tenu par le médecin) — jamais
+    # persisté ici (voir enregistrer_visite_infirmiere pour la création
+    # réelle). sections_origine = référence pour le surlignage de ce que
+    # L'INFIRMIER changera pendant SA visite.
+    examen_actuel = ExamenPhysique.query.filter_by(hospitalisation_id=id).first()
+    reference = examen_actuel.sections_modifiees if examen_actuel else '{}'
+    visite = VisiteInfirmiere(
+        sections_modifiees=reference,
+        sections_origine=reference or '{}',
+    )
+
+    return render_template('hospitalisations/visite_infirmiere_form.html',
+                         patient=patient,
+                         hospitalisation=hospitalisation,
+                         visite=visite)
+
+
+@app.route('/hospitalisation/<int:id>/visite-infirmiere/enregistrer', methods=['POST'])
+@login_required
+def enregistrer_visite_infirmiere(id):
+    from models import Hospitalisation, ExamenPhysique, VisiteInfirmiere
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+
+    if current_user.role not in ('admin_structure', 'infirmier'):
+        return jsonify({'success': False, 'message': 'Accès non autorisé'}), 403
+    if not _a_acces_hospitalisation(current_user, hospitalisation):
+        return jsonify({'success': False, 'message': 'Vous n\'êtes pas assigné à cette hospitalisation'}), 403
+
+    try:
+        examen_actuel = ExamenPhysique.query.filter_by(hospitalisation_id=id).first()
+        sections_origine = examen_actuel.sections_modifiees if examen_actuel else '{}'
+
+        visite = VisiteInfirmiere(
+            hospitalisation_id=id,
+            infirmier_id=current_user.id,
+            plaintes_patient=request.form.get('plaintes_patient'),
+            etat_general=request.form.get('etat_general'),
+            examen_complet=nettoyer_examen_complet(request.form.get('examen_complet', '')),
+            sections_modifiees=request.form.get('sections_modifiees', '{}'),
+            sections_origine=sections_origine or '{}',
+            appareil_dysfonctionnel=bool(request.form.get('appareil_dysfonctionnel')),
+            appareil_dysfonctionnel_detail=request.form.get('appareil_dysfonctionnel_detail'),
+            decision_suggeree=request.form.get('decision_suggeree'),
+        )
+        db.session.add(visite)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Visite enregistrée',
+            'redirect': url_for('detail_hospitalisation', id=id),
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/hospitalisation/<int:id>/visites-infirmieres')
+@login_required
+def visites_infirmieres_liste(id):
+    from models import Hospitalisation, VisiteInfirmiere
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+
+    if not _a_acces_hospitalisation(current_user, hospitalisation):
+        flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+        return redirect(url_for('dashboard'))
+
+    visites = hospitalisation.visites_infirmieres.order_by(VisiteInfirmiere.date_visite.desc()).all()
+
+    return render_template('hospitalisations/visites_infirmieres_liste.html',
+                         hospitalisation=hospitalisation,
+                         patient=hospitalisation.patient,
+                         visites=visites)
+
+
+# ==================== CONSIGNE MÉDICALE ====================
+# ⭐ La seule chose que l'infirmier doit réellement appliquer — distincte
+# de VisiteInfirmiere.decision_suggeree (indicative, voir ci-dessus).
+
+@app.route('/hospitalisation/<int:id>/consigne/ajouter', methods=['GET', 'POST'])
+@login_required
+def ajouter_consigne(id):
+    from models import Hospitalisation, ConsigneMedicale, VisiteInfirmiere
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    patient = hospitalisation.patient
+
+    if current_user.role not in ('admin_structure', 'medecin'):
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    if not _a_acces_hospitalisation(current_user, hospitalisation):
+        flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        type_decision = request.form.get('type_decision')
+        instructions = request.form.get('instructions', '').strip()
+        visite_infirmiere_id = request.form.get('visite_infirmiere_id', type=int)
+
+        if not type_decision or not instructions:
+            flash('Merci de préciser la décision et les instructions', 'danger')
+            return redirect(url_for('ajouter_consigne', id=id, visite_infirmiere_id=visite_infirmiere_id))
+
+        consigne = ConsigneMedicale(
+            hospitalisation_id=id,
+            medecin_id=current_user.id,
+            type_decision=type_decision,
+            instructions=instructions,
+            visite_infirmiere_id=visite_infirmiere_id,
+        )
+        db.session.add(consigne)
+        db.session.commit()
+
+        flash('✅ Consigne enregistrée — visible côté infirmier', 'success')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    visite_ref = None
+    visite_ref_id = request.args.get('visite_infirmiere_id', type=int)
+    if visite_ref_id:
+        visite_ref = VisiteInfirmiere.query.get(visite_ref_id)
+
+    return render_template('hospitalisations/consigne_form.html',
+                         patient=patient,
+                         hospitalisation=hospitalisation,
+                         visite_ref=visite_ref)
+
+
+# ==================== DEMANDE D'ACCÈS INTER-SERVICE ====================
+# ⭐ Un médecin non assigné à une hospitalisation (patient d'un autre
+# service) peut demander l'accès — routée automatiquement au médecin
+# traitant s'il y en a un, sinon à l'administrateur de la structure.
+
+def _resoudre_destinataire_demande_acces(hospitalisation, demandeur):
+    """Retourne (destinataire_utilisateur_ou_None, libelle_lisible). None =
+    routée vers l'administrateur de la structure du patient (pas de
+    médecin traitant assigné, ou seulement le demandeur lui-même)."""
+    from models import HospitalisationMedecin
+    assigne = HospitalisationMedecin.query.filter_by(
+        hospitalisation_id=hospitalisation.id,
+        role='medecin_traitant',
+        actif=True
+    ).filter(HospitalisationMedecin.medecin_id != demandeur.id).first()
+    if assigne:
+        return assigne.medecin, f"Dr {assigne.medecin.prenom} {assigne.medecin.nom} (médecin traitant)"
+    return None, "l'administrateur de la structure"
+
+
+@app.route('/hospitalisation/<int:id>/demande-acces', methods=['GET', 'POST'])
+@login_required
+def demander_acces_hospitalisation(id):
+    from models import Hospitalisation, DemandeAccesHospitalisation, Message, Utilisateur
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    patient = hospitalisation.patient
+
+    if current_user.role != 'medecin':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    if current_user.id_structure != patient.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # Déjà accès (assigné ou demande acceptée encore valide) → rien à faire ici.
+    if _a_acces_hospitalisation(current_user, hospitalisation):
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    demande_existante = DemandeAccesHospitalisation.query.filter_by(
+        hospitalisation_id=id,
+        demandeur_id=current_user.id,
+        statut='en_attente'
+    ).first()
+
+    destinataire, destinataire_label = _resoudre_destinataire_demande_acces(hospitalisation, current_user)
+
+    if request.method == 'POST':
+        if demande_existante:
+            flash('Une demande est déjà en attente pour ce patient.', 'warning')
+            return redirect(url_for('liste_hospitalisations'))
+
+        motif = request.form.get('motif', '').strip()
+        if not motif:
+            flash('Merci de préciser le motif de la demande', 'danger')
+            return redirect(url_for('demander_acces_hospitalisation', id=id))
+
+        demande = DemandeAccesHospitalisation(
+            hospitalisation_id=id,
+            demandeur_id=current_user.id,
+            destinataire_id=destinataire.id if destinataire else None,
+            motif=motif,
+        )
+        db.session.add(demande)
+
+        # ⭐ Notification — réutilise la messagerie interne existante,
+        # pas de nouveau canal. Si routée admin (destinataire None), tous
+        # les admin_structure de la structure sont notifiés.
+        cible_messages = [destinataire] if destinataire else Utilisateur.query.filter_by(
+            id_structure=patient.id_structure, role='admin_structure', actif=True
+        ).all()
+        for cible in cible_messages:
+            db.session.add(Message(
+                id_expediteur=current_user.id,
+                id_destinataire=cible.id,
+                id_structure=patient.id_structure,
+                sujet=f"Demande d'accès — {patient.prenom} {patient.nom}",
+                contenu=f"Dr {current_user.prenom} {current_user.nom} demande l'accès au dossier de {patient.prenom} {patient.nom} ({hospitalisation.service}).\nMotif : {motif}\n\nVoir : /demandes-acces",
+            ))
+
+        db.session.commit()
+        flash(f'✅ Demande envoyée à {destinataire_label}.', 'success')
+        return redirect(url_for('liste_hospitalisations'))
+
+    return render_template('hospitalisations/demande_acces_form.html',
+                         patient=patient,
+                         hospitalisation=hospitalisation,
+                         destinataire_label=destinataire_label,
+                         demande_existante=demande_existante)
+
+
+@app.route('/demandes-acces')
+@login_required
+def demandes_acces_inbox():
+    from models import DemandeAccesHospitalisation, Hospitalisation, Patient
+
+    if current_user.role not in ('medecin', 'admin_structure'):
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    if current_user.role == 'medecin':
+        query = DemandeAccesHospitalisation.query.filter_by(destinataire_id=current_user.id)
+    else:
+        query = DemandeAccesHospitalisation.query.filter(
+            DemandeAccesHospitalisation.destinataire_id.is_(None)
+        ).join(Hospitalisation).join(Patient).filter(
+            Patient.id_structure == current_user.id_structure
+        )
+
+    toutes = query.order_by(DemandeAccesHospitalisation.created_at.desc()).all()
+    en_attente = [d for d in toutes if d.statut == 'en_attente']
+    traitees = [d for d in toutes if d.statut != 'en_attente']
+
+    return render_template('hospitalisations/demandes_acces_liste.html',
+                         en_attente=en_attente,
+                         traitees=traitees)
+
+
+@app.route('/demande-acces/<int:id>/traiter', methods=['POST'])
+@login_required
+def traiter_demande_acces(id):
+    from models import DemandeAccesHospitalisation, Message
+    from datetime import timedelta
+
+    demande = DemandeAccesHospitalisation.query.get_or_404(id)
+
+    autorise = (
+        (demande.destinataire_id and demande.destinataire_id == current_user.id) or
+        (not demande.destinataire_id and current_user.role == 'admin_structure' and
+         current_user.id_structure == demande.hospitalisation.patient.id_structure) or
+        current_user.role == 'super_admin'
+    )
+    if not autorise:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('demandes_acces_inbox'))
+
+    if demande.statut != 'en_attente':
+        flash('Cette demande a déjà été traitée.', 'warning')
+        return redirect(url_for('demandes_acces_inbox'))
+
+    action = request.form.get('action')
+    patient = demande.hospitalisation.patient
+
+    if action == 'accepter':
+        duree_heures = request.form.get('duree_heures', 24, type=int)
+        demande.statut = 'acceptee'
+        demande.date_debut = datetime.utcnow()
+        demande.date_fin = datetime.utcnow() + timedelta(hours=duree_heures)
+        demande.traite_par = current_user.id
+        demande.date_traitement = datetime.utcnow()
+        message_contenu = f"Votre demande d'accès au dossier de {patient.prenom} {patient.nom} a été acceptée pour {duree_heures}h."
+        flash_msg = ('✅ Accès accordé', 'success')
+    elif action == 'refuser':
+        motif_refus = request.form.get('motif_refus', '').strip()
+        if not motif_refus:
+            flash('Merci de préciser un motif de refus', 'danger')
+            return redirect(url_for('demandes_acces_inbox'))
+        demande.statut = 'refusee'
+        demande.motif_refus = motif_refus
+        demande.traite_par = current_user.id
+        demande.date_traitement = datetime.utcnow()
+        message_contenu = f"Votre demande d'accès au dossier de {patient.prenom} {patient.nom} a été refusée.\nMotif : {motif_refus}"
+        flash_msg = ('Demande refusée', 'info')
+    else:
+        flash('Action inconnue', 'danger')
+        return redirect(url_for('demandes_acces_inbox'))
+
+    db.session.add(Message(
+        id_expediteur=current_user.id,
+        id_destinataire=demande.demandeur_id,
+        id_structure=patient.id_structure,
+        sujet=f"Demande d'accès — {patient.prenom} {patient.nom}",
+        contenu=message_contenu,
+    ))
+    db.session.commit()
+
+    flash(*flash_msg)
+    return redirect(url_for('demandes_acces_inbox'))
+
+
 @app.route('/hospitalisation/<int:id>/constante', methods=['GET', 'POST'])
 @login_required
 def ajouter_constante(id):
@@ -6074,27 +6476,11 @@ def ajouter_constante(id):
     if current_user.id_structure and hospitalisation.patient.id_structure != current_user.id_structure:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('liste_hospitalisations'))
-    
-    if current_user.role == 'infirmier':
-        assigne = HospitalisationInfirmier.query.filter_by(
-            hospitalisation_id=id,
-            infirmier_id=current_user.id,
-            actif=True
-        ).first()
-        if not assigne:
-            flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
-            return redirect(url_for('liste_hospitalisations'))
-    
-    if current_user.role == 'medecin':
-        assigne = HospitalisationMedecin.query.filter_by(
-            hospitalisation_id=id,
-            medecin_id=current_user.id,
-            actif=True
-        ).first()
-        if not assigne:
-            flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
-            return redirect(url_for('liste_hospitalisations'))
-    
+
+    if not _a_acces_hospitalisation(current_user, hospitalisation):
+        flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+
     # ============================================================
     # 2. RÉCUPÉRATION DE LA NOTE D'ADMISSION ACTIVE (RÉFÉRENCE)
     # ============================================================

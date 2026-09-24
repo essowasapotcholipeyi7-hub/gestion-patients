@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Demandes d'accès{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4">
+        <i class="fas fa-user-lock me-2 text-primary"></i>Demandes d'accès inter-service
+    </h1>
+
+    <div class="card mb-4">
+        <div class="card-header bg-warning bg-opacity-25 d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-clock me-2"></i>En attente</span>
+            <span class="badge bg-warning text-dark">{{ en_attente|length }}</span>
+        </div>
+        <div class="card-body p-0">
+            {% if en_attente %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Patient</th>
+                            <th>Service</th>
+                            <th>Demandeur</th>
+                            <th>Motif</th>
+                            <th>Date</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in en_attente %}
+                        <tr>
+                            <td>{{ d.hospitalisation.patient.prenom }} {{ d.hospitalisation.patient.nom }}</td>
+                            <td><span class="badge bg-info">{{ d.hospitalisation.service }}</span></td>
+                            <td>Dr {{ d.demandeur.prenom }} {{ d.demandeur.nom }}</td>
+                            <td class="small">{{ d.motif|truncate(60) }}</td>
+                            <td class="small">{{ d.created_at.strftime('%d/%m/%Y %H:%M') if d.created_at else '-' }}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#accepterModal{{ d.id }}">
+                                    <i class="fas fa-check me-1"></i>Accepter
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#refuserModal{{ d.id }}">
+                                    <i class="fas fa-times me-1"></i>Refuser
+                                </button>
+                            </td>
+                        </tr>
+
+                        <!-- Modal accepter -->
+                        <div class="modal fade" id="accepterModal{{ d.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form method="POST" action="{{ url_for('traiter_demande_acces', id=d.id) }}">
+                                        <input type="hidden" name="action" value="accepter">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Accorder l'accès à Dr {{ d.demandeur.prenom }} {{ d.demandeur.nom }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <label class="form-label">Durée de l'accès</label>
+                                            <select name="duree_heures" class="form-select">
+                                                <option value="24" selected>24 heures</option>
+                                                <option value="48">48 heures</option>
+                                                <option value="72">72 heures</option>
+                                            </select>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                            <button type="submit" class="btn btn-success">Confirmer l'accès</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Modal refuser -->
+                        <div class="modal fade" id="refuserModal{{ d.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form method="POST" action="{{ url_for('traiter_demande_acces', id=d.id) }}">
+                                        <input type="hidden" name="action" value="refuser">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Refuser la demande</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <label class="form-label">Motif du refus</label>
+                                            <textarea name="motif_refus" class="form-control" rows="3" required></textarea>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                            <button type="submit" class="btn btn-danger">Confirmer le refus</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-4 mb-0">Aucune demande en attente.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><i class="fas fa-history me-2"></i>Traitées</div>
+        <div class="card-body p-0">
+            {% if traitees %}
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Patient</th>
+                            <th>Demandeur</th>
+                            <th>Statut</th>
+                            <th>Motif refus</th>
+                            <th>Traitée le</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in traitees %}
+                        <tr>
+                            <td>{{ d.hospitalisation.patient.prenom }} {{ d.hospitalisation.patient.nom }}</td>
+                            <td>Dr {{ d.demandeur.prenom }} {{ d.demandeur.nom }}</td>
+                            <td>
+                                {% if d.statut == 'acceptee' %}
+                                <span class="badge bg-success">Acceptée</span>
+                                {% else %}
+                                <span class="badge bg-danger">Refusée</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">{{ d.motif_refus or '-' }}</td>
+                            <td class="small">{{ d.date_traitement.strftime('%d/%m/%Y %H:%M') if d.date_traitement else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-4 mb-0">Aucune demande traitée pour l'instant.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
