@@ -9,9 +9,16 @@
             <i class="fas fa-chart-bar me-2 text-primary"></i>Statistiques
         </h1>
         <div>
-            <button onclick="exportCSV()" class="btn btn-success" data-loading="true">
-                <i class="fas fa-file-excel me-2"></i>Export CSV
-            </button>
+            <!-- ⭐ FIX : l'export ne faisait rien (la boucle qui devait
+                 remplir les lignes du CSV n'avait jamais été écrite — un
+                 clic téléchargeait un fichier avec juste l'entête). Deux
+                 exports complets à la place, mêmes filtres que la page. -->
+            <a href="{{ url_for('export_statistiques_excel', **request.args) }}" class="btn btn-success" data-loading="true">
+                <i class="fas fa-file-excel me-2"></i>Export Excel
+            </a>
+            <a href="{{ url_for('export_statistiques_txt', **request.args) }}" class="btn btn-outline-success" data-loading="true">
+                <i class="fas fa-file-alt me-2"></i>Export TXT
+            </a>
             <button onclick="window.print()" class="btn btn-outline-secondary">
                 <i class="fas fa-print me-2"></i>Imprimer
             </button>
@@ -131,15 +138,19 @@
     </div>
 
     <div class="row g-4">
-        <!-- Top pathologies -->
+        <!-- ⭐ Pathologies — une pathologie par ligne de diagnostic (voir
+             _construire_analyse_pathologies, app.py), pas le texte entier
+             du diagnostic tel-quel comme avant (deux consultations avec
+             les mêmes pathologies dans un ordre différent ne se
+             regroupaient jamais). Pic saisonnier détecté par pathologie. -->
         <div class="col-md-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="fas fa-notes-medical me-2"></i>Pathologies les plus fréquentes</span>
-                    <span class="badge bg-primary">{{ top_pathologies|length }}</span>
+                    <span class="badge bg-primary">{{ analyse_pathologies|length }}</span>
                 </div>
                 <div class="card-body">
-                    {% if top_pathologies %}
+                    {% if analyse_pathologies %}
                         <div class="table-responsive">
                             <table class="table table-sm table-hover align-middle">
                                 <thead>
@@ -148,20 +159,26 @@
                                         <th>Pathologie</th>
                                         <th class="text-center">Cas</th>
                                         <th class="text-center">%</th>
+                                        <th>Pic saisonnier</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% set total = top_pathologies|sum(attribute='total') %}
-                                    {% for pathologie in top_pathologies %}
+                                    {% for p in analyse_pathologies[:15] %}
                                     <tr>
                                         <td><span class="badge bg-light text-dark border">{{ loop.index }}</span></td>
-                                        <td><strong>{{ pathologie.diagnostic|truncate(40) }}</strong></td>
-                                        <td class="text-center"><span class="badge bg-primary">{{ pathologie.total }}</span></td>
-                                        <td class="text-center">
-                                            {% if total > 0 %}
-                                                <span class="badge bg-success">{{ ((pathologie.total / total) * 100)|round(1) }}%</span>
+                                        <td>
+                                            {% if p.code %}<span class="badge bg-light text-dark border me-1">{{ p.code }}</span>{% endif %}
+                                            <strong>{{ p.label|truncate(40) }}</strong>
+                                        </td>
+                                        <td class="text-center"><span class="badge bg-primary">{{ p.total }}</span></td>
+                                        <td class="text-center"><span class="badge bg-success">{{ p.pourcentage }}%</span></td>
+                                        <td>
+                                            {% if p.pic_mois %}
+                                                <span class="badge bg-warning text-dark" title="{{ p.insight }}">
+                                                    <i class="fas fa-calendar-alt me-1"></i>{{ p.pic_mois|join(', ') }}
+                                                </span>
                                             {% else %}
-                                                <span class="badge bg-light text-dark border">0%</span>
+                                                <span class="text-muted small">Régulier</span>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -170,7 +187,10 @@
                             </table>
                         </div>
                         <div class="mt-2 text-muted">
-                            <small><i class="fas fa-info-circle me-1"></i>Total : <strong>{{ total }}</strong> pathologies enregistrées</small>
+                            <small><i class="fas fa-info-circle me-1"></i>
+                                {{ analyse_pathologies|sum(attribute='total') }} pathologie(s) enregistrée(s),
+                                {{ analyse_pathologies|length }} distincte(s)
+                            </small>
                         </div>
                     {% else %}
                         <div class="alert alert-info text-center py-3 mb-0">
@@ -213,6 +233,38 @@
             </div>
         </div>
     </div>
+
+    {% if analyse_pathologies %}
+    <!-- ============================================================ -->
+    <!-- ANALYSE SAISONNIERE DES PATHOLOGIES                          -->
+    <!-- ============================================================ -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-chart-line me-2"></i>Répartition mensuelle des pathologies les plus fréquentes</div>
+                <div class="card-body">
+                    <div style="height: 280px;">
+                        <canvas id="pathologiesChart"></canvas>
+                    </div>
+                    {% set insights = analyse_pathologies|selectattr('insight')|list %}
+                    {% if insights %}
+                    <div class="mt-3">
+                        <h6 class="text-muted mb-2"><i class="fas fa-lightbulb me-1"></i>Observations</h6>
+                        <ul class="mb-0">
+                            {% for p in insights[:8] %}
+                            <li>
+                                <strong>{% if p.code %}{{ p.code }} — {% endif %}{{ p.label|truncate(50) }}</strong>
+                                : {{ p.insight }}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- ============================================================ -->
     <!-- FREQUENTATION PAR PERIODE                                    -->
@@ -503,10 +555,36 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-});
 
-function exportCSV() {
-    window.location.href = "{{ url_for('export_statistiques_csv', **request.args) }}";
-}
+    const ctx3 = document.getElementById('pathologiesChart');
+    if (ctx3) {
+        const palettePathologies = ['#667eea', '#3b7fa6', '#c8811f', '#2f9e5b', '#c94b4b'];
+        new Chart(ctx3, {
+            type: 'line',
+            data: {
+                labels: {{ noms_mois|tojson }},
+                datasets: [
+                    {% for p in analyse_pathologies[:5] %}
+                    {
+                        label: {{ (p.code and (p.code ~ ' — ' ~ p.label) or p.label)|truncate(30)|tojson }},
+                        data: {{ p.par_mois|tojson }},
+                        borderColor: palettePathologies[{{ loop.index0 }}],
+                        backgroundColor: palettePathologies[{{ loop.index0 }}] + '1a',
+                        tension: 0.3
+                    },
+                    {% endfor %}
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }
+                }
+            }
+        });
+    }
+});
 </script>
 {% endblock %}

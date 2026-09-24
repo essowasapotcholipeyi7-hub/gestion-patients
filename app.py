@@ -13,6 +13,7 @@ from io import StringIO
 from decorators import has_permission
 import uuid
 import logging
+import re
 from models import db, Engagement, Patient
 from models import Consultation, Patient, ExamenType, ExamenPrescrit
 
@@ -3972,13 +3973,107 @@ def consultation_ajouter_avec_patient(id):
 
 # ==================== STATISTIQUES ====================
 
-@app.route('/statistiques')
-@login_required
-def statistiques():
+# ⭐ Un diagnostic saisi via le sélecteur CIM-10 (templates/consultations/
+# ajouter.html) est une ligne "CODE Libellé" par pathologie retenue (ex.
+# "B50 Paludisme à Plasmodium falciparum"), plusieurs lignes possibles par
+# consultation — jusqu'ici, "Pathologies les plus fréquentes" regroupait le
+# texte ENTIER du diagnostic (tel-quel, multi-ligne) : deux consultations
+# avec les 2 mêmes pathologies dans un ordre différent, ou une de plus/moins,
+# ne se regroupaient jamais ensemble. On regroupe maintenant PATHOLOGIE PAR
+# PATHOLOGIE (une ligne = une pathologie), par code CIM-10 quand reconnu
+# (fiable même si le libellé varie légèrement), repli sur le texte brut de
+# la ligne sinon (saisie manuelle sans passer par le sélecteur).
+_RE_CIM10_LIGNE = re.compile(r'^([A-Z]\d{2}(?:\.\d+)?)\s+(.+)$')
+
+
+def _extraire_pathologies(diagnostic_text):
+    """Découpe un texte de diagnostic (une ligne = une pathologie) en liste
+    de (cle, libelle) — cle = code CIM-10 si reconnu, sinon le texte de la
+    ligne lui-même (normalisé) pour un regroupement au moins cohérent."""
+    if not diagnostic_text:
+        return []
+    resultats = []
+    for ligne in diagnostic_text.split('\n'):
+        ligne = ligne.strip()
+        if not ligne or ligne in ('-', '—'):
+            continue
+        m = _RE_CIM10_LIGNE.match(ligne)
+        if m:
+            resultats.append((m.group(1), m.group(2).strip()))
+        else:
+            resultats.append((ligne.lower(), ligne))
+    return resultats
+
+
+def _construire_analyse_pathologies(consultations):
+    """Construit, à partir d'une liste d'objets Consultation (avec
+    date_consultation et diagnostic déjà chargés), un classement des
+    pathologies avec répartition mensuelle et un pic saisonnier détecté
+    par pathologie — voir _extraire_pathologies ci-dessus pour le
+    découpage. `consultations` doit être une vraie liste (pas une requête
+    encore lazy), un seul passage suffit."""
+    NOMS_MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+    pathologies = {}  # cle -> {'label', 'code', 'total', 'par_mois': [0]*12}
+
+    for c in consultations:
+        if not c.date_consultation:
+            continue
+        mois_idx = c.date_consultation.month - 1
+        for code, label in _extraire_pathologies(c.diagnostic):
+            cle = code or label
+            if cle not in pathologies:
+                pathologies[cle] = {'label': label, 'code': code, 'total': 0, 'par_mois': [0] * 12}
+            pathologies[cle]['total'] += 1
+            pathologies[cle]['par_mois'][mois_idx] += 1
+            # ⭐ Garder le libellé le plus long vu pour ce code (plus
+            # descriptif — la première rencontre n'est pas toujours la
+            # plus complète, ex. "Paludisme" puis "Paludisme grave").
+            if len(label) > len(pathologies[cle]['label']):
+                pathologies[cle]['label'] = label
+
+    total_mentions = sum(p['total'] for p in pathologies.values())
+
+    resultat = []
+    for cle, p in pathologies.items():
+        moyenne_mensuelle = p['total'] / 12
+        # ⭐ Pic saisonnier : mois dont le compte dépasse nettement la
+        # moyenne mensuelle de CETTE pathologie (pas la moyenne globale) —
+        # seuil × 1.5 et au moins 3 cas au total pour éviter de qualifier
+        # de "pic" un simple bruit statistique sur 1-2 cas.
+        pic_mois = []
+        if p['total'] >= 3 and moyenne_mensuelle > 0:
+            pic_mois = [NOMS_MOIS[i] for i, n in enumerate(p['par_mois']) if n >= moyenne_mensuelle * 1.5 and n >= 2]
+
+        insight = None
+        if pic_mois:
+            ratio = max(p['par_mois']) / moyenne_mensuelle if moyenne_mensuelle else 0
+            insight = f"Nettement plus fréquent en {', '.join(pic_mois)} (jusqu'à {ratio:.1f}× la moyenne mensuelle de cette pathologie)."
+
+        resultat.append({
+            'code': p['code'],
+            'label': p['label'],
+            'total': p['total'],
+            'pourcentage': round(p['total'] / total_mentions * 100, 1) if total_mentions else 0,
+            'par_mois': p['par_mois'],
+            'pic_mois': pic_mois,
+            'insight': insight,
+        })
+
+    resultat.sort(key=lambda x: x['total'], reverse=True)
+    return resultat, NOMS_MOIS
+
+
+def _calculer_statistiques():
+    """Calcule toutes les statistiques (KPI, pathologies, médecins,
+    infirmiers, hospitalisations, analyses...) selon les filtres de la
+    requête courante (request.args) et le rôle de l'utilisateur connecté.
+    Factorisé hors de statistiques() pour être réutilisé tel quel par les
+    exports Excel/TXT — mêmes chiffres partout, un seul endroit à faire
+    évoluer. Retourne un dict prêt à passer à render_template(**d)."""
     from models import Patient, Consultation, Utilisateur, Hospitalisation, ConstanteVitale, AnalyseDemande, HospitalisationInfirmier
     from datetime import datetime, timedelta
     from sqlalchemy import func, extract
-    
+
     # Récupérer les filtres
     date_debut = request.args.get('date_debut', '')
     date_fin = request.args.get('date_fin', '')
@@ -4053,7 +4148,20 @@ def statistiques():
         Consultation.diagnostic != '',
         Consultation.diagnostic != '-'
     ).group_by(Consultation.diagnostic).order_by(func.count(Consultation.id).desc()).limit(10).all()
-    
+
+    # ========== ⭐ ANALYSE INTELLIGENTE DES PATHOLOGIES ==========
+    # Une pathologie par ligne de diagnostic (voir _construire_analyse_
+    # pathologies ci-dessus), avec répartition mensuelle et pic saisonnier
+    # détecté — complète top_pathologies (gardé pour le KPI "guérison" plus
+    # haut) sans le remplacer.
+    consultations_diag = base_query.with_entities(
+        Consultation.date_consultation, Consultation.diagnostic
+    ).filter(
+        Consultation.diagnostic.isnot(None),
+        Consultation.diagnostic != ''
+    ).all()
+    analyse_pathologies, noms_mois = _construire_analyse_pathologies(consultations_diag)
+
     # ========== Répartition assurances ==========
     assurances = db.session.query(
         Patient.type_assurance,
@@ -4197,45 +4305,205 @@ def statistiques():
     
     types_assurance = ['AMU-CNSS', 'AMU-INAM', 'AUTRE_ASSURANCE', 'NON_ASSURÉ']
     
-    return render_template('statistiques.html',
-                         total_consultations=total_consultations,
-                         total_patients=total_patients,
-                         patients_par_periode=patients_par_periode,
-                         top_pathologies=top_pathologies,
-                         assurances=assurances,
-                         stats_medecins=stats_medecins,
-                         stats_infirmiers=stats_infirmiers,
-                         stats_hospitalisations=stats_hospitalisations,
-                         stats_analyses=stats_analyses,
-                         medecins=medecins,
-                         types_assurance=types_assurance,
-                         evolution_labels=evolution_labels,
-                         evolution_data=evolution_data,
-                         periode=periode,
-                         date_debut=date_debut,
-                         date_fin=date_fin,
-                         medecin_id=medecin_id,
-                         type_assurance=type_assurance)
+    return {
+        'total_consultations': total_consultations,
+        'total_patients': total_patients,
+        'patients_par_periode': patients_par_periode,
+        'top_pathologies': top_pathologies,
+        'analyse_pathologies': analyse_pathologies,
+        'noms_mois': noms_mois,
+        'assurances': assurances,
+        'stats_medecins': stats_medecins,
+        'stats_infirmiers': stats_infirmiers,
+        'stats_hospitalisations': stats_hospitalisations,
+        'stats_analyses': stats_analyses,
+        'medecins': medecins,
+        'types_assurance': types_assurance,
+        'evolution_labels': evolution_labels,
+        'evolution_data': evolution_data,
+        'periode': periode,
+        'date_debut': date_debut,
+        'date_fin': date_fin,
+        'medecin_id': medecin_id,
+        'type_assurance': type_assurance,
+    }
 
-@app.route('/statistiques/export')
+
+@app.route('/statistiques')
+@login_required
+def statistiques():
+    return render_template('statistiques.html', **_calculer_statistiques())
+
+
+def _nom_periode_filtre(donnees):
+    """Texte lisible décrivant la période filtrée, pour l'en-tête des
+    exports."""
+    if donnees['date_debut'] and donnees['date_fin']:
+        return f"du {donnees['date_debut']} au {donnees['date_fin']}"
+    if donnees['date_debut']:
+        return f"depuis le {donnees['date_debut']}"
+    if donnees['date_fin']:
+        return f"jusqu'au {donnees['date_fin']}"
+    return "toutes dates confondues"
+
+
+@app.route('/statistiques/export/excel')
 @login_required
 @has_permission('STATISTIQUES')
-def export_statistiques_csv():
-    import csv
-    from io import StringIO
+def export_statistiques_excel():
+    """Export Excel multi-feuilles des statistiques — mêmes filtres/chiffres
+    que la page (voir _calculer_statistiques). Feuilles : Résumé, Pathologies
+    (avec répartition mensuelle), Évolution, Médecins, Hospitalisations."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
     from flask import Response
-    
-    # Récupérer les données avec les mêmes filtres
-    # (même logique que la route statistiques)
-    
-    output = StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Date', 'Patient', 'Médecin', 'Motif', 'Diagnostic', 'Assurance'])
-    
-    # Ajouter les lignes...
-    
-    output.seek(0)
-    return Response(output.getvalue(), mimetype='text/csv', headers={'Content-Disposition': 'attachment;filename=statistiques.csv'})
+    from datetime import datetime
+    from io import BytesIO
+
+    d = _calculer_statistiques()
+    entete_fill = PatternFill(start_color='1a3a5c', end_color='1a3a5c', fill_type='solid')
+    entete_font = Font(color='FFFFFF', bold=True)
+
+    def _entete(ws, colonnes):
+        ws.append(colonnes)
+        for cell in ws[1]:
+            cell.fill = entete_fill
+            cell.font = entete_font
+            cell.alignment = Alignment(horizontal='center')
+
+    wb = Workbook()
+
+    # ---- Résumé ----
+    ws = wb.active
+    ws.title = 'Résumé'
+    ws.append([f"Statistiques — {current_user.structure.nom if current_user.structure else ''}"])
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.append([f"Période : {_nom_periode_filtre(d)} — généré le {datetime.now().strftime('%d/%m/%Y %H:%M')}"])
+    ws.append([])
+    _entete(ws, ['Indicateur', 'Valeur'])
+    ws.append(['Total consultations', d['total_consultations']])
+    ws.append(['Patients uniques', d['total_patients']])
+    if d['stats_hospitalisations']:
+        ws.append(['Hospitalisations (total)', d['stats_hospitalisations'].get('total', 0)])
+        ws.append(['Hospitalisations actives', d['stats_hospitalisations'].get('actives', 0)])
+    if d['stats_analyses']:
+        ws.append(['Analyses labo/radio (total)', d['stats_analyses'].get('total', 0)])
+    for col, width in (('A', 32), ('B', 14)):
+        ws.column_dimensions[col].width = width
+
+    # ---- Pathologies ----
+    ws2 = wb.create_sheet('Pathologies')
+    _entete(ws2, ['#', 'Code CIM-10', 'Pathologie', 'Cas', '%'] + d['noms_mois'] + ['Pic saisonnier', 'Observation'])
+    for i, p in enumerate(d['analyse_pathologies'], start=1):
+        ws2.append([
+            i, p['code'] or '-', p['label'], p['total'], p['pourcentage'],
+            *p['par_mois'],
+            ', '.join(p['pic_mois']) or '-',
+            p['insight'] or '-',
+        ])
+    largeurs2 = [5, 12, 40] + [8] * (2 + 12) + [16, 55]
+    for idx, largeur in enumerate(largeurs2, start=1):
+        ws2.column_dimensions[get_column_letter(idx)].width = largeur
+
+    # ---- Évolution (patients par période) ----
+    ws3 = wb.create_sheet('Évolution')
+    _entete(ws3, ['Période', 'Patients (uniques)'])
+    for p in d['patients_par_periode']:
+        ws3.append([p['periode'], p['nb']])
+    ws3.column_dimensions['A'].width = 18
+    ws3.column_dimensions['B'].width = 18
+
+    # ---- Médecins ----
+    if d['stats_medecins']:
+        ws4 = wb.create_sheet('Médecins')
+        _entete(ws4, ['Médecin', 'Consultations', 'Patients suivis'])
+        for m in d['stats_medecins']:
+            ws4.append([f"Dr {m.prenom} {m.nom}", m.nb_consultations, m.nb_patients])
+        ws4.column_dimensions['A'].width = 28
+
+    # ---- Hospitalisations ----
+    if d['stats_hospitalisations'] and d['stats_hospitalisations'].get('par_service'):
+        ws5 = wb.create_sheet('Hospitalisations')
+        _entete(ws5, ['Service', 'Nombre'])
+        for s in d['stats_hospitalisations']['par_service']:
+            ws5.append([s['service'], s['total']])
+        ws5.column_dimensions['A'].width = 28
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return Response(
+        buf.getvalue(),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename=statistiques_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'}
+    )
+
+
+@app.route('/statistiques/export/txt')
+@login_required
+@has_permission('STATISTIQUES')
+def export_statistiques_txt():
+    """Export texte brut, lisible — mêmes filtres/chiffres que la page."""
+    from flask import Response
+    from datetime import datetime
+
+    d = _calculer_statistiques()
+    nom_structure = current_user.structure.nom if current_user.structure else 'Structure'
+    lignes = []
+    lignes.append(f"STATISTIQUES — {nom_structure}")
+    lignes.append(f"Période : {_nom_periode_filtre(d)}")
+    lignes.append(f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}")
+    lignes.append('=' * 70)
+    lignes.append('')
+    lignes.append('RÉSUMÉ')
+    lignes.append('-' * 70)
+    lignes.append(f"Total consultations : {d['total_consultations']}")
+    lignes.append(f"Patients uniques : {d['total_patients']}")
+    if d['stats_hospitalisations']:
+        lignes.append(f"Hospitalisations : {d['stats_hospitalisations'].get('total', 0)} (dont {d['stats_hospitalisations'].get('actives', 0)} en cours)")
+    if d['stats_analyses']:
+        lignes.append(f"Analyses labo/radio : {d['stats_analyses'].get('total', 0)}")
+    lignes.append('')
+
+    lignes.append('PATHOLOGIES LES PLUS FRÉQUENTES')
+    lignes.append('-' * 70)
+    if d['analyse_pathologies']:
+        for i, p in enumerate(d['analyse_pathologies'][:30], start=1):
+            code = f"[{p['code']}] " if p['code'] else ''
+            lignes.append(f"{i:>2}. {code}{p['label']} — {p['total']} cas ({p['pourcentage']}%)")
+            if p['insight']:
+                lignes.append(f"    → {p['insight']}")
+    else:
+        lignes.append("Aucune pathologie enregistrée sur cette période.")
+    lignes.append('')
+
+    lignes.append('ÉVOLUTION')
+    lignes.append('-' * 70)
+    for p in d['patients_par_periode']:
+        lignes.append(f"{p['periode']:<15} {p['nb']} patient(s)")
+    lignes.append('')
+
+    if d['stats_medecins']:
+        lignes.append('MÉDECINS')
+        lignes.append('-' * 70)
+        for m in d['stats_medecins']:
+            lignes.append(f"Dr {m.prenom} {m.nom} — {m.nb_consultations} consultation(s), {m.nb_patients} patient(s)")
+        lignes.append('')
+
+    if d['stats_hospitalisations'] and d['stats_hospitalisations'].get('par_service'):
+        lignes.append('HOSPITALISATIONS PAR SERVICE')
+        lignes.append('-' * 70)
+        for s in d['stats_hospitalisations']['par_service']:
+            lignes.append(f"{s['service']:<30} {s['total']}")
+        lignes.append('')
+
+    contenu = '\n'.join(lignes)
+    return Response(
+        contenu,
+        mimetype='text/plain; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename=statistiques_{datetime.now().strftime("%Y%m%d_%H%M")}.txt'}
+    )
 
 @app.route('/admin/sync-sheets', methods=['POST'])
 @login_required
