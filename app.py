@@ -6813,11 +6813,38 @@ def imprimer_resultat_analyse(id):
     #          + optionnel espace + optionnel tiret + optionnel espace
     pattern = r'^[A-Z]+[0-9]+\s*-?\s*'
     nom_analyse = re.sub(pattern, '', nom_analyse)
-    
+
+    # ⭐ FIX : jusqu'ici, un résultat sous forme de fichier joint (Word/Excel/
+    # PDF) affichait juste "Fichier joint" + un lien "Ouvrir" à l'impression —
+    # le contenu lui-même n'était jamais visible/imprimable directement dans
+    # la page. Pour Word/Excel : conversion en HTML à la volée (même fonction
+    # que pour les modèles de résultats, voir _convertir_fichier_en_html
+    # ci-dessus) et rendu en flux normal, comme un résultat rédigé en ligne —
+    # pagination correcte à l'impression. Pour un PDF : rendu page par page
+    # via PDF.js directement dans le flux (jamais un <iframe>, qui n'imprime
+    # que ce qui est visible à l'instant du clic), voir le script en bas du
+    # template.
+    fichier_converti_html = None
+    fichier_est_pdf = False
+    if analyse.fichier_data and not analyse.contenu_html:
+        mime = (analyse.fichier_mime or '').lower()
+        nom_fichier = (analyse.fichier_nom or '').lower()
+        if 'pdf' in mime or nom_fichier.endswith('.pdf'):
+            fichier_est_pdf = True
+        else:
+            try:
+                html, erreur = _convertir_fichier_en_html(analyse.fichier_data, analyse.fichier_nom, analyse.fichier_mime)
+                if not erreur:
+                    fichier_converti_html = html
+            except Exception:
+                fichier_converti_html = None
+
     return render_template('impressions/resultat.html',
                          analyse=analyse,
                          structure=structure,
                          nom_analyse=nom_analyse,  # ⭐ NOM NETTOYÉ
+                         fichier_converti_html=fichier_converti_html,
+                         fichier_est_pdf=fichier_est_pdf,
                          now=datetime.utcnow())
 
 @app.route('/consultation/<int:id>/analyse/ajouter', methods=['POST'])

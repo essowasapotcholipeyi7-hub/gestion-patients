@@ -191,6 +191,21 @@
             line-height: 1.6;
         }
 
+        .resultats-content img { max-width: 100%; }
+
+        /* ⭐ Pages d'un PDF joint, rendues via PDF.js — voir le script en
+           bas du fichier. */
+        .pdf-page-canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
         /* ==================== SIGNATURE ==================== */
         .signature-section {
             margin-top: 40px;
@@ -249,6 +264,9 @@
         /* ==================== IMPRESSION ==================== */
         @media print {
             .toolbar {
+                display: none !important;
+            }
+            .no-print {
                 display: none !important;
             }
             body {
@@ -441,6 +459,25 @@
             <!-- ⭐ Rédigé directement dans l'éditeur en ligne — rendu en flux
                  normal (pas de cadre isolé), pagination correcte à l'impression. -->
             <div class="resultats-content" style="white-space: normal;">{{ analyse.contenu_html | safe }}</div>
+            {% elif fichier_converti_html %}
+            <!-- ⭐ Fichier Word/Excel joint — converti à la volée en HTML
+                 (même conversion que pour les modèles de résultats) et rendu
+                 en flux normal, comme un résultat rédigé en ligne. -->
+            <div class="resultats-content" style="white-space: normal;">{{ fichier_converti_html | safe }}</div>
+            <div class="text-center no-print mt-2">
+                <a href="{{ url_for('telecharger_fichier_analyse', id=analyse.id) }}" target="_blank" style="font-size: 12px; color: #1a3a5c;">
+                    <i class="fas fa-download"></i> Voir le fichier original ({{ analyse.fichier_nom }})
+                </a>
+            </div>
+            {% elif fichier_est_pdf %}
+            <!-- ⭐ PDF joint — rendu page par page avec PDF.js directement
+                 dans le flux (jamais dans un <iframe>, qui n'imprime que ce
+                 qui est visible à l'écran au moment du clic sur Imprimer). -->
+            <div id="pdfPagesContainer">
+                <div class="resultats-content" style="text-align:center;">
+                    <i class="fas fa-spinner fa-spin"></i> Chargement du document...
+                </div>
+            </div>
             {% elif analyse.fichier_data %}
             <div class="resultats-content" style="white-space: normal; text-align:center;">
                 <i class="fas fa-file fa-2x" style="color:#999;"></i><br>
@@ -502,13 +539,46 @@
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    {% if fichier_est_pdf %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    {% endif %}
 
     <script>
+        {% if fichier_est_pdf %}
+        // ⭐ Impression différée jusqu'à la fin du rendu PDF.js (asynchrone) —
+        // un window.print() lancé trop tôt (comme le setTimeout ci-dessous,
+        // utilisé pour tous les autres cas) imprimerait une page encore vide.
+        (async function() {
+            const urlFichier = "{{ url_for('telecharger_fichier_analyse', id=analyse.id) }}";
+            pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+            const conteneur = document.getElementById('pdfPagesContainer');
+            try {
+                const pdf = await pdfjsLib.getDocument(urlFichier).promise;
+                conteneur.innerHTML = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: 1.5 });
+                    const canvas = document.createElement('canvas');
+                    canvas.className = 'pdf-page-canvas';
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                    conteneur.appendChild(canvas);
+                }
+                setTimeout(function() { window.print(); }, 300);
+            } catch (e) {
+                conteneur.innerHTML = '<div class="resultats-content" style="text-align:center;">' +
+                    'Impossible d\'afficher l\'aperçu du document — ' +
+                    '<a href="' + urlFichier + '" target="_blank">l\'ouvrir directement</a>.</div>';
+            }
+        })();
+        {% else %}
         window.onload = function() {
             setTimeout(function() {
                 window.print();
             }, 500);
         };
+        {% endif %}
     </script>
 
 </body>
