@@ -172,6 +172,49 @@
                     </div>
                 </div>
 
+                <!-- ⭐ Constantes prises par l'infirmier au moment de l'admission —  -->
+                <!-- optionnelles, elles s'affichent ensuite dans la note d'admission -->
+                <!-- pour que le médecin les garde ou les ajuste en la complétant.    -->
+                {% if current_user.role == 'infirmier' %}
+                <div class="card mb-4 border-info">
+                    <div class="card-header bg-info text-white">
+                        <i class="fas fa-heartbeat me-2"></i>Constantes à l'admission (facultatif)
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">
+                            Si vous avez pu les prendre, elles seront proposées au médecin dans la note
+                            d'admission — il pourra les garder ou les ajuster.
+                        </p>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Température (°C)</label>
+                                <input type="number" step="0.1" name="admission_temperature" class="form-control" placeholder="ex. 37.2">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tension artérielle</label>
+                                <input type="text" name="admission_tension" class="form-control" placeholder="ex. 120/80">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Pouls (bpm)</label>
+                                <input type="number" name="admission_pouls" class="form-control" placeholder="ex. 78">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Saturation O₂ (%)</label>
+                                <input type="number" step="0.1" name="admission_spo2" class="form-control" placeholder="ex. 98">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Poids (kg)</label>
+                                <input type="number" step="0.1" name="admission_poids" class="form-control" placeholder="ex. 68">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Taille (cm)</label>
+                                <input type="number" step="0.1" name="admission_taille" class="form-control" placeholder="ex. 170">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- ============================================================ -->
                 <!-- SECTION 3 : NOTE D'ADMISSION (STRUCTURÉE) — réservée au        -->
                 <!-- médecin, absente du formulaire quand un infirmier admet le     -->
@@ -220,8 +263,11 @@
                                 <label class="form-label fw-bold">
                                     <span class="text-danger">*</span> Diagnostic présumé
                                 </label>
-                                <textarea name="note_diagnostic" class="form-control" rows="3" required
-                                    placeholder="Hypothèses diagnostiques..."></textarea>
+                                {% with target_field_id = 'note_diagnostic' %}
+                                    {% include "hospitalisations/_cim10_picker.html" %}
+                                {% endwith %}
+                                <textarea name="note_diagnostic" id="note_diagnostic" class="form-control" rows="3" required
+                                    placeholder="Les codes CIM-10 sélectionnés apparaîtront ici..."></textarea>
                                 <small class="text-muted">Premières hypothèses diagnostiques</small>
                             </div>
                         </div>

@@ -5172,7 +5172,21 @@ def liste_hospitalisations():
     if current_user.role != 'super_admin':
         consultations_query = consultations_query.filter(Patient.id_structure == current_user.id_structure)
     consultations_en_attente = consultations_query.order_by(Consultation.date_consultation.desc()).all()
-    
+
+    # ⭐ File d'attente de complément médecin : hospitalisations admises par
+    # un infirmier sans note d'admission (voir nouvelle_hospitalisation) —
+    # patron : "au lieu que ça vienne dans la messagerie, que ça vienne
+    # dans hospitalisation en attente, et de là le médecin peut passer pour
+    # compléter". La notification par message reste envoyée en plus (utile
+    # pour un signal immédiat), cette file est le point d'entrée principal.
+    hosp_a_completer_query = Hospitalisation.query.join(Patient).filter(
+        Hospitalisation.statut == 'actif',
+        Hospitalisation.note_admission_a_completer == True
+    )
+    if current_user.role != 'super_admin':
+        hosp_a_completer_query = hosp_a_completer_query.filter(Patient.id_structure == current_user.id_structure)
+    hospitalisations_a_completer = hosp_a_completer_query.order_by(Hospitalisation.date_debut.desc()).all()
+
     statut = request.args.get('statut', 'tous')
     service = request.args.get('service', '')
     page = request.args.get('page', 1, type=int)
@@ -5226,7 +5240,8 @@ def liste_hospitalisations():
                          hospitalisations=hospitalisations,
                          statut_actuel=statut,
                          services=services,
-                         consultations_en_attente=consultations_en_attente)
+                         consultations_en_attente=consultations_en_attente,
+                         hospitalisations_a_completer=hospitalisations_a_completer)
 
 
 @app.route('/hospitalisation/nouvelle', methods=['GET', 'POST'])
@@ -5352,6 +5367,31 @@ def nouvelle_hospitalisation():
             )
             db.session.add(hospitalisation)
             db.session.flush()
+
+            # ⭐ Constantes prises par l'infirmier au moment de l'admission
+            # (facultatif) — se retrouvent proposées au médecin quand il
+            # complète la note d'admission (voir ajouter_note_admission).
+            if current_user.role == 'infirmier':
+                from models import ConstanteVitale
+                admission_temperature = request.form.get('admission_temperature', type=float)
+                admission_tension = request.form.get('admission_tension', '').strip()
+                admission_pouls = request.form.get('admission_pouls', type=int)
+                admission_spo2 = request.form.get('admission_spo2', type=float)
+                admission_poids = request.form.get('admission_poids', type=float)
+                admission_taille = request.form.get('admission_taille', type=float)
+                if any([admission_temperature, admission_tension, admission_pouls, admission_spo2, admission_poids, admission_taille]):
+                    db.session.add(ConstanteVitale(
+                        hospitalisation_id=hospitalisation.id,
+                        infirmier_id=current_user.id,
+                        date_prise=datetime.utcnow(),
+                        temperature=admission_temperature,
+                        pression_arterielle=admission_tension or None,
+                        frequence_cardiaque=admission_pouls,
+                        saturation_oxygene=admission_spo2,
+                        poids=admission_poids,
+                        taille=admission_taille,
+                        notes="Constantes prises à l'admission par l'infirmier"
+                    ))
 
             # --- Examen physique — rempli directement dans ce formulaire
             #     (éditeur embarqué, voir hospitalisations/
@@ -5950,11 +5990,38 @@ def ajouter_note_admission(id):
     examen_actuel = ExamenPhysique.query.filter_by(hospitalisation_id=id).first()
 
     if request.method == 'GET':
+        # ⭐ Propose au médecin les constantes prises par l'infirmier à
+        # l'admission (voir nouvelle_hospitalisation) — pré-remplies dans un
+        # champ modifiable, pas juste silencieusement enregistrées : il les
+        # garde ou les ajuste avant de valider la note (patron : "que ces
+        # constantes s'affichent dans la note d'admission pour le médecin").
+        from models import ConstanteVitale
+        derniere_constante = ConstanteVitale.query.filter_by(
+            hospitalisation_id=id
+        ).order_by(ConstanteVitale.date_prise.desc()).first()
+        constantes_prefill = ''
+        if derniere_constante:
+            morceaux = []
+            if derniere_constante.temperature:
+                morceaux.append(f"Température : {derniere_constante.temperature} °C")
+            if derniere_constante.pression_arterielle:
+                morceaux.append(f"TA : {derniere_constante.pression_arterielle}")
+            if derniere_constante.frequence_cardiaque:
+                morceaux.append(f"Pouls : {derniere_constante.frequence_cardiaque} bpm")
+            if derniere_constante.saturation_oxygene:
+                morceaux.append(f"SpO2 : {derniere_constante.saturation_oxygene} %")
+            if derniere_constante.poids:
+                morceaux.append(f"Poids : {derniere_constante.poids} kg")
+            if derniere_constante.taille:
+                morceaux.append(f"Taille : {derniere_constante.taille} cm")
+            constantes_prefill = ' | '.join(morceaux)
+
         return render_template('hospitalisations/reevaluation_form.html',
                              hospitalisation=hospitalisation,
                              patient=patient,
                              examen_sections_modifiees_json=(examen_actuel.sections_modifiees if examen_actuel else '{}') or '{}',
-                             examen_sections_origine_json=(examen_actuel.sections_origine if examen_actuel else '{}') or '{}')
+                             examen_sections_origine_json=(examen_actuel.sections_origine if examen_actuel else '{}') or '{}',
+                             constantes_prefill=constantes_prefill)
 
     if current_user.role == 'medecin':
         aucun_medecin_assigne = not HospitalisationMedecin.query.filter_by(

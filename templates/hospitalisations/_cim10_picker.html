@@ -1,0 +1,99 @@
+{# ============================================================
+   Recherche/insertion de codes CIM-10 — même logique que
+   consultations/ajouter.html (/api/cim10/search, une ligne
+   "CODE Libellé" par diagnostic ajouté), réutilisable pour tout
+   textarea cible (ex. "Diagnostic présumé" de la note d'admission).
+
+   Contexte attendu :
+     target_field_id — id du textarea cible (doit déjà exister dans
+       le DOM, ex. <textarea name="note_diagnostic" id="note_diagnostic">)
+   ============================================================ #}
+<div class="mb-2">
+    <div class="input-group input-group-sm shadow-sm">
+        <span class="input-group-text"><i class="fas fa-search"></i></span>
+        <input type="text" id="cim10Search_{{ target_field_id }}" class="form-control" placeholder="Rechercher un diagnostic CIM-10 (nom ou code, ex. choléra, A00.0)..." autocomplete="off">
+        <button class="btn btn-outline-secondary" type="button" onclick="window.cim10Clear_{{ target_field_id }}()"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="cim10Results_{{ target_field_id }}" class="list-group mt-1 shadow-sm" style="max-height: 220px; overflow-y: auto; display: none; position: relative; z-index: 10;"></div>
+    <small class="text-muted"><i class="fas fa-info-circle me-1"></i>Recherchez par code ou par nom de maladie — les codes sélectionnés s'ajoutent ci-dessous.</small>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ⭐ Différé à DOMContentLoaded — ce bloc est inclus AVANT le textarea
+    // cible dans le formulaire (widget de recherche au-dessus du champ),
+    // donc document.getElementById(fieldId) renverrait null si exécuté
+    // immédiatement (le textarea n'existe pas encore dans le DOM à ce
+    // moment du parsing).
+    const fieldId = {{ target_field_id|tojson }};
+    const searchInput = document.getElementById('cim10Search_' + fieldId);
+    const resultsDiv = document.getElementById('cim10Results_' + fieldId);
+    const targetField = document.getElementById(fieldId);
+    if (!searchInput || !targetField) return;
+
+    function insertCode(nom) {
+        const currentText = targetField.value || '';
+        if (!currentText.trim()) {
+            targetField.value = nom;
+        } else if (!currentText.includes(nom)) {
+            targetField.value = currentText + '\n' + nom;
+        }
+        searchInput.value = '';
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+        targetField.focus();
+        targetField.scrollTop = targetField.scrollHeight;
+    }
+
+    window['cim10Clear_' + fieldId] = function() {
+        searchInput.value = '';
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    };
+
+    let cim10Timeout = null;
+    searchInput.addEventListener('input', function() {
+        clearTimeout(cim10Timeout);
+        const term = this.value.trim();
+        if (term.length < 2) {
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+            return;
+        }
+        cim10Timeout = setTimeout(() => {
+            fetch(`/api/cim10/search?term=${encodeURIComponent(term)}`)
+                .then(r => r.json())
+                .then(data => {
+                    resultsDiv.innerHTML = '';
+                    if (data.length === 0) {
+                        resultsDiv.innerHTML = '<div class="list-group-item text-muted small">Aucun résultat</div>';
+                        resultsDiv.style.display = 'block';
+                        return;
+                    }
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'list-group-item list-group-item-action small';
+                        div.textContent = item.nom;
+                        div.onclick = function() { insertCode(item.nom); };
+                        resultsDiv.appendChild(div);
+                    });
+                    resultsDiv.style.display = 'block';
+                })
+                .catch(() => {});
+        }, 300);
+    });
+
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (searchInput.value.trim()) insertCode(searchInput.value.trim());
+        }
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#cim10Search_' + fieldId) && !e.target.closest('#cim10Results_' + fieldId)) {
+            resultsDiv.style.display = 'none';
+        }
+    });
+});
+</script>

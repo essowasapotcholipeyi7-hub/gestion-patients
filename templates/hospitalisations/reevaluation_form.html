@@ -37,7 +37,10 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label fw-bold"><span class="text-danger">*</span> Diagnostic présumé</label>
-                            <textarea name="note_diagnostic" class="form-control" rows="2" required placeholder="Hypothèses diagnostiques..."></textarea>
+                            {% with target_field_id = 'note_diagnostic' %}
+                                {% include "hospitalisations/_cim10_picker.html" %}
+                            {% endwith %}
+                            <textarea name="note_diagnostic" id="note_diagnostic" class="form-control" rows="2" required placeholder="Les codes CIM-10 sélectionnés apparaîtront ici..."></textarea>
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Examens complémentaires</label>
@@ -63,7 +66,14 @@
                         </div>
                     </div>
                 </div>
-                <input type="hidden" name="note_constantes" value="">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        Constantes
+                        {% if constantes_prefill %}<span class="badge bg-info ms-1">Proposées par l'infirmier — à vérifier</span>{% endif %}
+                    </label>
+                    <textarea name="note_constantes" class="form-control" rows="2" placeholder="Température, tension, pouls, SpO2, poids, taille...">{{ constantes_prefill }}</textarea>
+                    <small class="text-muted">Gardez-les telles quelles ou ajustez-les avant d'enregistrer.</small>
+                </div>
                 <input type="hidden" name="est_initial" value="false">
             </div>
         </div>
