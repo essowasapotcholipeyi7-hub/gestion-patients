@@ -578,6 +578,14 @@ class Hospitalisation(db.Model):
     lit_id = db.Column(db.Integer, db.ForeignKey('lits.id'), nullable=True)
     
     statut = db.Column(db.String(20), default='actif')
+    # ⭐ Vrai uniquement quand un infirmier a admis ce patient sans note
+    # d'admission (voir nouvelle_hospitalisation, app.py) — signal explicite
+    # pour l'alerte rouge "à compléter" (liste/détail hospitalisation).
+    # NE PAS déduire ça de note_admission_active_id IS NULL : la majorité
+    # des hospitalisations existantes (créées avant cette fonctionnalité,
+    # ou par d'autres chemins) n'ont jamais eu de note active non plus,
+    # sans que ce soit un manquement à signaler.
+    note_admission_a_completer = db.Column(db.Boolean, nullable=False, default=False)
     centre_transfert = db.Column(db.String(200), nullable=True)
     motif_transfert = db.Column(db.Text, nullable=True)
     date_transfert = db.Column(db.DateTime, nullable=True)

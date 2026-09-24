@@ -13,6 +13,15 @@
     </div>
 
     <!-- ALERTE IMPORTANTE -->
+    {% if current_user.role == 'infirmier' %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="fas fa-triangle-exclamation me-2"></i>
+        <strong>Vous admettez ce patient en tant qu'infirmier :</strong> la note d'admission (réservée au
+        médecin) n'est pas demandée ici. Un médecin devra la compléter ensuite depuis la fiche
+        d'hospitalisation — elle apparaîtra signalée en rouge jusque-là.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% else %}
     <div class="alert alert-info alert-dismissible fade show" role="alert">
         <i class="fas fa-info-circle me-2"></i>
         <strong>Note d'admission :</strong> Cette note est <strong>obligatoire</strong> et servira de
@@ -20,6 +29,7 @@
         à son entrée dans le service.
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
+    {% endif %}
 
     {% if consultation_origine %}
     <div class="alert alert-danger" role="alert">
@@ -163,8 +173,11 @@
                 </div>
 
                 <!-- ============================================================ -->
-                <!-- SECTION 3 : NOTE D'ADMISSION (STRUCTURÉE)                      -->
+                <!-- SECTION 3 : NOTE D'ADMISSION (STRUCTURÉE) — réservée au        -->
+                <!-- médecin, absente du formulaire quand un infirmier admet le     -->
+                <!-- patient (voir nouvelle_hospitalisation, app.py).                -->
                 <!-- ============================================================ -->
+                {% if current_user.role != 'infirmier' %}
                 <div class="card mb-4 border-warning">
                     <div class="card-header bg-warning text-dark">
                         <h5 class="mb-0">
@@ -308,6 +321,7 @@
                         <input type="hidden" name="note_constantes" id="note_constantes" value="">
                     </div>
                 </div>
+                {% endif %}
 
                 <!-- ============================================================ -->
                 <!-- BOUTONS D'ACTION                                               -->
@@ -545,15 +559,18 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
         
-        // Vérifier que la note d'admission est complète
+        // ⭐ Note d'admission absente du formulaire quand un infirmier
+        // admet le patient (section conditionnelle identique plus haut)
+        // — rien à valider dans ce cas.
+        {% if current_user.role != 'infirmier' %}
         const noteMotif = document.querySelector('textarea[name="note_motif"]').value;
         const noteContexte = document.querySelector('textarea[name="note_contexte"]').value;
         const noteExamen = document.querySelector('textarea[name="note_examen_clinique"]').value;
         const noteDiagnostic = document.querySelector('textarea[name="note_diagnostic"]').value;
         const noteTraitement = document.querySelector('textarea[name="note_traitement"]').value;
         const noteConclusion = document.querySelector('textarea[name="note_conclusion"]').value;
-        
-        if (!noteMotif.trim() || !noteContexte.trim() || !noteExamen.trim() || 
+
+        if (!noteMotif.trim() || !noteContexte.trim() || !noteExamen.trim() ||
             !noteDiagnostic.trim() || !noteTraitement.trim() || !noteConclusion.trim()) {
             e.preventDefault();
             alert('La note d\'admission doit être complète.\n\n' +
@@ -564,18 +581,27 @@ document.addEventListener('DOMContentLoaded', function() {
 '- Diagnostic présumé\n' +
 '- Traitement initial\n' +
 '- Conclusion du médecin référent');
-            
+
             // Scroll vers la note
             document.querySelector('textarea[name="note_motif"]').scrollIntoView({ behavior:'smooth' });
             return false;
         }
+        {% endif %}
         
         // Confirmation
+        {% if current_user.role == 'infirmier' %}
+        if (!confirm('Confirmez-vous l\'admission de ce patient ?\n\n' +
+'Un médecin devra compléter la note d\'admission ensuite.')) {
+            e.preventDefault();
+            return false;
+        }
+        {% else %}
         if (!confirm('Confirmez-vous l\'admission de ce patient ?\n\n' +
 'La note d\'admission sera verrouillée après validation.')) {
             e.preventDefault();
             return false;
         }
+        {% endif %}
         
         return true;
     });

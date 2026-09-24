@@ -902,7 +902,7 @@
                     <a class="nav-link-top" href="#"><i class="fas fa-hospital"></i> Hospitalisation <i class="fas fa-chevron-down arrow"></i></a>
                     <div class="mega-menu">
                         <a class="menu-item" href="{{ url_for('liste_hospitalisations') }}"><i class="fas fa-hospital"></i> Hospitalisations</a>
-                        {% if current_user.role in ['admin_structure', 'medecin', 'secretaire'] %}
+                        {% if current_user.role in ['admin_structure', 'medecin', 'secretaire', 'infirmier'] %}
                         <a class="menu-item" href="{{ url_for('nouvelle_hospitalisation') }}"><i class="fas fa-plus"></i> Nouvelle hospitalisation</a>
                         {% endif %}
                         {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] %}

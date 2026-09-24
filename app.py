@@ -5232,10 +5232,19 @@ def liste_hospitalisations():
 @app.route('/hospitalisation/nouvelle', methods=['GET', 'POST'])
 @login_required
 def nouvelle_hospitalisation():
-    """Créer une nouvelle hospitalisation avec note d'admission structurée"""
-    from models import Patient, Utilisateur, Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, Service, Salle, Lit, NoteAdmission
-    
-    if current_user.role not in ['admin_structure', 'medecin', 'secretaire']:
+    """Créer une nouvelle hospitalisation avec note d'admission structurée.
+
+    ⭐ Un infirmier peut aussi admettre un patient (patron : "on va aussi
+    permettre à l'infirmier d'admettre un patient en hospitalisation mais
+    les informations seront complétées par le médecin") — dans ce cas la
+    note d'admission (réservée au médecin) n'est PAS exigée ici : elle
+    reste à compléter via /hospitalisation/<id>/note/ajouter (route déjà
+    existante, gérée par ajouter_note_admission), et son absence
+    (hospitalisation.note_admission_active_id NULL) sert de signal
+    "à compléter" affiché en rouge (voir detail_hospitalisation/liste.html)."""
+    from models import Patient, Utilisateur, Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, Service, Salle, Lit, NoteAdmission, Consultation, Message
+
+    if current_user.role not in ['admin_structure', 'medecin', 'secretaire', 'infirmier']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -5252,7 +5261,24 @@ def nouvelle_hospitalisation():
         lit_id = request.form.get('lit_id', type=int)
         medecins_ids = request.form.getlist('medecins_ids')
         infirmiers_ids = request.form.getlist('infirmiers_ids')
-        
+
+        # ⭐ Le médecin de la consultation d'origine (s'il y en a une) est
+        # automatiquement assigné comme médecin traitant — continuité de
+        # la prise en charge, même s'il n'a pas été coché explicitement
+        # dans le formulaire.
+        if consultation_id:
+            consultation_origine_assign = Consultation.query.get(consultation_id)
+            if consultation_origine_assign and consultation_origine_assign.id_medecin and \
+                    str(consultation_origine_assign.id_medecin) not in medecins_ids:
+                medecins_ids.append(str(consultation_origine_assign.id_medecin))
+
+        # ⭐ Un infirmier qui admet le patient est automatiquement inclus
+        # dans les infirmiers assignés — sinon il perdrait l'accès à
+        # l'hospitalisation qu'il vient lui-même de créer (voir
+        # _a_acces_hospitalisation, qui exige une assignation active).
+        if current_user.role == 'infirmier' and str(current_user.id) not in infirmiers_ids:
+            infirmiers_ids.append(str(current_user.id))
+
         # ===== NOTE D'ADMISSION =====
         note_motif = request.form.get('note_motif', '').strip()
         note_contexte = request.form.get('note_contexte', '').strip()
@@ -5280,24 +5306,26 @@ def nouvelle_hospitalisation():
             flash('Le service est obligatoire.', 'danger')
             return redirect(url_for('nouvelle_hospitalisation'))
         
-        # Validation de la note
-        champs_obligatoires = {
-            'Motif d\'hospitalisation': note_motif,
-            'Contexte et antécédents': note_contexte,
-            'Examen clinique initial': note_examen_clinique,
-            'Diagnostic présumé': note_diagnostic,
-            'Traitement initial': note_traitement,
-            'Conclusion du médecin référent': note_conclusion
-        }
-        
-        champs_manquants = []
-        for nom, valeur in champs_obligatoires.items():
-            if not valeur:
-                champs_manquants.append(nom)
-        
-        if champs_manquants:
-            flash(f'La note d\'admission est incomplète. Champs obligatoires : {", ".join(champs_manquants)}', 'danger')
-            return redirect(url_for('nouvelle_hospitalisation'))
+        # ⭐ Note d'admission — réservée au médecin (voir docstring), pas
+        # exigée quand c'est un infirmier qui admet le patient.
+        if current_user.role != 'infirmier':
+            champs_obligatoires = {
+                'Motif d\'hospitalisation': note_motif,
+                'Contexte et antécédents': note_contexte,
+                'Examen clinique initial': note_examen_clinique,
+                'Diagnostic présumé': note_diagnostic,
+                'Traitement initial': note_traitement,
+                'Conclusion du médecin référent': note_conclusion
+            }
+
+            champs_manquants = []
+            for nom, valeur in champs_obligatoires.items():
+                if not valeur:
+                    champs_manquants.append(nom)
+
+            if champs_manquants:
+                flash(f'La note d\'admission est incomplète. Champs obligatoires : {", ".join(champs_manquants)}', 'danger')
+                return redirect(url_for('nouvelle_hospitalisation'))
         
         # ============================================================
         # 3. CRÉATION
@@ -5313,6 +5341,7 @@ def nouvelle_hospitalisation():
                 lit=lit,  # ⭐ Gardé comme avant
                 notes_admission=None,
                 statut='actif',
+                note_admission_a_completer=(current_user.role == 'infirmier'),
                 created_by=current_user.id,
                 created_at=datetime.utcnow()
             )
@@ -5365,37 +5394,60 @@ def nouvelle_hospitalisation():
                 )
                 db.session.add(hi)
             
-            # --- Création de la note d'admission ---
-            note = NoteAdmission(
-                hospitalisation_id=hospitalisation.id,
-                version=1,
-                est_initial=True,
-                est_verrouillee=True,
-                motif_admission=note_motif,
-                contexte_admission=note_contexte,
-                examen_clinique_admission=note_examen_clinique,
-                diagnostic_admission=note_diagnostic,
-                examens_admission=note_examens if note_examens else None,
-                traitement_admission=note_traitement,
-                evolution_prevue=note_evolution_prevue if note_evolution_prevue else None,
-                conclusion_admission=note_conclusion,
-                constantes_admission=note_constantes if note_constantes else None,
-                redige_par=current_user.id,
-                date_redaction=datetime.utcnow(),
-                valide_par=current_user.id,
-                date_validation=datetime.utcnow()
-            )
-            db.session.add(note)
-            db.session.flush()
-            
-            # --- Lier la note active ---
-            hospitalisation.note_admission_active_id = note.id
-            
+            # --- Création de la note d'admission (médecin/admin/secrétaire
+            #     uniquement — voir docstring de la route) ---
+            if current_user.role != 'infirmier':
+                note = NoteAdmission(
+                    hospitalisation_id=hospitalisation.id,
+                    version=1,
+                    est_initial=True,
+                    est_verrouillee=True,
+                    motif_admission=note_motif,
+                    contexte_admission=note_contexte,
+                    examen_clinique_admission=note_examen_clinique,
+                    diagnostic_admission=note_diagnostic,
+                    examens_admission=note_examens if note_examens else None,
+                    traitement_admission=note_traitement,
+                    evolution_prevue=note_evolution_prevue if note_evolution_prevue else None,
+                    conclusion_admission=note_conclusion,
+                    constantes_admission=note_constantes if note_constantes else None,
+                    redige_par=current_user.id,
+                    date_redaction=datetime.utcnow(),
+                    valide_par=current_user.id,
+                    date_validation=datetime.utcnow()
+                )
+                db.session.add(note)
+                db.session.flush()
+
+                # --- Lier la note active ---
+                hospitalisation.note_admission_active_id = note.id
+
             db.session.commit()
-            
+
             flash(f'✅ Hospitalisation de {hospitalisation.patient.nom} {hospitalisation.patient.prenom} créée avec succès !', 'success')
-            flash('📋 Note d\'admission verrouillée - Elle servira de référence pour le suivi.', 'info')
-            
+            if current_user.role != 'infirmier':
+                flash('📋 Note d\'admission verrouillée - Elle servira de référence pour le suivi.', 'info')
+            else:
+                # ⭐ Signale aux médecins assignés (ou, à défaut, à l'admin
+                # de la structure) qu'une note d'admission reste à
+                # compléter — même mécanisme de notification que la
+                # demande d'accès inter-service (messagerie interne).
+                flash('⚠️ Note d\'admission non renseignée — un médecin doit la compléter.', 'warning')
+                destinataires_notif = [Utilisateur.query.get(int(mid)) for mid in medecins_ids] or Utilisateur.query.filter_by(
+                    id_structure=hospitalisation.patient.id_structure, role='admin_structure', actif=True
+                ).all()
+                for cible in destinataires_notif:
+                    if not cible:
+                        continue
+                    db.session.add(Message(
+                        id_expediteur=current_user.id,
+                        id_destinataire=cible.id,
+                        id_structure=hospitalisation.patient.id_structure,
+                        sujet=f"Note d'admission à compléter — {hospitalisation.patient.prenom} {hospitalisation.patient.nom}",
+                        contenu=f"{current_user.prenom} {current_user.nom} (infirmier) a admis {hospitalisation.patient.prenom} {hospitalisation.patient.nom} en {hospitalisation.service}.\nLa note d'admission reste à rédiger — voir la fiche hospitalisation.",
+                    ))
+                db.session.commit()
+
             return redirect(url_for('detail_hospitalisation', id=hospitalisation.id))
             
         except Exception as e:
@@ -5473,6 +5525,14 @@ def _a_acces_hospitalisation(user, hospitalisation):
             actif=True
         ).first()
         if assigne:
+            return True
+        # ⭐ Hospitalisation "orpheline" (aucun médecin assigné, ex. admise
+        # par un infirmier sans en choisir un — voir nouvelle_hospitalisation)
+        # : n'importe quel médecin de la structure peut la prendre en
+        # charge, pas besoin d'une demande d'accès (qui suppose un médecin
+        # traitant existant à qui demander).
+        if not HospitalisationMedecin.query.filter_by(hospitalisation_id=hospitalisation.id, actif=True).first() \
+                and user.id_structure == hospitalisation.patient.id_structure:
             return True
         acces_temp = DemandeAccesHospitalisation.query.filter_by(
             hospitalisation_id=hospitalisation.id,
@@ -5670,6 +5730,21 @@ def detail_hospitalisation(id):
         ).first()
 
     # ============================================================
+    # 14. ⭐ ÉQUIPE SOIGNANTE — médecins/infirmiers de la structure pas
+    #     encore activement assignés à CETTE hospitalisation, pour les
+    #     sélecteurs "ajouter" (voir equipe_soignante_ajouter/retirer).
+    # ============================================================
+    from models import Utilisateur
+    medecins_assignes_ids = [m.medecin_id for m in medecins] or [0]
+    infirmiers_assignes_ids = [i.infirmier_id for i in infirmiers] or [0]
+    medecins_disponibles = Utilisateur.query.filter_by(
+        id_structure=hospitalisation.patient.id_structure, role='medecin', actif=True
+    ).filter(~Utilisateur.id.in_(medecins_assignes_ids)).order_by(Utilisateur.nom).all()
+    infirmiers_disponibles = Utilisateur.query.filter_by(
+        id_structure=hospitalisation.patient.id_structure, role='infirmier', actif=True
+    ).filter(~Utilisateur.id.in_(infirmiers_assignes_ids)).order_by(Utilisateur.nom).all()
+
+    # ============================================================
     # 9. RENDU
     # ============================================================
 
@@ -5697,7 +5772,111 @@ def detail_hospitalisation(id):
                          visites_infirmieres_recentes=visites_infirmieres_recentes,
                          consigne_active=consigne_active,
                          demande_acces_en_cours=demande_acces_en_cours,
+                         medecins_disponibles=medecins_disponibles,
+                         infirmiers_disponibles=infirmiers_disponibles,
                          now=datetime.utcnow())
+
+
+# ==================== ÉQUIPE SOIGNANTE (AJOUT/RETRAIT) ====================
+# ⭐ Jusqu'ici l'équipe (médecins/infirmiers) n'était fixée qu'à la création
+# de l'hospitalisation (nouvelle_hospitalisation), sans aucun moyen de la
+# modifier ensuite — ni pour remplacer un médecin traitant en cours de
+# séjour (rotation, congé...), ni pour ajouter un infirmier. Ces deux
+# routes le permettent, réservées à l'admin et au médecin déjà assigné
+# (voir peut_gerer_equipe, hospitalisations/detail.html).
+
+def _peut_gerer_equipe_soignante(user, hospitalisation):
+    if hospitalisation.statut != 'actif':
+        return False
+    if user.role in ('admin_structure', 'secretaire'):
+        return True
+    if user.role == 'medecin':
+        from models import HospitalisationMedecin
+        return HospitalisationMedecin.query.filter_by(
+            hospitalisation_id=hospitalisation.id, medecin_id=user.id, actif=True
+        ).first() is not None
+    return False
+
+
+@app.route('/hospitalisation/<int:id>/equipe/ajouter', methods=['POST'])
+@login_required
+def equipe_soignante_ajouter(id):
+    from models import Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier, Utilisateur
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    if not _peut_gerer_equipe_soignante(current_user, hospitalisation):
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    type_membre = request.form.get('type')
+    user_id = request.form.get('user_id', type=int)
+    membre = Utilisateur.query.get(user_id) if user_id else None
+    if not membre or membre.id_structure != hospitalisation.patient.id_structure:
+        flash('Utilisateur invalide.', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    if type_membre == 'medecin' and membre.role == 'medecin':
+        existant = HospitalisationMedecin.query.filter_by(hospitalisation_id=id, medecin_id=membre.id).first()
+        if existant:
+            existant.actif = True
+            existant.date_assignation = datetime.utcnow()
+        else:
+            db.session.add(HospitalisationMedecin(
+                hospitalisation_id=id, medecin_id=membre.id, role='medecin_traitant',
+                date_assignation=datetime.utcnow(), actif=True
+            ))
+        db.session.commit()
+        flash(f'✅ Dr {membre.prenom} {membre.nom} ajouté à l\'équipe.', 'success')
+    elif type_membre == 'infirmier' and membre.role == 'infirmier':
+        existant = HospitalisationInfirmier.query.filter_by(hospitalisation_id=id, infirmier_id=membre.id).first()
+        if existant:
+            existant.actif = True
+            existant.date_assignation = datetime.utcnow()
+        else:
+            db.session.add(HospitalisationInfirmier(
+                hospitalisation_id=id, infirmier_id=membre.id,
+                date_assignation=datetime.utcnow(), actif=True
+            ))
+        db.session.commit()
+        flash(f'✅ {membre.prenom} {membre.nom} ajouté(e) à l\'équipe.', 'success')
+    else:
+        flash('Type ou rôle invalide.', 'danger')
+
+    return redirect(url_for('detail_hospitalisation', id=id))
+
+
+@app.route('/hospitalisation/<int:id>/equipe/retirer', methods=['POST'])
+@login_required
+def equipe_soignante_retirer(id):
+    from models import Hospitalisation, HospitalisationMedecin, HospitalisationInfirmier
+
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    if not _peut_gerer_equipe_soignante(current_user, hospitalisation):
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    type_membre = request.form.get('type')
+    user_id = request.form.get('user_id', type=int)
+
+    if type_membre == 'medecin':
+        nb_actifs = HospitalisationMedecin.query.filter_by(hospitalisation_id=id, actif=True).count()
+        if nb_actifs <= 1:
+            flash('Impossible de retirer le dernier médecin assigné — assignez-en un autre d\'abord.', 'danger')
+            return redirect(url_for('detail_hospitalisation', id=id))
+        ligne = HospitalisationMedecin.query.filter_by(hospitalisation_id=id, medecin_id=user_id, actif=True).first()
+        if ligne:
+            ligne.actif = False
+            db.session.commit()
+            flash('Médecin retiré de l\'équipe.', 'info')
+    elif type_membre == 'infirmier':
+        ligne = HospitalisationInfirmier.query.filter_by(hospitalisation_id=id, infirmier_id=user_id, actif=True).first()
+        if ligne:
+            ligne.actif = False
+            db.session.commit()
+            flash('Infirmier retiré de l\'équipe.', 'info')
+
+    return redirect(url_for('detail_hospitalisation', id=id))
+
 
 # ============================================================
 # AJOUTER UNE NOUVELLE NOTE D'ADMISSION (RÉÉVALUATION)
@@ -5711,33 +5890,50 @@ def ajouter_note_admission(id):
     """
     from models import Hospitalisation, NoteAdmission, HospitalisationMedecin
     from datetime import datetime
-    
+
     hospitalisation = Hospitalisation.query.get_or_404(id)
-    
+
     # ============================================================
     # 1. VÉRIFICATION DES PERMISSIONS
     # ============================================================
-    
+
     # Seuls les médecins et admins peuvent ajouter une note
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Seuls les médecins peuvent ajouter une note de réévaluation.', 'danger')
         return redirect(url_for('detail_hospitalisation', id=id))
-    
+
     # Vérifier que l'hospitalisation est active
     if hospitalisation.statut != 'actif':
         flash('Impossible d\'ajouter une note sur une hospitalisation clôturée.', 'danger')
         return redirect(url_for('detail_hospitalisation', id=id))
-    
-    # Vérifier que le médecin est assigné à cette hospitalisation
+
+    # ⭐ Vérifier que le médecin est assigné — SAUF si l'hospitalisation n'a
+    # encore AUCUN médecin assigné (cas d'une admission par un infirmier
+    # sans médecin sélectionné, voir nouvelle_hospitalisation) : dans ce
+    # cas, n'importe quel médecin de la structure peut rédiger la première
+    # note, ce qui l'assigne du même coup comme médecin traitant — sinon
+    # personne ne pourrait jamais la compléter.
     if current_user.role == 'medecin':
-        assigne = HospitalisationMedecin.query.filter_by(
-            hospitalisation_id=id,
-            medecin_id=current_user.id,
-            actif=True
+        aucun_medecin_assigne = not HospitalisationMedecin.query.filter_by(
+            hospitalisation_id=id, actif=True
         ).first()
-        if not assigne:
-            flash('Vous n\'êtes pas assigné à cette hospitalisation.', 'danger')
-            return redirect(url_for('detail_hospitalisation', id=id))
+        if aucun_medecin_assigne:
+            db.session.add(HospitalisationMedecin(
+                hospitalisation_id=id,
+                medecin_id=current_user.id,
+                role='medecin_traitant',
+                date_assignation=datetime.utcnow(),
+                actif=True
+            ))
+        else:
+            assigne = HospitalisationMedecin.query.filter_by(
+                hospitalisation_id=id,
+                medecin_id=current_user.id,
+                actif=True
+            ).first()
+            if not assigne:
+                flash('Vous n\'êtes pas assigné à cette hospitalisation.', 'danger')
+                return redirect(url_for('detail_hospitalisation', id=id))
     
     # ============================================================
     # 2. RÉCUPÉRATION DES DONNÉES DU FORMULAIRE
@@ -5795,7 +5991,11 @@ def ajouter_note_admission(id):
         note = NoteAdmission(
             hospitalisation_id=hospitalisation.id,
             version=nouvelle_version,
-            est_initial=False,  # Ce n'est pas la note initiale
+            # ⭐ Vraiment initiale seulement s'il n'existe encore aucune
+            # note — cas d'une hospitalisation admise par un infirmier
+            # (voir nouvelle_hospitalisation), où cette route sert à
+            # rédiger la toute première note plutôt qu'une réévaluation.
+            est_initial=(notes_existantes == 0),
             est_verrouillee=True,  # Verrouillée immédiatement
             motif_admission=note_motif,
             contexte_admission=note_contexte,
@@ -5820,7 +6020,10 @@ def ajouter_note_admission(id):
         # ============================================================
         
         hospitalisation.note_admission_active_id = note.id
-        
+        # ⭐ Lève l'alerte "à compléter" si c'était une admission infirmière
+        # sans note — voir nouvelle_hospitalisation.
+        hospitalisation.note_admission_a_completer = False
+
         # ============================================================
         # 7. LOG DANS LES NOTES CLINIQUES (optionnel)
         # ============================================================

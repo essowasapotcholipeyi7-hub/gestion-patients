@@ -74,6 +74,10 @@
             </div>
 
             <!-- Carte Équipe soignante -->
+            {% set peut_gerer_equipe = hospitalisation.statut == 'actif' and (
+                current_user.role in ['admin_structure', 'secretaire'] or
+                (current_user.role == 'medecin' and current_user.id in medecins|map(attribute='medecin_id')|list)
+            ) %}
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Équipe soignante</h5>
@@ -82,29 +86,75 @@
                     <h6 class="text-primary">Médecins</h6>
                     <ul class="list-unstyled">
                         {% for m in medecins %}
-                        <li class="mb-2">
-                            <i class="fas fa-user-md text-info me-2"></i>
-                            {{ m.medecin.nom }} {{ m.medecin.prenom }}
-                            <span class="badge bg-light text-dark ms-2">{{ m.role }}</span>
+                        <li class="mb-2 d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="fas fa-user-md text-info me-2"></i>
+                                {{ m.medecin.nom }} {{ m.medecin.prenom }}
+                                <span class="badge bg-light text-dark ms-2">{{ m.role }}</span>
+                            </span>
+                            {% if peut_gerer_equipe %}
+                            <form method="POST" action="{{ url_for('equipe_soignante_retirer', id=hospitalisation.id) }}" class="d-inline" onsubmit="return confirm('Retirer {{ m.medecin.prenom }} {{ m.medecin.nom }} de l\'équipe ?');">
+                                <input type="hidden" name="type" value="medecin">
+                                <input type="hidden" name="user_id" value="{{ m.medecin_id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Retirer">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </form>
+                            {% endif %}
                         </li>
                         {% else %}
                         <li class="text-muted">Aucun médecin assigné</li>
                         {% endfor %}
                     </ul>
-                    
+                    {% if peut_gerer_equipe and medecins_disponibles %}
+                    <form method="POST" action="{{ url_for('equipe_soignante_ajouter', id=hospitalisation.id) }}" class="d-flex gap-2 mt-2">
+                        <input type="hidden" name="type" value="medecin">
+                        <select name="user_id" class="form-select form-select-sm" required>
+                            <option value="">— Ajouter un médecin —</option>
+                            {% for med in medecins_disponibles %}
+                            <option value="{{ med.id }}">Dr {{ med.prenom }} {{ med.nom }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-primary text-nowrap"><i class="fas fa-plus"></i></button>
+                    </form>
+                    {% endif %}
+
                     <hr>
-                    
+
                     <h6 class="text-success">Infirmiers</h6>
                     <ul class="list-unstyled">
                         {% for i in infirmiers %}
-                        <li class="mb-2">
-                            <i class="fas fa-user-nurse text-success me-2"></i>
-                            {{ i.infirmier.nom }} {{ i.infirmier.prenom }}
+                        <li class="mb-2 d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="fas fa-user-nurse text-success me-2"></i>
+                                {{ i.infirmier.nom }} {{ i.infirmier.prenom }}
+                            </span>
+                            {% if peut_gerer_equipe %}
+                            <form method="POST" action="{{ url_for('equipe_soignante_retirer', id=hospitalisation.id) }}" class="d-inline" onsubmit="return confirm('Retirer {{ i.infirmier.prenom }} {{ i.infirmier.nom }} de l\'équipe ?');">
+                                <input type="hidden" name="type" value="infirmier">
+                                <input type="hidden" name="user_id" value="{{ i.infirmier_id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Retirer">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </form>
+                            {% endif %}
                         </li>
                         {% else %}
                         <li class="text-muted">Aucun infirmier assigné</li>
                         {% endfor %}
                     </ul>
+                    {% if peut_gerer_equipe and infirmiers_disponibles %}
+                    <form method="POST" action="{{ url_for('equipe_soignante_ajouter', id=hospitalisation.id) }}" class="d-flex gap-2 mt-2">
+                        <input type="hidden" name="type" value="infirmier">
+                        <select name="user_id" class="form-select form-select-sm" required>
+                            <option value="">— Ajouter un infirmier —</option>
+                            {% for inf in infirmiers_disponibles %}
+                            <option value="{{ inf.id }}">{{ inf.prenom }} {{ inf.nom }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-success text-nowrap"><i class="fas fa-plus"></i></button>
+                    </form>
+                    {% endif %}
                 </div>
             </div>
 
@@ -187,11 +237,15 @@
                     <div>
                         <i class="fas fa-file-medical-alt me-2"></i>
                         <strong>Note d'admission</strong>
-                        {% if note_active %}<span class="badge bg-dark ms-2">v{{ note_active.version }}</span>{% endif %}
+                        {% if note_active %}
+                            <span class="badge bg-dark ms-2">v{{ note_active.version }}</span>
+                        {% elif hospitalisation.note_admission_a_completer %}
+                            <span class="badge bg-danger ms-2"><i class="fas fa-triangle-exclamation me-1"></i>À compléter</span>
+                        {% endif %}
                     </div>
                     {% if hospitalisation.statut == 'actif' and current_user.role in ['admin_structure', 'medecin'] %}
                     <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#nouvelleNoteModal">
-                        <i class="fas fa-plus me-1"></i>Nouvelle réévaluation
+                        <i class="fas fa-plus me-1"></i>{% if note_active %}Nouvelle réévaluation{% else %}Compléter la note d'admission{% endif %}
                     </button>
                     {% endif %}
                 </div>
@@ -242,6 +296,17 @@
                             {% endfor %}
                         </ul>
                         {% endif %}
+                    {% elif hospitalisation.note_admission_a_completer %}
+                        <div class="alert alert-danger mb-0">
+                            <i class="fas fa-triangle-exclamation me-2"></i>
+                            <strong>Patient admis par un infirmier</strong> — la note d'admission n'a pas encore
+                            été rédigée.
+                            {% if current_user.role in ['admin_structure', 'medecin'] %}
+                                Cliquez sur « Compléter la note d'admission » ci-dessus.
+                            {% else %}
+                                Un médecin doit la compléter.
+                            {% endif %}
+                        </div>
                     {% else %}
                         <p class="text-muted text-center my-3">
                             <i class="fas fa-info-circle me-2"></i>Aucune note d'admission enregistrée.

@@ -7,7 +7,7 @@
             Gestion des Hospitalisations
         </h1>
         <div>
-            {% if current_user.role in ['admin_structure','medecin','secretaire'] %}
+            {% if current_user.role in ['admin_structure','medecin','secretaire','infirmier'] %}
             <a href="{{ url_for('nouvelle_hospitalisation') }}" class="btn btn-primary">
                 Nouvelle Hospitalisation
             </a>
@@ -112,8 +112,13 @@
                         {% for hosp in hospitalisations.items %}
                         <tr>
                             <td>
-                                <strong>{{ hosp.patient.nom }} {{ hosp.patient.prenom }}</strong><br>
-                                <small class="text-muted">Né(e) le {{ hosp.patient.date_naissance.strftime('%d/%m/%Y') if hosp.patient.date_naissance else'-' }}</small>
+                                <strong>{{ hosp.patient.nom }} {{ hosp.patient.prenom }}</strong>
+                                {% if hosp.note_admission_a_completer %}
+                                <span class="badge bg-danger ms-1" title="Admis par un infirmier — note d'admission à compléter par un médecin">
+                                    <i class="fas fa-triangle-exclamation"></i> Note à compléter
+                                </span>
+                                {% endif %}
+                                <br><small class="text-muted">Né(e) le {{ hosp.patient.date_naissance.strftime('%d/%m/%Y') if hosp.patient.date_naissance else'-' }}</small>
                             </td>
                             <td>
                                 <span class="badge bg-info">{{ hosp.service }}</span>
