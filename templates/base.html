@@ -348,6 +348,24 @@
             margin: 0.3rem 0.4rem;
         }
 
+        /* ⭐ Cloche "soins à faire" — légère animation pour attirer l'oeil
+           dans la barre horizontale, respecte prefers-reduced-motion. */
+        .nav-bell-ring {
+            animation: nav-bell-ring 1.8s ease-in-out infinite;
+            transform-origin: top center;
+        }
+        @keyframes nav-bell-ring {
+            0%, 60%, 100% { transform: rotate(0deg); }
+            65% { transform: rotate(12deg); }
+            70% { transform: rotate(-10deg); }
+            75% { transform: rotate(8deg); }
+            80% { transform: rotate(-6deg); }
+            85% { transform: rotate(0deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .nav-bell-ring { animation: none; }
+        }
+
         /* ============================================================
            COMPOSANTS - cartes, boutons, badges, tableaux
         ============================================================ */
