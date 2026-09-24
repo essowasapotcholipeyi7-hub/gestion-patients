@@ -9613,7 +9613,15 @@ def _fichier_source_info(source_type, source_id, categorie):
     dont elle vient — directement (source_type='template') ou via le
     ProtocoleSoins associé (source_type='protocole') — pour que ce fichier
     réapparaisse enfin dans le dossier du patient. categorie : 'ordonnance'
-    ou 'examen'. Renvoie {'nom':..., 'url':...} ou None."""
+    ou 'examen'. Renvoie {'nom':..., 'url':...} ou None.
+
+    ⭐ Pour un protocole : le fichier importé sur le PROTOCOLE lui-même
+    (document général couvrant ordonnance+examens) est prioritaire s'il
+    existe ; à défaut, on retombe sur celui de l'ordonnance-type/examen-type
+    associé — sinon un fichier importé directement sur le protocole
+    n'apparaissait nulle part (patron : "avec ceci si on importe un fichier
+    de protocole dans le dossier il sera bien visible ?" — non, avant ce
+    correctif)."""
     if not source_id:
         return None
     from models import OrdonnanceType, ExamenType, ProtocoleSoins
@@ -9624,12 +9632,18 @@ def _fichier_source_info(source_type, source_id, categorie):
     elif source_type == 'protocole':
         protocole = ProtocoleSoins.query.get(source_id)
         if protocole:
-            modele = protocole.ordonnance_type if categorie == 'ordonnance' else protocole.examen_type
+            if protocole.fichier_nom:
+                modele = protocole
+            else:
+                modele = protocole.ordonnance_type if categorie == 'ordonnance' else protocole.examen_type
 
     if not modele or not modele.fichier_nom:
         return None
 
-    endpoint = 'api_telecharger_fichier_ordonnance_type' if categorie == 'ordonnance' else 'api_telecharger_fichier_examen_type'
+    if source_type == 'protocole' and modele.__class__.__name__ == 'ProtocoleSoins':
+        endpoint = 'api_telecharger_fichier_protocole'
+    else:
+        endpoint = 'api_telecharger_fichier_ordonnance_type' if categorie == 'ordonnance' else 'api_telecharger_fichier_examen_type'
     return {'nom': modele.fichier_nom, 'url': url_for(endpoint, id=modele.id)}
 
 
@@ -11824,6 +11838,8 @@ def ajouter_reference_hospitalisation(id):
     return render_template('hospitalisations/ajouter_reference.html',
                          hospitalisation=hospitalisation,
                          patient=patient)
+
+
 
 
 
