@@ -133,13 +133,22 @@
                                 <div class="card-body py-2">
                                     <h6 class="mb-1"><i class="fas fa-lock me-2 text-primary"></i>Remise sécurisée au patient</h6>
                                     <p class="text-muted small mb-2">
-                                        Téléchargez un PDF protégé par un code d'ouverture pour l'envoyer au patient (email, etc.).
-                                        Le code n'est pas dans le PDF : invitez le patient à appeler le centre pour l'obtenir,
-                                        après vérification de son identité (nom, date de naissance).
+                                        1) Téléchargez le PDF protégé — 2) Envoyer par email l'ouvre dans votre client mail
+                                        (Outlook, Mail...), joignez-y le PDF téléchargé — 3) Le code n'est pas dans le PDF :
+                                        invitez le patient à appeler le centre pour l'obtenir, après vérification de son
+                                        identité (nom, date de naissance).
                                     </p>
                                     <a href="{{ url_for('pdf_protege_analyse', id=analyse.id) }}" class="btn btn-sm btn-primary" data-loading="true">
                                         <i class="fas fa-file-pdf me-1"></i>Télécharger le PDF protégé
                                     </a>
+                                    <button type="button" class="btn btn-sm btn-success" onclick="envoyerParEmailAnalyse()">
+                                        <i class="fas fa-envelope me-1"></i>Envoyer par email{% if analyse.patient.email %} ({{ analyse.patient.email }}){% endif %}
+                                    </button>
+                                    {% if analyse.patient.email %}
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="modifierEmailPatientAnalyse()" title="Modifier l'email du patient">
+                                        <i class="fas fa-pen"></i>
+                                    </button>
+                                    {% endif %}
                                     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="voirCodeAccesPdf({{ analyse.id }})">
                                         <i class="fas fa-key me-1"></i>Voir le code d'accès
                                     </button>
@@ -467,6 +476,44 @@ function regenererCodeAccesPdf() {
         .catch(() => {
             document.getElementById('codeAccesPdfValeur').textContent = 'Erreur';
         });
+}
+
+// ⭐ Même principe que côté GHP (envoyerParEmail / api_preparer_email_resultat,
+// resultat_imprimer.html) : ouvre le client mail DU POSTE (mailto:), pas de
+// SMTP ici. L'email s'affiche en clair sur le bouton, modifiable via le crayon
+// sans jamais redemander par défaut si l'email n'a pas changé.
+let emailPatientActuelAnalyse = {{ (analyse.patient.email or '') | tojson }};
+
+function envoyerParEmailAnalyse() {
+    let email = emailPatientActuelAnalyse;
+    if (!email) {
+        email = prompt("Aucun email enregistré pour ce patient — saisissez-en un :", '');
+        if (!email) return;
+    }
+    envoyerVersEmailAnalyse(email);
+}
+
+function modifierEmailPatientAnalyse() {
+    const nouveau = prompt("Email du patient :", emailPatientActuelAnalyse || '');
+    if (!nouveau) return;
+    envoyerVersEmailAnalyse(nouveau);
+}
+
+function envoyerVersEmailAnalyse(email) {
+    fetch(`/analyse/{{ analyse.id }}/preparer-email`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            emailPatientActuelAnalyse = data.email;
+            window.open(data.mailto_url, '_blank');
+        } else {
+            alert('Erreur : ' + (data.error || 'inconnue'));
+        }
+    })
+    .catch(e => alert('Erreur : ' + e));
 }
 </script>
 {% endblock %}

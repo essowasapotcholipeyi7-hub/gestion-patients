@@ -7994,6 +7994,54 @@ def regenerer_code_acces_pdf_analyse(id):
     return jsonify({'success': True, 'code': analyse.pdf_password})
 
 
+@app.route('/analyse/<int:id>/preparer-email', methods=['POST'])
+@login_required
+def preparer_email_resultat_analyse(id):
+    """Prépare l'envoi du résultat par email — ouvre le client mail DU
+    POSTE (mailto:), même principe que côté GHP (voir
+    api_preparer_email_resultat, medilogic_ghp/app.py) : chaque structure
+    envoie depuis son propre mail. Pas de repli "envoi depuis le serveur"
+    ici (aucun SMTP n'est configuré dans cette appli, contrairement à
+    GHP) — mailto: uniquement. Persiste l'email saisi/modifié sur le
+    patient pour ne plus le redemander la prochaine fois (même
+    comportement que GHP)."""
+    from models import AnalyseDemande
+    from urllib.parse import quote
+
+    analyse = AnalyseDemande.query.get_or_404(id)
+
+    if not _peut_gerer_pdf_protege_analyse(analyse):
+        return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
+    donnees = request.json if request.is_json else {}
+    email_saisi = (donnees.get('email') or '').strip()
+    patient = analyse.patient
+    email = email_saisi or (patient.email or '')
+    if not email or '@' not in email:
+        return jsonify({'success': False, 'error': 'Aucun email pour ce patient — saisissez-en un.'}), 400
+
+    # ⭐ "si on avait déjà envoyé le résultat avec le mail d'un patient, on
+    # ne redemandera plus par défaut" — même règle que GHP.
+    if email_saisi and email_saisi != (patient.email or ''):
+        patient.email = email_saisi
+        db.session.commit()
+
+    sujet = f"Vos résultats — {analyse.nom_analyse}"
+    corps = "\n".join([
+        f"Bonjour {patient.prenom} {patient.nom},",
+        "",
+        f"Veuillez trouver ci-joint le résultat protégé pour : {analyse.nom_analyse}.",
+        "(pensez à joindre le PDF téléchargé au préalable — un email ne peut pas l'attacher automatiquement)",
+        "",
+        "Le fichier est protégé par un code d'ouverture : appelez le centre pour l'obtenir "
+        "(une vérification d'identité vous sera demandée).",
+        "",
+        "Cordialement,",
+    ])
+    mailto_url = f"mailto:{email}?subject={quote(sujet)}&body={quote(corps)}"
+    return jsonify({'success': True, 'mailto_url': mailto_url, 'email': email})
+
+
 def _type_analyse_depuis_ghp(type_prestation):
     """analyse/examen (vocabulaire GHP) -> BIOLOGIE/IMAGERIE (vocabulaire
     gestion_patients) — inverse de _type_prestation_ghp (tasks.py)."""
