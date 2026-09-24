@@ -418,6 +418,9 @@
                 <div style="font-size: 11px; margin-top: 3px;">
                     <div><strong>Motif :</strong> {{ hd.note_active.motif_admission or '-' }}</div>
                     <div><strong>Contexte :</strong> {{ hd.note_active.contexte_admission or '-' }}</div>
+                    {% if hd.note_active.constantes_admission %}
+                    <div><strong>Constantes :</strong> {{ hd.note_active.constantes_admission }}</div>
+                    {% endif %}
                     <div><strong>Examen clinique :</strong> {{ hd.note_active.examen_clinique_admission or '-' }}</div>
                     <div><strong>Diagnostic :</strong> {{ hd.note_active.diagnostic_admission or '-' }}</div>
                     <div><strong>Traitement :</strong> {{ hd.note_active.traitement_admission or '-' }}</div>
@@ -431,6 +434,13 @@
                     </div>
                 </div>
             </div>
+            {% elif h.note_admission_a_completer %}
+            <div class="note-block" style="background: #fff3f3; border-color: #dc3545;">
+                <span class="note-label" style="color: #dc3545;">Note d'admission — à compléter</span>
+                <div style="font-size: 11px; margin-top: 3px; color: #555;">
+                    Patient admis par un infirmier ; la note d'admission n'a pas encore été rédigée par un médecin.
+                </div>
+            </div>
             {% endif %}
 
             <!-- EXAMEN PHYSIQUE -->
@@ -442,6 +452,54 @@
                         {% include "hospitalisations/_examen_physique_sections.html" %}
                     {% endwith %}
                 </div>
+            </div>
+            {% endif %}
+
+            <!-- CONSIGNES MÉDICALES — la décision réellement appliquée -->
+            {% if hd.consignes_medicales %}
+            <div class="hosp-sub-section">
+                <span class="sub-title"><span class="badge badge-success">Consignes médicales</span> ({{ hd.consignes_medicales|length }})</span>
+                {% for c in hd.consignes_medicales[:3] %}
+                <div style="font-size:11px; border-bottom:1px solid #eee; padding:3px 0;">
+                    <div>
+                        <strong>{{ c.date_consigne.strftime('%d/%m/%Y %H:%M') if c.date_consigne else '-' }}</strong>
+                        — Dr {{ c.medecin.prenom }} {{ c.medecin.nom }}
+                        <span class="badge
+                            {% if c.type_decision == 'continuer_traitement' %}badge-success
+                            {% elif c.type_decision == 'modifier_traitement' %}badge-warning
+                            {% else %}badge-secondary{% endif %}">
+                            {% if c.type_decision == 'continuer_traitement' %}Continuer le traitement
+                            {% elif c.type_decision == 'modifier_traitement' %}Modifier le traitement
+                            {% else %}Autre{% endif %}
+                        </span>
+                    </div>
+                    <div style="font-size:10px; color:#555;">{{ c.instructions }}</div>
+                </div>
+                {% endfor %}
+                {% if hd.consignes_medicales|length > 3 %}
+                <div style="color:#888; font-style:italic; font-size:11px;">... et {{ hd.consignes_medicales|length - 3 }} autre(s)</div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- VISITES INFIRMIÈRES DU JOUR -->
+            {% if hd.visites_infirmieres %}
+            <div class="hosp-sub-section">
+                <span class="sub-title"><span class="badge badge-info">Visites infirmières</span> ({{ hd.visites_infirmieres|length }})</span>
+                {% for v in hd.visites_infirmieres[:3] %}
+                <div style="font-size:11px; border-bottom:1px solid #eee; padding:3px 0;">
+                    <div>
+                        <strong>{{ v.date_visite.strftime('%d/%m/%Y %H:%M') if v.date_visite else '-' }}</strong>
+                        — {{ v.infirmier.prenom }} {{ v.infirmier.nom }}
+                        {% if v.appareil_dysfonctionnel %}<span class="badge badge-danger">Appareil signalé</span>{% endif %}
+                    </div>
+                    {% if v.plaintes_patient %}<div style="font-size:10px; color:#555;"><strong>Plaintes :</strong> {{ v.plaintes_patient|truncate(100) }}</div>{% endif %}
+                    {% if v.decision_suggeree %}<div style="font-size:10px; color:#555;"><strong>Proposition indicative :</strong> {{ v.decision_suggeree|truncate(100) }}</div>{% endif %}
+                </div>
+                {% endfor %}
+                {% if hd.visites_infirmieres|length > 3 %}
+                <div style="color:#888; font-style:italic; font-size:11px;">... et {{ hd.visites_infirmieres|length - 3 }} autre(s)</div>
+                {% endif %}
             </div>
             {% endif %}
 

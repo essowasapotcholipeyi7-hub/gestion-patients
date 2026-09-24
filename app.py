@@ -12469,6 +12469,22 @@ def imprimer_dossier_patient(patient_id):
         ).first()
         examen_physique_sections_hosp = _rendre_sections_examen_physique(examen_physique_hosp)
 
+        # ⭐ Visites infirmières + consignes médicales n'apparaissaient nulle
+        # part dans ce dossier imprimé (fonctionnalités ajoutées après ce
+        # template) — un dossier "complet" doit les inclure : le suivi
+        # infirmier au jour le jour et les décisions du médecin qui en
+        # découlent font partie du dossier médical.
+        from models import VisiteInfirmiere, ConsigneMedicale
+        visites_infirmieres_hosp = VisiteInfirmiere.query.filter_by(
+            hospitalisation_id=hosp.id
+        ).order_by(VisiteInfirmiere.date_visite.desc()).all()
+        visites_infirmieres_sections = {
+            v.id: _rendre_sections_examen_physique(v) for v in visites_infirmieres_hosp
+        }
+        consignes_medicales_hosp = ConsigneMedicale.query.filter_by(
+            hospitalisation_id=hosp.id
+        ).order_by(ConsigneMedicale.date_consigne.desc()).all()
+
         hospitalisations_data.append({
             'hospitalisation': hosp,
             'medecins': medecins,
@@ -12480,6 +12496,9 @@ def imprimer_dossier_patient(patient_id):
             'ordonnance_medicaments': ordonnance_medicaments,
             'examens_prescrits': examens_hosp,
             'examen_physique_sections': examen_physique_sections_hosp,
+            'visites_infirmieres': visites_infirmieres_hosp,
+            'visites_infirmieres_sections': visites_infirmieres_sections,
+            'consignes_medicales': consignes_medicales_hosp,
             'protocole': hosp.protocole
         })
     
