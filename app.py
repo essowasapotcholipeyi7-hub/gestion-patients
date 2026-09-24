@@ -7714,8 +7714,14 @@ def saisir_resultats_analyse(id):
         return redirect(url_for('liste_analyses'))
 
     resultats = (request.form.get('resultats') or '').strip()
-    statut = request.form.get('statut', 'TERMINE')
+    statut = request.form.get('statut', '')
     contenu_html = (request.form.get('contenu_html') or '').strip()
+
+    # ⭐ Le statut (En cours / Terminé) est un choix obligatoire — pas de
+    # valeur par défaut silencieuse, on rejette si absent ou invalide.
+    if statut not in ('EN_COURS', 'TERMINE'):
+        flash('Veuillez choisir un statut (En cours ou Terminé) avant d\'enregistrer', 'danger')
+        return redirect(url_for('detail_analyse', id=id))
     fichier = request.files.get('fichier')
     modele_id = request.form.get('modele_utilise_id')
     signature_choice = request.form.get('signature_id')  # id numérique, '__autre__', ou vide
@@ -7801,13 +7807,10 @@ def saisir_resultats_analyse(id):
 
     flash('✅ Résultats enregistrés avec succès', 'success')
 
-    # ⭐ REDIRECTION SELON LA FILIÈRE DE CETTE ANALYSE — pas le rôle : un
-    # admin_structure qui saisit un résultat d'imagerie était toujours
-    # renvoyé vers la page biologie (liste_analyses), jamais radiologie.
-    if analyse.type_analyse == 'IMAGERIE':
-        return redirect(url_for('liste_radiologie'))
-    else:
-        return redirect(url_for('liste_analyses'))
+    # ⭐ Reste sur la fiche de CETTE analyse pour qu'on voie directement le
+    # résultat qu'on vient de saisir, au lieu d'être renvoyé dans la grande
+    # liste (biologie ou radiologie selon la filière).
+    return redirect(url_for('detail_analyse', id=id))
 
 
 def _type_analyse_depuis_ghp(type_prestation):
@@ -13570,7 +13573,6 @@ def ajouter_reference_hospitalisation(id):
     return render_template('hospitalisations/ajouter_reference.html',
                          hospitalisation=hospitalisation,
                          patient=patient)
-
 
 
 

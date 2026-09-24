@@ -211,16 +211,25 @@
                                     <input type="hidden" name="modele_utilise_id" id="resultatModeleUtiliseId">
                                 </div>
 
-                                <div class="row mt-2">
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label fw-bold">Statut</label>
-                                        <select name="statut" class="form-select">
-                                            <option value="EN_COURS">En cours</option>
-                                            <option value="TERMINE">Terminé - résultats disponibles</option>
-                                        </select>
+                                <div class="mb-3 p-2 border border-2 rounded" id="zoneStatutResultat" style="border-color: var(--bs-warning) !important; background: #fff9e6;">
+                                    <label class="form-label fw-bold mb-1" for="resultatStatutSelect">
+                                        <i class="fas fa-exclamation-circle text-warning me-1"></i>
+                                        Statut de l'analyse <span class="text-danger">*</span>
+                                        <span class="text-muted fw-normal small">(choix obligatoire)</span>
+                                    </label>
+                                    <select name="statut" id="resultatStatutSelect" class="form-select form-select-lg" required>
+                                        <option value="" selected disabled>-- Choisissez un statut --</option>
+                                        <option value="EN_COURS">En cours (résultats pas encore finalisés)</option>
+                                        <option value="TERMINE">Terminé - résultats disponibles</option>
+                                    </select>
+                                    <div class="invalid-feedback d-block" id="erreurStatutResultat" style="display:none !important;">
+                                        Veuillez choisir « En cours » ou « Terminé » avant d'enregistrer.
                                     </div>
-                                    <div class="col-md-6 mb-3 d-flex align-items-end">
-                                        <button type="submit" class="btn btn-success w-100">
+                                </div>
+
+                                <div class="row mt-2">
+                                    <div class="col-12 mb-3">
+                                        <button type="submit" class="btn btn-success btn-lg w-100">
                                             <i class="fas fa-save me-2"></i>Enregistrer les résultats
                                         </button>
                                     </div>
@@ -301,9 +310,42 @@
                                             '<option value="__autre__">Autre (saisie libre, sans signature)</option>';
                                     });
 
-                                document.getElementById('formResultat').addEventListener('submit', function() {
+                                document.getElementById('formResultat').addEventListener('submit', function(e) {
                                     if (modeResultatActuel === 'editeur' && quillEditeurResultat) {
                                         document.getElementById('resultatContenuHtml').value = quillEditeurResultat.root.innerHTML;
+                                    }
+
+                                    const statutSelect = document.getElementById('resultatStatutSelect');
+                                    const erreurStatut = document.getElementById('erreurStatutResultat');
+                                    if (!statutSelect.value) {
+                                        e.preventDefault();
+                                        e.stopImmediatePropagation();
+                                        statutSelect.classList.add('is-invalid');
+                                        erreurStatut.style.display = 'block';
+                                        document.getElementById('zoneStatutResultat').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        statutSelect.focus();
+                                        return false;
+                                    }
+                                    statutSelect.classList.remove('is-invalid');
+                                    erreurStatut.style.display = 'none';
+
+                                    if (statutSelect.value === 'TERMINE') {
+                                        const texte = (document.querySelector('textarea[name="resultats"]').value || '').trim();
+                                        const fichier = document.getElementById('resultatFichier').files.length > 0;
+                                        const html = (document.getElementById('resultatContenuHtml').value || '').replace(/<(.|\n)*?>/g, '').trim();
+                                        if (!texte && !fichier && !html) {
+                                            e.preventDefault();
+                                            e.stopImmediatePropagation();
+                                            alert("Statut « Terminé » sélectionné : veuillez d'abord saisir les résultats (texte, fichier ou contenu rédigé) avant d'enregistrer.");
+                                            return false;
+                                        }
+                                    }
+                                });
+
+                                document.getElementById('resultatStatutSelect').addEventListener('change', function() {
+                                    if (this.value) {
+                                        this.classList.remove('is-invalid');
+                                        document.getElementById('erreurStatutResultat').style.display = 'none';
                                     }
                                 });
                             })();
