@@ -263,17 +263,17 @@
                     {% if examen_physique_sections %}
                         {% set nb_modifiees = examen_physique_sections|selectattr('modifie')|list|length %}
                         {% if nb_modifiees > 0 %}
-                        <p class="small text-muted mb-3">
-                            <i class="fas fa-circle" style="color:#adb5bd; font-size:8px;"></i>
-                            {{ nb_modifiees }} section(s) modifiée(s) par rapport au texte type (grisée(s) ci-dessous).
+                        <p class="small mb-3" style="color: var(--hp-warning);">
+                            <i class="fas fa-pen me-1"></i>
+                            {{ nb_modifiees }} section(s) modifiée(s) par rapport au texte type (mise(s) en évidence ci-dessous).
                         </p>
                         {% endif %}
                         {% for section in examen_physique_sections %}
                             {% if section.texte and section.texte.strip() %}
-                            <div class="mb-3 p-2 rounded{% if section.modifie %} bg-light border-start border-4 border-secondary{% endif %}">
+                            <div class="mb-3 p-2 rounded{% if section.modifie %} border-start border-4{% endif %}" {% if section.modifie %}style="background: var(--hp-warning-light); border-color: var(--hp-warning) !important;"{% endif %}>
                                 <strong><i class="fas {{ section.icone }} me-1"></i>{{ section.nom }}</strong>
-                                {% if section.modifie %}<span class="badge bg-secondary ms-2">Modifié</span>{% endif %}
-                                <p class="mb-0 mt-1" style="white-space: pre-wrap;">{{ section.texte }}</p>
+                                {% if section.modifie %}<span class="badge ms-2" style="background: var(--hp-warning);">Modifié</span>{% endif %}
+                                <p class="mb-0 mt-1{% if section.modifie %} fw-bold{% endif %}" style="white-space: pre-wrap;{% if section.modifie %} color: var(--hp-warning);{% endif %}">{{ section.texte }}</p>
                             </div>
                             {% endif %}
                         {% endfor %}

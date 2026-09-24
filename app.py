@@ -2262,25 +2262,9 @@ def patient_detail(id):
 
     historique_ordonnances.sort(key=lambda x: x['date'] or datetime.min, reverse=True)
 
-    # ⭐ NOUVEAU : Notes d'admission, patient-wide, en LECTURE SEULE — jusqu'ici
-    # la note d'admission (obligatoire à la création de l'hospitalisation)
-    # n'était consultable NULLE PART après coup : ni dans le dossier
-    # patient, ni même sur la fiche hospitalisation elle-même (calculée
-    # par detail_hospitalisation mais jamais rendue dans le template), et
-    # le bouton pour ajouter une réévaluation existait dans le HTML sans
-    # jamais être relié à un déclencheur (patron : "j'ai l'impression
-    # qu'elle n'est pas complète... on doit pouvoir reconsulter cette note
-    # mais pas la modifier"). Un item par hospitalisation ayant une note
-    # active ; uniquement la version ACTIVE ici (l'historique complet des
-    # réévaluations reste sur la fiche hospitalisation).
-    notes_admission_patient = []
-    for hosp in hospitalisations:
-        note = hosp.note_admission_active
-        if note:
-            notes_admission_patient.append({
-                'hospitalisation': hosp,
-                'note': note,
-            })
+    # ⭐ La note d'admission n'est plus reprise ici dans le dossier patient
+    # général (patron : pas nécessaire sur cette page) — elle reste
+    # consultable sur la fiche hospitalisation elle-même (detail_hospitalisation).
 
     return render_template('patients/detail.html',
                          patient=patient,
@@ -2290,7 +2274,6 @@ def patient_detail(id):
                          actes_soins_habituels=ACTES_SOINS_HABITUELS,
                          historique_ordonnances=historique_ordonnances,
                          hospitalisations=hospitalisations,
-                         notes_admission_patient=notes_admission_patient,
                          now=datetime.now())
 
 @app.route('/consultation/ajouter', methods=['GET', 'POST'])
