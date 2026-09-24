@@ -485,6 +485,47 @@
         .modal-header.bg-info .btn-close, .modal-header.bg-warning .btn-close,
         .modal-header.bg-danger .btn-close { filter: none; }
 
+        /* ⭐ FIX : les correctifs .card-header.bg-xxx et .modal-header.bg-xxx
+           ci-dessus passent le fond de ces en-têtes en pastel clair, mais de
+           nombreux gabarits y placent des enfants pensés pour l'ANCIEN fond
+           plein — texte "text-white"/"text-white-50" (ex. "Patient : <nom>"
+           dans l'en-tête de la pré-consultation infirmier) ou boutons
+           "btn-outline-light" (ex. Modifier/Imprimer/Historique dans la
+           carte Ordonnance d'hospitalisation) — qui deviennent illisibles
+           (texte/bouton blanc sur fond clair). Vu le nombre de pages
+           concernées ("une vingtaine", cf. commentaire ci-dessus), corrigé
+           une fois ici plutôt que gabarit par gabarit. */
+        .card-header.bg-primary .text-white, .card-header.bg-primary .text-white-50,
+        .card-header.bg-success .text-white, .card-header.bg-success .text-white-50,
+        .card-header.bg-info .text-white, .card-header.bg-info .text-white-50,
+        .card-header.bg-warning .text-white, .card-header.bg-warning .text-white-50,
+        .card-header.bg-danger .text-white, .card-header.bg-danger .text-white-50,
+        .card-header.bg-secondary .text-white, .card-header.bg-secondary .text-white-50,
+        .card-header.bg-dark .text-white, .card-header.bg-dark .text-white-50,
+        .modal-header.bg-primary .text-white, .modal-header.bg-primary .text-white-50,
+        .modal-header.bg-success .text-white, .modal-header.bg-success .text-white-50,
+        .modal-header.bg-info .text-white, .modal-header.bg-info .text-white-50,
+        .modal-header.bg-warning .text-white, .modal-header.bg-warning .text-white-50,
+        .modal-header.bg-danger .text-white, .modal-header.bg-danger .text-white-50 {
+            color: inherit !important;
+        }
+
+        .card-header.bg-primary .btn-outline-light, .modal-header.bg-primary .btn-outline-light { color: var(--hp-primary-dark); border-color: var(--hp-primary); background: transparent; }
+        .card-header.bg-success .btn-outline-light, .modal-header.bg-success .btn-outline-light { color: var(--hp-success); border-color: var(--hp-success); background: transparent; }
+        .card-header.bg-info .btn-outline-light, .modal-header.bg-info .btn-outline-light { color: var(--hp-info); border-color: var(--hp-info); background: transparent; }
+        .card-header.bg-warning .btn-outline-light, .modal-header.bg-warning .btn-outline-light { color: var(--hp-warning); border-color: var(--hp-warning); background: transparent; }
+        .card-header.bg-danger .btn-outline-light, .modal-header.bg-danger .btn-outline-light { color: var(--hp-danger); border-color: var(--hp-danger); background: transparent; }
+        .card-header.bg-secondary .btn-outline-light { color: var(--hp-text-muted); border-color: var(--hp-text-muted); background: transparent; }
+        .card-header.bg-dark .btn-outline-light { color: var(--hp-text); border-color: var(--hp-text); background: transparent; }
+
+        .card-header.bg-primary .btn-outline-light:hover, .modal-header.bg-primary .btn-outline-light:hover { background: var(--hp-primary); border-color: var(--hp-primary); color: #fff; }
+        .card-header.bg-success .btn-outline-light:hover, .modal-header.bg-success .btn-outline-light:hover { background: var(--hp-success); border-color: var(--hp-success); color: #fff; }
+        .card-header.bg-info .btn-outline-light:hover, .modal-header.bg-info .btn-outline-light:hover { background: var(--hp-info); border-color: var(--hp-info); color: #fff; }
+        .card-header.bg-warning .btn-outline-light:hover, .modal-header.bg-warning .btn-outline-light:hover { background: var(--hp-warning); border-color: var(--hp-warning); color: #fff; }
+        .card-header.bg-danger .btn-outline-light:hover, .modal-header.bg-danger .btn-outline-light:hover { background: var(--hp-danger); border-color: var(--hp-danger); color: #fff; }
+        .card-header.bg-secondary .btn-outline-light:hover { background: var(--hp-text-muted); border-color: var(--hp-text-muted); color: #fff; }
+        .card-header.bg-dark .btn-outline-light:hover { background: var(--hp-text); border-color: var(--hp-text); color: #fff; }
+
         .toast-container {
             position: fixed;
             top: 20px;
@@ -762,6 +803,22 @@
                     <a class="nav-link-top" href="{{ url_for('dashboard') }}"><i class="fas fa-tachometer-alt"></i> Accueil</a>
                     {% endif %}
                 </li>
+
+                <!-- ⭐ Cloche "soins à faire" — toujours visible dans le
+                menu horizontal (contrairement au badge déjà présent dans
+                le sous-menu Hospitalisation, invisible tant qu'on n'ouvre
+                pas le menu déroulant), pour que l'infirmier voie l'alerte
+                sans avoir à ouvrir le volet latéral (masqué par défaut)
+                ni un sous-menu. Patron : "comme le menu est togglé par
+                défaut il ne voit pas ça directement". -->
+                {% if current_user.role in ['admin_structure', 'medecin', 'infirmier'] and medicaments_en_retard_count %}
+                <li class="nav-item">
+                    <a class="nav-link-top text-danger" href="{{ url_for('infirmier_medicaments') }}" title="{{ medicaments_en_retard_count }} médicament(s) en retard">
+                        <i class="fas fa-bell nav-bell-ring"></i>
+                        <span class="badge bg-danger rounded-pill">{{ medicaments_en_retard_count }}</span>
+                    </a>
+                </li>
+                {% endif %}
 
                 <!-- Patients -->
                 {% if current_user.role not in ['super_admin', 'laborantin', 'radiologue'] %}
