@@ -169,10 +169,16 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="{{ url_for('infirmier_pre_consultation', patient_id=p.id) }}" 
+                                    <a href="{{ url_for('infirmier_pre_consultation', patient_id=p.id) }}"
                                        class="btn btn-sm btn-primary">
                                         <i class="fas fa-edit me-1"></i>Préparer
                                     </a>
+                                    <form method="POST" action="{{ url_for('infirmier_exclure_pre_consultation', patient_id=p.id) }}"
+                                          class="d-inline" onsubmit="return confirm('{{ p.prenom }} {{ p.nom }} n\'a pas besoin de pré-consultation ?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Ne pas pré-consulter">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -197,6 +203,53 @@
             {% endif %}
         </div>
     </div>
+
+    <!-- Patients désélectionnés de la pré-consultation -->
+    {% if patients_exclus %}
+    <div class="card mt-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-user-slash me-2"></i>
+                Pré-consultation non nécessaire
+                <span class="badge bg-light text-dark ms-2">{{ patients_exclus|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead>
+                        <tr>
+                            <th>N° dossier</th>
+                            <th>Patient</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in patients_exclus[:10] %}
+                        <tr>
+                            <td>P{{ "%05d" % p.id }}</td>
+                            <td><strong>{{ p.prenom }} {{ p.nom }}</strong></td>
+                            <td>
+                                <form method="POST" action="{{ url_for('infirmier_reinclure_pre_consultation', patient_id=p.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-undo me-1"></i>Remettre en attente
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if patients_exclus|length > 10 %}
+            <div class="alert alert-info text-center mt-3">
+                <i class="fas fa-info-circle me-2"></i>
+                {{ patients_exclus|length - 10 }} patient(s) supplémentaire(s) désélectionné(s).
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Patients déjà préparés (LIMITÉ À 10) -->
     {% if patients_prets %}

@@ -947,6 +947,9 @@ def infirmier_dashboard():
         return redirect(url_for('dashboard'))
     
     # ⭐ PATIENTS EN ATTENTE - TRIÉS PAR DATE DE CRÉATION (les plus récents d'abord)
+    # Exclut les patients marqués "pas de pré-consultation nécessaire" (patron :
+    # "c'est pas tous les patients que l'infirmier aura à preconsulter") —
+    # voir infirmier_exclure_pre_consultation / infirmier_reinclure_pre_consultation.
     patients_attente = Patient.query.filter_by(
         id_structure=current_user.id_structure,
         archived=False
@@ -955,34 +958,96 @@ def infirmier_dashboard():
             Patient.pre_consultation_faite == False,
             Patient.pre_consultation_faite.is_(None)
         )
+    ).filter(
+        db.or_(
+            Patient.pre_consultation_non_requise == False,
+            Patient.pre_consultation_non_requise.is_(None)
+        )
     ).order_by(Patient.date_creation.desc()).all()  # ⭐ CHANGÉ
-    
+
+    # ⭐ PATIENTS DÉSÉLECTIONNÉS - pas encore pré-consultés mais marqués comme
+    # n'en ayant pas besoin (pour pouvoir les réinclure en cas d'erreur).
+    patients_exclus = Patient.query.filter_by(
+        id_structure=current_user.id_structure,
+        archived=False,
+        pre_consultation_non_requise=True
+    ).filter(
+        db.or_(
+            Patient.pre_consultation_faite == False,
+            Patient.pre_consultation_faite.is_(None)
+        )
+    ).order_by(Patient.date_creation.desc()).all()
+
     # ⭐ PATIENTS DÉJÀ PRÉPARÉS - TRIÉS PAR DATE DE PRÉ-CONSULTATION
     patients_prets = Patient.query.filter_by(
         id_structure=current_user.id_structure,
         archived=False,
         pre_consultation_faite=True
     ).order_by(Patient.pre_consultation_date.desc()).all()
-    
+
     # Médecins actifs
     medecins = Utilisateur.query.filter_by(
         id_structure=current_user.id_structure,
         role='medecin',
         actif=True
     ).all()
-    
+
     # Total patients
     total_patients = Patient.query.filter_by(
         id_structure=current_user.id_structure,
         archived=False
     ).count()
-    
+
     return render_template('infirmier/dashboard.html',
                          patients_attente=patients_attente,
+                         patients_exclus=patients_exclus,
                          patients_prets=patients_prets,
                          medecins=medecins,
                          total_patients=total_patients,
                          now=datetime.now())
+
+
+@app.route('/infirmier/patient/<int:patient_id>/preconsultation/exclure', methods=['POST'])
+@login_required
+def infirmier_exclure_pre_consultation(patient_id):
+    """Retire un patient de la file d'attente de pré-consultation sans la
+    faire — tous les patients non préparés n'en ont pas forcément besoin."""
+    from models import Patient
+
+    if current_user.role != 'infirmier':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    patient = Patient.query.get_or_404(patient_id)
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé à ce patient', 'danger')
+        return redirect(url_for('infirmier_dashboard'))
+
+    patient.pre_consultation_non_requise = True
+    db.session.commit()
+    flash(f'{patient.prenom} {patient.nom} retiré(e) de la file de pré-consultation', 'success')
+    return redirect(url_for('infirmier_dashboard'))
+
+
+@app.route('/infirmier/patient/<int:patient_id>/preconsultation/reinclure', methods=['POST'])
+@login_required
+def infirmier_reinclure_pre_consultation(patient_id):
+    """Annule l'exclusion et remet le patient dans la file d'attente."""
+    from models import Patient
+
+    if current_user.role != 'infirmier':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    patient = Patient.query.get_or_404(patient_id)
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé à ce patient', 'danger')
+        return redirect(url_for('infirmier_dashboard'))
+
+    patient.pre_consultation_non_requise = False
+    db.session.commit()
+    flash(f'{patient.prenom} {patient.nom} remis(e) dans la file de pré-consultation', 'success')
+    return redirect(url_for('infirmier_dashboard'))
 
 @app.route('/infirmier/pre_consultation/<int:patient_id>', methods=['GET', 'POST'])
 @login_required

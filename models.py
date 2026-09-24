@@ -450,6 +450,9 @@ class Patient(db.Model):
     pre_consultation_faite = db.Column(db.Boolean, default=False)
     pre_consultation_par = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
     pre_consultation_date = db.Column(db.DateTime, nullable=True)
+    # ⭐ Patient à déselectionner de la file d'attente infirmier — tous les
+    # patients non préparés n'ont pas forcément besoin d'une pré-consultation.
+    pre_consultation_non_requise = db.Column(db.Boolean, default=False)
     
     # Autres informations
     mutuelle = db.Column(db.String(100))
