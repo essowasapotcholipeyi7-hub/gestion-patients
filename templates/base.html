@@ -6,6 +6,15 @@
     <title>{% block title %}MediLogic - Gestion des Patients{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- ⭐ APPLICATION INSTALLABLE (PWA) "MediLogicConsult" — voir
+         static/app-manifest.json et static/sw-app.js. -->
+    <link rel="manifest" href="{{ url_for('app_manifest') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/app-icon-192.png') }}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MediLogicConsult">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#667eea">
     <style>
         /* ============================================================
            PALETTE "HOPITAL" - variables centrales
@@ -214,6 +223,15 @@
             font-weight: 600;
             color: var(--hp-text);
             font-size: 0.98rem;
+        }
+        .user-name-text {
+            max-width: 160px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        @media (max-width: 576px) {
+            .user-name-text { max-width: 90px; }
         }
 
         .content-inner {
@@ -799,6 +817,23 @@
                 <i class="fas fa-bars"></i>
             </button>
             <span class="topbar-title">{{ current_user.structure.nom if current_user.structure else 'MediLogic' }}</span>
+
+            <!-- ⭐ Nom de l'utilisateur connecté + menu (déconnexion,
+                 sécurité de connexion) en haut à droite, comme GHP —
+                 avant, la déconnexion n'était accessible que dans le
+                 volet latéral, masqué par défaut. -->
+            <div class="dropdown ms-auto">
+                <button class="btn btn-light rounded-pill dropdown-toggle d-flex align-items-center gap-2" type="button"
+                        data-bs-toggle="dropdown" title="{{ current_user.prenom }} {{ current_user.nom }}">
+                    <i class="fas fa-user-circle"></i>
+                    <span class="user-name-text">{{ current_user.prenom }} {{ current_user.nom }}</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#" onclick="ouvrirModalSecurite(); return false;"><i class="fas fa-shield-alt me-2"></i>Sécurité de connexion</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Déconnexion</a></li>
+                </ul>
+            </div>
         </div>
 
         <!-- ============================================================ -->
@@ -1159,6 +1194,143 @@
 
         console.log('MediLogic - systemes de feedback actifs');
     </script>
+
+    <!-- ============================================================
+         ⭐ SÉCURITÉ DE CONNEXION — inscription/gestion des appareils
+         biométriques (Face ID/Windows Hello/empreinte), voir les routes
+         /api/webauthn/* (app.py) et models.IdentifiantWebauthn. Modal
+         ouverte depuis le menu utilisateur en haut à droite. L'inscription
+         d'un appareil ne peut se faire que par la personne elle-même, sur
+         l'appareil qu'elle compte utiliser pour se connecter ensuite.
+         ============================================================ -->
+    {% if current_user.is_authenticated %}
+    <script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@10.0.0/dist/bundle/index.umd.min.js"></script>
+    <script>
+    (function() {
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'securiteModal';
+        modal.tabIndex = -1;
+        modal.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-shield-alt me-2"></i>Sécurité de connexion</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small">
+                            Connectez-vous sans mot de passe sur cet appareil, avec Face ID,
+                            Windows Hello ou votre empreinte. Contrairement à un mot de passe,
+                            rien n'est copiable : la clé reste enfermée dans cet appareil.
+                        </p>
+                        <div id="securiteAvertissement" class="alert alert-warning small" hidden></div>
+                        <div id="securiteListeAppareils" class="mb-3"></div>
+                        <button class="btn btn-primary btn-sm" id="btnAjouterAppareil" onclick="inscrireAppareilSecurite()">
+                            <i class="fas fa-plus me-1"></i> Ajouter cet appareil
+                        </button>
+                        <div id="securiteMessage" class="small mt-2"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        const bsModal = new bootstrap.Modal(modal);
+
+        if (!window.SimpleWebAuthnBrowser || !SimpleWebAuthnBrowser.browserSupportsWebAuthn()) {
+            document.getElementById('securiteAvertissement').hidden = false;
+            document.getElementById('securiteAvertissement').textContent =
+                "Non disponible sur cet appareil/navigateur (nécessite http://localhost ou HTTPS, et un capteur biométrique).";
+            document.getElementById('btnAjouterAppareil').disabled = true;
+        }
+
+        window.ouvrirModalSecurite = function() {
+            chargerAppareilsSecurite();
+            bsModal.show();
+        };
+
+        function chargerAppareilsSecurite() {
+            fetch('/api/webauthn/mes-appareils').then(r => r.json()).then(d => {
+                const zone = document.getElementById('securiteListeAppareils');
+                if (!d.success || !d.data.length) {
+                    zone.innerHTML = "<p class=\"text-muted small\">Aucun appareil enregistré pour l'instant.</p>";
+                    return;
+                }
+                zone.innerHTML = d.data.map(a => `
+                    <div class="d-flex justify-content-between align-items-center border rounded p-2 mb-2">
+                        <div>
+                            <div class="fw-bold small"><i class="fas fa-mobile-alt me-1"></i>${a.libelle_appareil || 'Appareil'}</div>
+                            <div class="text-muted" style="font-size:11px;">
+                                Ajouté le ${a.date_creation || '-'}<br>
+                                ${a.derniere_utilisation ? 'Dernière utilisation : ' + a.derniere_utilisation : 'Jamais utilisé'}
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" onclick="revoquerAppareilSecurite(${a.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>`).join('');
+            });
+        }
+
+        window.revoquerAppareilSecurite = function(id) {
+            if (!confirm('Retirer cet appareil ? Il ne pourra plus servir à se connecter.')) return;
+            fetch('/api/webauthn/appareils/' + id, { method: 'DELETE' }).then(r => r.json()).then(d => {
+                if (d.success) chargerAppareilsSecurite();
+                else alert('Erreur : ' + (d.error || 'inconnue'));
+            });
+        };
+
+        window.inscrireAppareilSecurite = async function() {
+            const msg = document.getElementById('securiteMessage');
+            msg.className = 'small mt-2 text-muted';
+            msg.textContent = 'Suivez les instructions de votre appareil (Face ID, Windows Hello, empreinte...)...';
+            try {
+                const rOpt = await fetch('/api/webauthn/inscription/options', { method: 'POST' });
+                const dOpt = await rOpt.json();
+                if (!dOpt.success) { msg.className = 'small mt-2 text-danger'; msg.textContent = dOpt.error; return; }
+
+                const credential = await SimpleWebAuthnBrowser.startRegistration(dOpt.options);
+
+                const libelle = prompt('Nom de cet appareil (ex: "Mon téléphone", "PC accueil") :', navigator.platform || 'Mon appareil');
+
+                const rVer = await fetch('/api/webauthn/inscription/verifier', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credential, libelle_appareil: libelle }),
+                });
+                const dVer = await rVer.json();
+                if (dVer.success) {
+                    msg.className = 'small mt-2 text-success';
+                    msg.textContent = 'Appareil ajouté !';
+                    chargerAppareilsSecurite();
+                } else {
+                    msg.className = 'small mt-2 text-danger';
+                    msg.textContent = dVer.error;
+                }
+            } catch (err) {
+                msg.className = 'small mt-2 text-danger';
+                msg.textContent = (err.name === 'InvalidStateError')
+                    ? 'Cet appareil est déjà enregistré pour ce compte.'
+                    : ('Échec : ' + (err.message || err));
+            }
+        };
+    })();
+    </script>
+
+    <!-- ⭐ Enregistrement du service worker de MediLogicConsult — condition
+         technique pour que Chrome/Edge proposent le bouton "Installer" et
+         que Android affiche "Ajouter à l'écran d'accueil". Voir
+         static/sw-app.js : réseau toujours en priorité. -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register("{{ url_for('app_service_worker') }}").catch(() => {});
+        });
+    }
+    </script>
+    {% endif %}
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

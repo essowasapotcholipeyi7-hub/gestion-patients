@@ -1629,3 +1629,26 @@ class ExamenPrescrit(db.Model):
             'date_prescription': self.date_prescription.strftime('%d/%m/%Y %H:%M') if self.date_prescription else None,
             'date_resultats': self.date_resultats.strftime('%d/%m/%Y %H:%M') if self.date_resultats else None
         }
+
+
+class IdentifiantWebauthn(db.Model):
+    """Connexion par biométrie de l'appareil (Face ID / Windows Hello /
+    empreinte), via WebAuthn — même principe que côté medilogic_ghp
+    (services/webauthn_login_service.py), simplifié ici puisqu'il n'y a
+    qu'un seul type de compte (Utilisateur), contrairement à GHP qui
+    distingue compte structure/utilisateur Google Sheets. Seule la clé
+    PUBLIQUE est stockée (jamais de secret)."""
+    __tablename__ = 'identifiants_webauthn'
+
+    id = db.Column(db.Integer, primary_key=True)
+    utilisateur_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
+    credential_id = db.Column(db.Text, unique=True, nullable=False, index=True)
+    public_key = db.Column(db.Text, nullable=False)
+    sign_count = db.Column(db.Integer, default=0)
+    libelle_appareil = db.Column(db.String(100))
+    actif = db.Column(db.Boolean, default=True)
+    date_creation = db.Column(db.DateTime, default=datetime.utcnow)
+    date_revocation = db.Column(db.DateTime)
+    derniere_utilisation = db.Column(db.DateTime)
+
+    utilisateur = db.relationship('Utilisateur', backref='identifiants_webauthn')

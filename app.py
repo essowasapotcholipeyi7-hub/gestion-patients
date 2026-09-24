@@ -293,6 +293,153 @@ def _patient_recherche_conditions(search_term):
     return or_(*conditions)
 
 
+# ============================================================
+# ⭐ CONNEXION PAR BIOMÉTRIE DE L'APPAREIL (Face ID / Windows Hello /
+# empreinte), via WebAuthn — même principe que côté medilogic_ghp
+# (services/webauthn_login_service.py), adapté ici à Flask-Login (un seul
+# type de compte, Utilisateur) plutôt qu'à la session Sheets de GHP.
+# Deux cérémonies : inscription (compte déjà connecté par mot de passe,
+# associe un appareil) et connexion (identifie le compte À PARTIR de la
+# clé biométrique elle-même, via une clé résidente/"discoverable
+# credential" — pas de saisie d'email au préalable). N'est autorisé par
+# les navigateurs que sur localhost ou en HTTPS.
+# ============================================================
+
+WEBAUTHN_RP_NAME = "MediLogicConsult"
+
+
+def _webauthn_rp_id_et_origin(request):
+    rp_id = request.host.split(':')[0]
+    est_local = rp_id in ('localhost', '127.0.0.1', '::1')
+    scheme = request.scheme if est_local else 'https'
+    origin = f"{scheme}://{request.host}"
+    return rp_id, origin
+
+
+def _webauthn_b64(data):
+    import base64
+    return base64.b64encode(data).decode('ascii')
+
+
+def _webauthn_unb64(s):
+    import base64
+    return base64.b64decode(s.encode('ascii'))
+
+
+def _webauthn_options_inscription(request, utilisateur_id, utilisateur_nom):
+    import webauthn
+    from webauthn.helpers.structs import (
+        AuthenticatorAttachment, AuthenticatorSelectionCriteria,
+        PublicKeyCredentialDescriptor, ResidentKeyRequirement, UserVerificationRequirement,
+    )
+    from models import IdentifiantWebauthn
+
+    rp_id, _ = _webauthn_rp_id_et_origin(request)
+
+    existants = IdentifiantWebauthn.query.filter_by(utilisateur_id=utilisateur_id, actif=True).all()
+    exclude = [PublicKeyCredentialDescriptor(id=_webauthn_unb64(e.credential_id)) for e in existants]
+
+    options = webauthn.generate_registration_options(
+        rp_id=rp_id,
+        rp_name=WEBAUTHN_RP_NAME,
+        user_id=f"user:{utilisateur_id}".encode('utf-8'),
+        user_name=utilisateur_nom or f"utilisateur-{utilisateur_id}",
+        user_display_name=utilisateur_nom or f"utilisateur-{utilisateur_id}",
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            # PLATFORM : force le capteur intégré (Face ID/Windows
+            # Hello/empreinte), pas une clé de sécurité USB externe.
+            authenticator_attachment=AuthenticatorAttachment.PLATFORM,
+            # REQUIRED : la clé doit être "résidente"/découvrable pour que
+            # la page de connexion puisse la proposer sans connaître le
+            # compte à l'avance.
+            resident_key=ResidentKeyRequirement.REQUIRED,
+            user_verification=UserVerificationRequirement.REQUIRED,
+        ),
+        exclude_credentials=exclude,
+    )
+    challenge_b64 = _webauthn_b64(options.challenge)
+    return webauthn.options_to_json(options), challenge_b64
+
+
+def _webauthn_verifier_inscription(request, utilisateur_id, utilisateur_nom, credential, challenge_b64, libelle_appareil=None):
+    import webauthn
+    from models import IdentifiantWebauthn
+
+    rp_id, origin = _webauthn_rp_id_et_origin(request)
+
+    verification = webauthn.verify_registration_response(
+        credential=credential,
+        expected_challenge=_webauthn_unb64(challenge_b64),
+        expected_rp_id=rp_id,
+        expected_origin=origin,
+        require_user_verification=True,
+    )
+
+    identifiant = IdentifiantWebauthn(
+        utilisateur_id=utilisateur_id,
+        credential_id=_webauthn_b64(verification.credential_id),
+        public_key=_webauthn_b64(verification.credential_public_key),
+        sign_count=verification.sign_count,
+        libelle_appareil=libelle_appareil or request.host,
+    )
+    db.session.add(identifiant)
+    db.session.commit()
+    return identifiant
+
+
+def _webauthn_options_connexion(request):
+    """Pas de allow_credentials : c'est le principe d'une clé résidente —
+    le navigateur retrouve tout seul, sur l'appareil, les clés déjà
+    enregistrées pour ce rp_id (Face ID/Windows Hello affiche son propre
+    sélecteur de compte)."""
+    import webauthn
+    from webauthn.helpers.structs import UserVerificationRequirement
+
+    rp_id, _ = _webauthn_rp_id_et_origin(request)
+    options = webauthn.generate_authentication_options(
+        rp_id=rp_id,
+        user_verification=UserVerificationRequirement.REQUIRED,
+    )
+    challenge_b64 = _webauthn_b64(options.challenge)
+    return webauthn.options_to_json(options), challenge_b64
+
+
+def _webauthn_verifier_connexion(request, credential, challenge_b64):
+    """Vérifie la clé biométrique et identifie le compte. Retourne la ligne
+    IdentifiantWebauthn — à l'appelant de résoudre l'Utilisateur et de
+    poser la session (login_user), comme pour la connexion par mot de
+    passe. Lève ValueError avec un message utilisateur en cas d'échec."""
+    import json
+    import webauthn
+    from models import IdentifiantWebauthn
+
+    rp_id, origin = _webauthn_rp_id_et_origin(request)
+
+    cred_dict = credential if isinstance(credential, dict) else json.loads(credential)
+    credential_id_b64url = cred_dict.get('id') or cred_dict.get('rawId')
+    if not credential_id_b64url:
+        raise ValueError("Réponse de l'appareil incomplète.")
+
+    raw_id = webauthn.base64url_to_bytes(credential_id_b64url)
+    identifiant = IdentifiantWebauthn.query.filter_by(credential_id=_webauthn_b64(raw_id), actif=True).first()
+    if not identifiant:
+        raise ValueError("Cet appareil n'est associé à aucun compte (ou a été révoqué).")
+
+    verification = webauthn.verify_authentication_response(
+        credential=credential,
+        expected_challenge=_webauthn_unb64(challenge_b64),
+        expected_rp_id=rp_id,
+        expected_origin=origin,
+        credential_public_key=_webauthn_unb64(identifiant.public_key),
+        credential_current_sign_count=identifiant.sign_count,
+        require_user_verification=True,
+    )
+    identifiant.sign_count = verification.new_sign_count
+    identifiant.derniere_utilisation = datetime.utcnow()
+    db.session.commit()
+    return identifiant
+
+
 def _envoyer_prescriptions_ghp_immediat():
     """Tente un envoi immédiat vers GHP (best-effort, ne bloque jamais la
     transaction métier) — le scheduler (tasks.py, toutes les 5 min) rattrape
@@ -581,6 +728,20 @@ def soin_ajouter(patient_id):
 def index():
     return render_template('index.html')
 
+
+def _url_dashboard_pour_role(role):
+    """URL du tableau de bord adapté au rôle, après connexion (mot de
+    passe ou biométrie WebAuthn) — même dispatch utilisé aux deux endroits."""
+    return {
+        'super_admin': url_for('admin_dashboard'),
+        'admin_structure': url_for('structure_dashboard'),
+        'infirmier': url_for('infirmier_dashboard'),
+        'medecin': url_for('medecin_dashboard'),
+        'laborantin': url_for('laborantin_dashboard'),
+        'radiologue': url_for('radiologue_dashboard'),
+    }.get(role, url_for('dashboard'))
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -610,22 +771,8 @@ def login():
             login_user(user)
             user.derniere_connexion = datetime.utcnow()
             db.session.commit()
-            
-            # ⭐ REDIRECTION SELON LE RÔLE
-            if user.role == 'super_admin':
-                return redirect(url_for('admin_dashboard'))
-            elif user.role == 'admin_structure':
-                return redirect(url_for('structure_dashboard'))
-            elif user.role == 'infirmier':
-                return redirect(url_for('infirmier_dashboard'))
-            elif user.role == 'medecin':
-                return redirect(url_for('medecin_dashboard'))
-            elif user.role == 'laborantin':
-                return redirect(url_for('laborantin_dashboard'))
-            elif user.role == 'radiologue':
-                return redirect(url_for('radiologue_dashboard'))
-            else:
-                return redirect(url_for('dashboard'))
+
+            return redirect(_url_dashboard_pour_role(user.role))
         else:
             flash('Email ou mot de passe incorrect', 'danger')
     
@@ -638,6 +785,135 @@ def logout():
     logout_user()
     flash('Vous avez été déconnecté', 'info')
     return redirect(url_for('index'))
+
+
+# ============================================================
+# ⭐ CONNEXION PAR BIOMÉTRIE (Face ID / Windows Hello / empreinte) — voir
+# les fonctions _webauthn_* plus haut et models.IdentifiantWebauthn.
+# ============================================================
+
+@app.route('/api/webauthn/inscription/options', methods=['POST'])
+@login_required
+def api_webauthn_inscription_options():
+    import json
+    options_json, challenge = _webauthn_options_inscription(
+        request, current_user.id, f"{current_user.prenom} {current_user.nom}"
+    )
+    session['webauthn_challenge'] = challenge
+    return jsonify({'success': True, 'options': json.loads(options_json)})
+
+
+@app.route('/api/webauthn/inscription/verifier', methods=['POST'])
+@login_required
+def api_webauthn_inscription_verifier():
+    data = request.json or {}
+    challenge = session.pop('webauthn_challenge', None)
+    if not challenge:
+        return jsonify({'success': False, 'error': 'Session expirée, recommencez.'}), 400
+
+    try:
+        _webauthn_verifier_inscription(
+            request, current_user.id, f"{current_user.prenom} {current_user.nom}",
+            data.get('credential'), challenge,
+            libelle_appareil=data.get('libelle_appareil'),
+        )
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': f"Échec de l'enregistrement : {e}"}), 400
+
+
+@app.route('/api/webauthn/mes-appareils', methods=['GET'])
+@login_required
+def api_webauthn_mes_appareils():
+    from models import IdentifiantWebauthn
+    appareils = IdentifiantWebauthn.query.filter_by(
+        utilisateur_id=current_user.id, actif=True
+    ).order_by(IdentifiantWebauthn.date_creation.desc()).all()
+    return jsonify({'success': True, 'data': [{
+        'id': a.id,
+        'libelle_appareil': a.libelle_appareil,
+        'date_creation': a.date_creation.strftime('%d/%m/%Y %H:%M') if a.date_creation else None,
+        'derniere_utilisation': a.derniere_utilisation.strftime('%d/%m/%Y %H:%M') if a.derniere_utilisation else None,
+    } for a in appareils]})
+
+
+@app.route('/api/webauthn/appareils/<int:appareil_id>', methods=['DELETE'])
+@login_required
+def api_webauthn_revoquer(appareil_id):
+    from models import IdentifiantWebauthn
+    appareil = IdentifiantWebauthn.query.filter_by(id=appareil_id, utilisateur_id=current_user.id).first()
+    if not appareil:
+        return jsonify({'success': False, 'error': 'Introuvable'}), 404
+
+    appareil.actif = False
+    appareil.date_revocation = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/login/webauthn/options', methods=['POST'])
+def login_webauthn_options():
+    """Public — page de connexion, personne n'est encore authentifié. Pas
+    de allow_credentials (clé résidente) : le navigateur propose lui-même,
+    via Face ID/Windows Hello, les comptes déjà enregistrés sur cet
+    appareil pour ce site."""
+    import json
+    options_json, challenge = _webauthn_options_connexion(request)
+    session['webauthn_login_challenge'] = challenge
+    return jsonify({'success': True, 'options': json.loads(options_json)})
+
+
+@app.route('/login/webauthn/verifier', methods=['POST'])
+def login_webauthn_verifier():
+    from models import Utilisateur, Structure
+
+    data = request.json or {}
+    challenge = session.pop('webauthn_login_challenge', None)
+    if not challenge:
+        return jsonify({'success': False, 'error': 'Session expirée, recommencez.'}), 400
+
+    try:
+        identifiant = _webauthn_verifier_connexion(request, data.get('credential'), challenge)
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 401
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': f'Échec de la vérification : {e}'}), 400
+
+    user = Utilisateur.query.get(identifiant.utilisateur_id)
+    if not user or not user.actif:
+        return jsonify({'success': False, 'error': 'Compte introuvable ou désactivé.'}), 401
+    if user.role != 'super_admin':
+        structure = Structure.query.get(user.id_structure)
+        if not structure or structure.statut != 'actif':
+            return jsonify({'success': False, 'error': "Structure introuvable ou inactive."}), 401
+
+    login_user(user)
+    user.derniere_connexion = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({'success': True, 'redirect': _url_dashboard_pour_role(user.role)})
+
+
+# ============================================================
+# ⭐ APPLICATION INSTALLABLE (PWA) — "MediLogicConsult", voir
+# static/app-manifest.json et static/sw-app.js. Publics (pas de
+# login_required) : le navigateur les récupère avant toute session.
+# ============================================================
+
+@app.route('/app-manifest.json')
+def app_manifest():
+    from flask import send_from_directory
+    return send_from_directory('static', 'app-manifest.json', mimetype='application/manifest+json')
+
+
+@app.route('/sw-app.js')
+def app_service_worker():
+    from flask import send_from_directory
+    return send_from_directory('static', 'sw-app.js', mimetype='application/javascript')
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register_structure():

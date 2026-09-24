@@ -298,6 +298,13 @@
                     <i class="fas fa-sign-in-alt"></i> Se connecter
                 </button>
 
+                <div class="text-center mt-2" id="zoneLienWebauthn" hidden>
+                    <a href="#" class="text-decoration-none small" onclick="tenterConnexionWebauthn(); return false;">
+                        <i class="fas fa-fingerprint me-1"></i> Se connecter avec Face ID / Windows Hello
+                    </a>
+                </div>
+                <div id="webauthnMessage" class="text-center small mt-1"></div>
+
                 <div class="login-links">
                     <a href="{{ url_for('forgot_password') }}">
                         <span class="link-icon"><i class="fas fa-key"></i></span> Mot de passe oublié ?
@@ -318,4 +325,45 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- ⭐ CONNEXION PAR BIOMÉTRIE (Face ID / Windows Hello / empreinte) — voir
+     /login/webauthn/options|verifier (app.py) et models.IdentifiantWebauthn.
+     Le lien reste caché tant que le navigateur ne supporte pas WebAuthn. -->
+<script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@10.0.0/dist/bundle/index.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.SimpleWebAuthnBrowser && SimpleWebAuthnBrowser.browserSupportsWebAuthn()) {
+        document.getElementById('zoneLienWebauthn').hidden = false;
+    }
+});
+
+async function tenterConnexionWebauthn() {
+    const msg = document.getElementById('webauthnMessage');
+    try {
+        const rOpt = await fetch('/login/webauthn/options', { method: 'POST' });
+        const dOpt = await rOpt.json();
+        if (!dOpt.success) { msg.className = 'text-center small mt-1 text-danger'; msg.textContent = dOpt.error || 'Erreur'; return; }
+
+        const assertion = await SimpleWebAuthnBrowser.startAuthentication(dOpt.options);
+
+        const rVer = await fetch('/login/webauthn/verifier', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential: assertion }),
+        });
+        const dVer = await rVer.json();
+        if (dVer.success) {
+            window.location.href = dVer.redirect || '/dashboard';
+        } else {
+            msg.className = 'text-center small mt-1 text-danger';
+            msg.textContent = dVer.error || 'Connexion refusée';
+        }
+    } catch (err) {
+        if (err.name === 'NotAllowedError') return; // annulé par l'utilisateur, rien à afficher
+        msg.className = 'text-center small mt-1 text-danger';
+        msg.textContent = 'Échec : ' + (err.message || err);
+    }
+}
+</script>
 {% endblock %}
