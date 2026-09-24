@@ -298,43 +298,57 @@ function ouvrirPlanification(prescription) {
     new bootstrap.Modal(document.getElementById('modalPlanifier')).show();
 }
 
-// ⭐ Alerte "c'est l'heure" — scrutation régulière (pas d'infra de
-// notification temps réel existante dans l'appli, voir exploration) +
-// signal visuel rouge + son. Recalcule aussi le statut visuel de chaque
-// ligne déjà affichée (à venir / en retard) sans recharger la page.
+// ⭐ Alerte "c'est l'heure" — scrutation régulière auprès du SERVEUR (pas
+// d'infra de notification temps réel existante dans l'appli, voir
+// exploration), pas juste une relecture des lignes déjà en mémoire.
+// FIX : la version précédente ne faisait que recomparer l'heure des
+// lignes chargées à l'ouverture de la page, sans jamais revérifier si la
+// dose était entre-temps marquée "Fait"/traitement arrêté (par ce même
+// onglet resté ouvert, un autre onglet, ou un autre soignant) — l'alarme
+// continuait donc à sonner indéfiniment pour un soin déjà terminé
+// (patron : "déclenche l'alarme qui ne s'arrête pas même si les soins
+// sont terminés"). /api/infirmier/medicaments/dues existait déjà dans ce
+// but précis d'après son propre commentaire, mais n'était appelé nulle
+// part — jamais branché.
 function verifierEcheances() {
-    const lignes = document.querySelectorAll('#tableAFaire tr[data-heure-prevue]');
-    const maintenant = new Date();
-    let enRetard = [];
-    lignes.forEach(ligne => {
-        const prevue = new Date(ligne.dataset.heurePrevue);
-        const cell = ligne.querySelector('.statut-cell');
-        if (prevue <= maintenant) {
-            cell.innerHTML = '<span class="badge bg-danger">EN RETARD</span>';
-            ligne.classList.add('table-danger');
-            enRetard.push(ligne);
-        } else {
-            cell.innerHTML = '<span class="badge bg-secondary">à venir</span>';
-            ligne.classList.remove('table-danger');
-        }
-    });
+    fetch('/api/infirmier/medicaments/dues')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (!data) return;
+            const idsEnRetard = new Set(data.items.map(i => i.id));
 
-    const badge = document.getElementById('badgeEnRetard');
-    const banniere = document.getElementById('alerteRetard');
-    const texte = document.getElementById('alerteRetardTexte');
-    if (enRetard.length > 0) {
-        badge.style.display = 'inline-block';
-        badge.textContent = enRetard.length;
-        banniere.classList.remove('d-none');
-        texte.textContent = `${enRetard.length} dose(s) en retard — vérifiez la liste "Doses à faire" ci-dessous.`;
-        if (!window.__medicamentBeepJoue || (Date.now() - window.__medicamentBeepJoue) > 60000) {
-            jouerBeep();
-            window.__medicamentBeepJoue = Date.now();
-        }
-    } else {
-        badge.style.display = 'none';
-        banniere.classList.add('d-none');
-    }
+            document.querySelectorAll('#tableAFaire tr[data-admin-id]').forEach(ligne => {
+                const id = parseInt(ligne.dataset.adminId, 10);
+                const cell = ligne.querySelector('.statut-cell');
+                const estEnRetard = idsEnRetard.has(id);
+                cell.innerHTML = estEnRetard
+                    ? '<span class="badge bg-danger">EN RETARD</span>'
+                    : '<span class="badge bg-secondary">à venir</span>';
+                ligne.classList.toggle('table-danger', estEnRetard);
+            });
+
+            const badge = document.getElementById('badgeEnRetard');
+            const banniere = document.getElementById('alerteRetard');
+            const texte = document.getElementById('alerteRetardTexte');
+            if (data.count > 0) {
+                badge.style.display = 'inline-block';
+                badge.textContent = data.count;
+                banniere.classList.remove('d-none');
+                texte.textContent = `${data.count} dose(s) en retard — vérifiez la liste "Doses à faire" ci-dessous.`;
+                if (!window.__medicamentBeepJoue || (Date.now() - window.__medicamentBeepJoue) > 60000) {
+                    jouerBeep();
+                    window.__medicamentBeepJoue = Date.now();
+                }
+            } else {
+                badge.style.display = 'none';
+                banniere.classList.add('d-none');
+                // ⭐ Réarme immédiatement le bip pour la prochaine vraie alerte,
+                // au lieu d'attendre jusqu'à 60s après un bip qui ne veut
+                // plus rien dire puisque le retard vient d'être résorbé.
+                window.__medicamentBeepJoue = null;
+            }
+        })
+        .catch(() => { /* échec réseau ponctuel : on garde l'affichage tel quel, prochain sondage dans 30s */ });
 }
 
 function jouerBeep() {
