@@ -264,6 +264,35 @@ def _date_naissance_depuis_formulaire(date_naissance_str, age_str):
     return None
 
 
+def _patient_recherche_conditions(search_term):
+    """Conditions de recherche patient communes (nom/prénom/téléphone/email
+    + numéro de dossier) — le numéro de dossier affiché partout dans
+    l'appli (ex. "P00020", voir "%05d" % patient.id) n'était comparé nulle
+    part à une recherche : soit pas du tout (page /recherche, page /patients),
+    soit contre l'id brut non-paddé (api_patients_search), qui ne matche
+    jamais "P00020" ni même "00020" tel que l'utilisateur le voit et le
+    tape. Reconnaît "P00020", "p00020", "00020" ou "20" en retirant le
+    préfixe P et les zéros de tête avant de comparer à l'id (exact, comme
+    une référence de dossier, pas une recherche floue)."""
+    from sqlalchemy import or_
+
+    conditions = [
+        Patient.nom.ilike(f'%{search_term}%'),
+        Patient.prenom.ilike(f'%{search_term}%'),
+        Patient.telephone.ilike(f'%{search_term}%'),
+        Patient.email.ilike(f'%{search_term}%'),
+    ]
+
+    chiffres = search_term.strip()
+    if chiffres[:1] in ('P', 'p'):
+        chiffres = chiffres[1:]
+    chiffres = chiffres.lstrip('0')
+    if chiffres.isdigit():
+        conditions.append(Patient.id == int(chiffres))
+
+    return or_(*conditions)
+
+
 def _envoyer_prescriptions_ghp_immediat():
     """Tente un envoi immédiat vers GHP (best-effort, ne bloque jamais la
     transaction métier) — le scheduler (tasks.py, toutes les 5 min) rattrape
@@ -1640,14 +1669,7 @@ def patients_list():
     # ⭐ APPLIQUER LA RECHERCHE
     if search:
         search = search.strip()
-        query = query.filter(
-            or_(
-                Patient.nom.ilike(f'%{search}%'),
-                Patient.prenom.ilike(f'%{search}%'),
-                Patient.telephone.ilike(f'%{search}%'),
-                Patient.email.ilike(f'%{search}%')
-            )
-        )
+        query = query.filter(_patient_recherche_conditions(search))
     
     patients = query.order_by(Patient.date_creation.desc()).all()
     
@@ -3121,14 +3143,9 @@ def recherche_patients():
             
             # Recherche multi-champs
             patients = query.filter(
-                db.or_(
-                    Patient.nom.ilike(f'%{search_term}%'),
-                    Patient.prenom.ilike(f'%{search_term}%'),
-                    Patient.telephone.ilike(f'%{search_term}%'),
-                    Patient.email.ilike(f'%{search_term}%')
-                )
+                _patient_recherche_conditions(search_term)
             ).limit(50).all()
-    
+
     return render_template('recherche.html', patients=patients, search_term=search_term)
 
 # ==================== MODIFIER PATIENT ====================
@@ -7372,21 +7389,14 @@ def api_patient_constantes(patient_id):
 @login_required
 def api_patients_search():
     """Recherche de patients pour autocomplétion"""
-    from models import Patient
-    from sqlalchemy import or_, cast, String
-    
     q = request.args.get('q', '').strip()
     if len(q) < 2:
         return jsonify([])
-    
+
     patients = Patient.query.filter(
         Patient.id_structure == current_user.id_structure,
         Patient.archived == False,
-        or_(
-            Patient.nom.ilike(f'%{q}%'),
-            Patient.prenom.ilike(f'%{q}%'),
-            cast(Patient.id, String).ilike(f'%{q}%')
-        )
+        _patient_recherche_conditions(q)
     ).limit(20).all()
     
     result = []
