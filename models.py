@@ -892,6 +892,11 @@ class AnalyseDemande(db.Model):
     signature_data = db.Column(db.LargeBinary, nullable=True)
     signature_mime = db.Column(db.String(100), nullable=True)
 
+    # ⭐ Code d'ouverture (6 chiffres) du PDF résultat chiffré remis au
+    # patient — voir pdf_protege_analyse (app.py). Généré à la demande,
+    # jamais transmis dans le même envoi que le PDF lui-même.
+    pdf_password = db.Column(db.String(20), nullable=True)
+
     # ⭐ Traçabilité de synchro avec GHP (posées ici, utilisées à partir de
     # la Phase 2/3 — voir le plan) : d'où vient cette ligne si elle a été
     # reçue de l'autre application plutôt que saisie ici.

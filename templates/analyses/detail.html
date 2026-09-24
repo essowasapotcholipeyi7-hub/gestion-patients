@@ -127,6 +127,25 @@
                                     le {{ analyse.date_resultats.strftime('%d/%m/%Y %H:%M') }}
                                 </small>
                             </div>
+
+                            {% if current_user.role in ['super_admin', 'admin_structure', 'laborantin', 'medecin', 'radiologue'] %}
+                            <div class="card mt-2 no-print" style="border-color: var(--hp-primary, #4f46e5);">
+                                <div class="card-body py-2">
+                                    <h6 class="mb-1"><i class="fas fa-lock me-2 text-primary"></i>Remise sécurisée au patient</h6>
+                                    <p class="text-muted small mb-2">
+                                        Téléchargez un PDF protégé par un code d'ouverture pour l'envoyer au patient (email, etc.).
+                                        Le code n'est pas dans le PDF : invitez le patient à appeler le centre pour l'obtenir,
+                                        après vérification de son identité (nom, date de naissance).
+                                    </p>
+                                    <a href="{{ url_for('pdf_protege_analyse', id=analyse.id) }}" class="btn btn-sm btn-primary" data-loading="true">
+                                        <i class="fas fa-file-pdf me-1"></i>Télécharger le PDF protégé
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="voirCodeAccesPdf({{ analyse.id }})">
+                                        <i class="fas fa-key me-1"></i>Voir le code d'accès
+                                    </button>
+                                </div>
+                            </div>
+                            {% endif %}
                         {% elif analyse.statut == 'EN_COURS' %}
                             <div class="alert alert-primary">
                                 <i class="fas fa-spinner fa-spin me-2"></i>
@@ -371,6 +390,33 @@
     </div>
 </div>
 
+<!-- ⭐ Modal code d'accès PDF protégé (résultats) -->
+<div class="modal fade no-print" id="modalCodeAccesPdf" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-key me-2"></i>Code d'accès au PDF protégé</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning small mb-3">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    Vérifiez d'abord l'identité du patient (nom, date de naissance) avant de communiquer ce code.
+                </div>
+                <div class="text-center">
+                    <div id="codeAccesPdfValeur" class="fw-bold" style="font-size: 2rem; letter-spacing: 4px;">••••••</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="regenererCodeAccesPdf()">
+                    <i class="fas fa-sync me-1"></i>Régénérer le code
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
     @media print {
         .no-print { display: none !important; }
@@ -387,6 +433,40 @@
 <script>
 function imprimerResultats() {
     window.print();
+}
+
+let _analyseIdCodeAcces = null;
+
+function voirCodeAccesPdf(analyseId) {
+    _analyseIdCodeAcces = analyseId;
+    const modalEl = document.getElementById('modalCodeAccesPdf');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    document.getElementById('codeAccesPdfValeur').textContent = '...';
+    modal.show();
+    fetch(`/analyse/${analyseId}/code-acces`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('codeAccesPdfValeur').textContent = data.success ? data.code : 'Erreur';
+        })
+        .catch(() => {
+            document.getElementById('codeAccesPdfValeur').textContent = 'Erreur';
+        });
+}
+
+function regenererCodeAccesPdf() {
+    if (!_analyseIdCodeAcces) return;
+    if (!confirm("Régénérer le code ? L'ancien code ne fonctionnera plus pour un nouveau téléchargement (les PDF déjà téléchargés avec l'ancien code restent ouvrables avec lui).")) {
+        return;
+    }
+    document.getElementById('codeAccesPdfValeur').textContent = '...';
+    fetch(`/analyse/${_analyseIdCodeAcces}/code-acces/regenerer`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('codeAccesPdfValeur').textContent = data.success ? data.code : 'Erreur';
+        })
+        .catch(() => {
+            document.getElementById('codeAccesPdfValeur').textContent = 'Erreur';
+        });
 }
 </script>
 {% endblock %}

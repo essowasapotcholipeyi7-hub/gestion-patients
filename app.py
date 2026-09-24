@@ -7813,6 +7813,187 @@ def saisir_resultats_analyse(id):
     return redirect(url_for('detail_analyse', id=id))
 
 
+def _peut_gerer_pdf_protege_analyse(analyse):
+    """Même filière que pour saisir/voir un résultat (voir saisir_resultats_analyse
+    et detail_analyse) : qui a le droit de télécharger le PDF protégé et de
+    connaître/régénérer son code d'accès."""
+    if current_user.role not in ['super_admin', 'admin_structure', 'laborantin', 'medecin', 'radiologue']:
+        return False
+    if current_user.role not in ['super_admin'] and analyse.structure_id != current_user.id_structure:
+        return False
+    return True
+
+
+def _generer_code_acces_pdf():
+    """Code numérique à 6 chiffres, communiqué au patient uniquement par un
+    canal séparé (téléphone) du PDF lui-même (email) — voir la discussion
+    sécurité résultats. secrets.randbelow : générateur cryptographiquement
+    sûr, pas random.randint."""
+    import secrets
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _generer_pdf_resultat_texte(analyse):
+    """Construit un PDF (texte simple ou contenu_html de l'éditeur en ligne)
+    via reportlab — PUR PYTHON, sans binaire externe. Contrairement à
+    pdfkit/wkhtmltopdf (voir patient_pdf) qui dépend d'un exécutable non
+    installé sur Render (buildCommand = juste pip install), reportlab
+    fonctionne partout où le package est installé. contenu_html (Quill) est
+    simplifié en texte lisible (balises retirées) — pas un rendu HTML fidèle,
+    mais suffisant pour un résultat protégé destiné au patient."""
+    import io as _io
+    import html as _html
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+
+    patient = analyse.patient
+    buf = _io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=2 * cm, bottomMargin=2 * cm,
+                             leftMargin=2 * cm, rightMargin=2 * cm)
+    styles = getSampleStyleSheet()
+    elements = [
+        Paragraph(f"Résultat — {_html.escape(analyse.nom_analyse)}", styles['Title']),
+        Spacer(1, 12),
+        Paragraph(f"Patient : {_html.escape(patient.nom)} {_html.escape(patient.prenom)} "
+                  f"(N° dossier P{patient.id:05d})", styles['Normal']),
+        Paragraph(f"Type : {_html.escape(analyse.type_analyse)}", styles['Normal']),
+    ]
+    if analyse.date_resultats:
+        elements.append(Paragraph(
+            f"Date des résultats : {analyse.date_resultats.strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
+    elements.append(Spacer(1, 16))
+    elements.append(Paragraph("Résultats :", styles['Heading3']))
+    elements.append(Spacer(1, 6))
+
+    if analyse.contenu_html:
+        texte = re.sub('<[^<]+?>', '\n', analyse.contenu_html)
+        texte = _html.unescape(texte)
+    else:
+        texte = analyse.resultats or ''
+
+    for ligne in texte.split('\n'):
+        ligne = ligne.strip()
+        if ligne:
+            elements.append(Paragraph(_html.escape(ligne), styles['Normal']))
+            elements.append(Spacer(1, 4))
+
+    if analyse.nom_interprete:
+        elements.append(Spacer(1, 20))
+        signataire = (f"{analyse.titre_interprete} — " if analyse.titre_interprete else '') + analyse.nom_interprete
+        elements.append(Paragraph(_html.escape(signataire), styles['Normal']))
+
+    doc.build(elements)
+    return buf.getvalue()
+
+
+def _obtenir_pdf_resultat_non_protege(analyse):
+    """Retourne (pdf_bytes, erreur). Réutilise le fichier déjà joint s'il
+    s'agit déjà d'un PDF (cas le plus courant, voir le placeholder "PDF de
+    préférence" dans le formulaire de saisie) ; sinon génère un PDF à partir
+    du texte/contenu rédigé. Un fichier joint qui n'est PAS un PDF (image,
+    Word...) n'est volontairement pas reconverti ici — pas de garantie de
+    fidélité, on préfère prévenir plutôt que produire un PDF protégé
+    incomplet."""
+    if analyse.fichier_data:
+        est_pdf = (analyse.fichier_mime == 'application/pdf') or \
+                  (analyse.fichier_nom or '').lower().endswith('.pdf')
+        if est_pdf:
+            return analyse.fichier_data, None
+        return None, ("Le fichier joint à ce résultat n'est pas un PDF "
+                       "(protection uniquement disponible pour un PDF ou un résultat rédigé/texte).")
+    return _generer_pdf_resultat_texte(analyse), None
+
+
+@app.route('/analyse/<int:id>/pdf-protege')
+@login_required
+def pdf_protege_analyse(id):
+    """Télécharge le résultat en PDF chiffré par mot de passe (code à 6
+    chiffres) — le code n'est JAMAIS inclus dans le PDF ni dans le même
+    envoi : il doit être communiqué au patient par un canal séparé
+    (téléphone), après vérification de son identité, voir
+    /analyse/<id>/code-acces. Sécurité résultats demandée par l'utilisateur :
+    un PDF téléchargé/transféré ne peut pas être verrouillé par empreinte/
+    Face ID (ça n'existe dans aucun lecteur PDF) — seul un mot de passe
+    protège le fichier lui-même, quel que soit l'appareil qui l'ouvre."""
+    from models import AnalyseDemande
+    import io as _io
+    from pypdf import PdfReader, PdfWriter
+    from flask import send_file
+
+    analyse = AnalyseDemande.query.get_or_404(id)
+
+    if not _peut_gerer_pdf_protege_analyse(analyse):
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    if analyse.statut != 'TERMINE':
+        flash('Les résultats ne sont pas encore disponibles pour cette analyse', 'warning')
+        return redirect(url_for('detail_analyse', id=id))
+
+    pdf_bytes, erreur = _obtenir_pdf_resultat_non_protege(analyse)
+    if erreur:
+        flash(erreur, 'danger')
+        return redirect(url_for('detail_analyse', id=id))
+
+    if not analyse.pdf_password:
+        analyse.pdf_password = _generer_code_acces_pdf()
+        db.session.commit()
+
+    reader = PdfReader(_io.BytesIO(pdf_bytes))
+    writer = PdfWriter()
+    for page in reader.pages:
+        writer.add_page(page)
+    writer.encrypt(user_password=analyse.pdf_password, algorithm="AES-256")
+    out = _io.BytesIO()
+    writer.write(out)
+    out.seek(0)
+
+    nom_fichier = f"Resultat_protege_{analyse.patient.nom}_{analyse.patient.prenom}_{analyse.id}.pdf"
+    return send_file(out, as_attachment=True, download_name=nom_fichier, mimetype='application/pdf')
+
+
+@app.route('/analyse/<int:id>/code-acces')
+@login_required
+def code_acces_pdf_analyse(id):
+    """Renvoie (JSON) le code d'ouverture du PDF protégé — génère le code
+    s'il n'existe pas encore. À ne communiquer au patient qu'après
+    vérification téléphonique de son identité (nom, date de naissance)."""
+    from models import AnalyseDemande
+
+    analyse = AnalyseDemande.query.get_or_404(id)
+
+    if not _peut_gerer_pdf_protege_analyse(analyse):
+        return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
+    if not analyse.pdf_password:
+        analyse.pdf_password = _generer_code_acces_pdf()
+        db.session.commit()
+
+    return jsonify({'success': True, 'code': analyse.pdf_password})
+
+
+@app.route('/analyse/<int:id>/code-acces/regenerer', methods=['POST'])
+@login_required
+def regenerer_code_acces_pdf_analyse(id):
+    """Invalide l'ancien code (ex : communiqué par erreur) et en génère un
+    nouveau. Un PDF déjà téléchargé avec l'ancien code reste ouvrable avec
+    l'ancien code (il est déjà chiffré) — seul un nouveau téléchargement
+    utilisera le nouveau code."""
+    from models import AnalyseDemande
+
+    analyse = AnalyseDemande.query.get_or_404(id)
+
+    if not _peut_gerer_pdf_protege_analyse(analyse):
+        return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
+    analyse.pdf_password = _generer_code_acces_pdf()
+    db.session.commit()
+
+    return jsonify({'success': True, 'code': analyse.pdf_password})
+
+
 def _type_analyse_depuis_ghp(type_prestation):
     """analyse/examen (vocabulaire GHP) -> BIOLOGIE/IMAGERIE (vocabulaire
     gestion_patients) — inverse de _type_prestation_ghp (tasks.py)."""
