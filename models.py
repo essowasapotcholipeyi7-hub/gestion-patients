@@ -488,6 +488,20 @@ class Patient(db.Model):
     # Relation avec l'infirmier qui a fait la pré-consultation
     pre_consultation_infirmier = db.relationship('Utilisateur', foreign_keys=[pre_consultation_par])
 
+    @property
+    def age(self):
+        """Âge en années révolues à partir de date_naissance — utilisée par
+        plusieurs gabarits (dashboard infirmier, pré-consultation, fiche
+        patient) qui référençaient déjà `patient.age` sans que cette
+        propriété n'existe jamais côté modèle (affichait silencieusement
+        un âge vide, Jinja masquant l'attribut manquant)."""
+        if not self.date_naissance:
+            return None
+        from datetime import date
+        today = date.today()
+        dn = self.date_naissance
+        return today.year - dn.year - ((today.month, today.day) < (dn.month, dn.day))
+
 
 class StructureMapping(db.Model):
     __tablename__ = 'structure_mappings'

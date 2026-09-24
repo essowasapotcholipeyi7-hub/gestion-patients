@@ -238,6 +238,32 @@ def _items_nouveaux(items_nouveaux, items_anciens):
     return [i for i in (items_nouveaux or []) if _signature_item(i) not in signatures_anciennes]
 
 
+def _date_naissance_depuis_formulaire(date_naissance_str, age_str):
+    """Résout la date de naissance d'un patient à partir du formulaire :
+    la date exacte si elle est saisie, sinon une date approximative
+    déduite d'un âge saisi (même jour/mois que la date du jour, comme le
+    fait déjà côté client calculerDateNaissance() dans patients/ajouter.html)
+    quand la date de naissance est inconnue — filet de sécurité serveur si
+    ce JS n'a pas pu s'exécuter (patron : "il faut prevoir qu'on mette
+    l'age directe si on ne connait pas date de naissance"). Retourne un
+    datetime.date ou None."""
+    if date_naissance_str:
+        return datetime.strptime(date_naissance_str, '%Y-%m-%d').date()
+    if age_str:
+        try:
+            age = int(age_str)
+        except (TypeError, ValueError):
+            return None
+        if 0 <= age <= 130:
+            aujourdhui = datetime.utcnow()
+            try:
+                return aujourdhui.replace(year=aujourdhui.year - age).date()
+            except ValueError:
+                # 29 février sans année bissextile correspondante
+                return aujourdhui.replace(year=aujourdhui.year - age, day=28).date()
+    return None
+
+
 def _envoyer_prescriptions_ghp_immediat():
     """Tente un envoi immédiat vers GHP (best-effort, ne bloque jamais la
     transaction métier) — le scheduler (tasks.py, toutes les 5 min) rattrape
@@ -3150,10 +3176,8 @@ def patient_modifier(id):
         patient.prenom = request.form.get('prenom')
         
         date_naissance = request.form.get('date_naissance')
-        if date_naissance:
-            patient.date_naissance = datetime.strptime(date_naissance, '%Y-%m-%d').date()
-        else:
-            patient.date_naissance = None
+        age = request.form.get('age')
+        patient.date_naissance = _date_naissance_depuis_formulaire(date_naissance, age)
         
         patient.lieu_naissance = request.form.get('lieu_naissance')
         patient.sexe = request.form.get('sexe')

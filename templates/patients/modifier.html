@@ -37,11 +37,22 @@
                         <input type="text" name="prenom" class="form-control" value="{{ patient.prenom }}" required>
                     </div>
                     
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-3 mb-3">
                         <label class="form-label">Date de naissance</label>
-                        <input type="date" name="date_naissance" class="form-control" value="{{ patient.date_naissance.strftime('%Y-%m-%d') if patient.date_naissance else '' }}">
+                        <input type="date" name="date_naissance" id="dateNaissance" class="form-control"
+                               value="{{ patient.date_naissance.strftime('%Y-%m-%d') if patient.date_naissance else '' }}"
+                               onchange="calculerAge()">
+                        <small class="text-muted">Ou saisissez l'âge ci-dessous</small>
                     </div>
-                    
+
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Âge (ans)</label>
+                        <input type="number" name="age" id="age" class="form-control" min="0" max="130" placeholder="Ex: 45"
+                               value="{{ patient.age if patient.date_naissance else '' }}"
+                               oninput="calculerDateNaissance()">
+                        <small class="text-muted">Approximatif, si date inconnue</small>
+                    </div>
+
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Lieu de naissance</label>
                         <input type="text" name="lieu_naissance" class="form-control" value="{{ patient.lieu_naissance or '' }}" placeholder="Ex: Akakopé">
@@ -335,6 +346,46 @@
     document.querySelector('input[name="personne_a_prevenir_telephone"]')?.addEventListener('input', function() {
         this.value = this.value.replace(/[^0-9+]/g, '');
     });
+
+    // ============================================================
+    // ⭐ DATE DE NAISSANCE ⇄ ÂGE — même calcul que patients/ajouter.html,
+    // pour saisir l'âge directement quand la date de naissance est
+    // inconnue (l'un remplit l'autre, la date de naissance saisie
+    // l'emporte toujours côté serveur si les deux sont renseignés).
+    // ============================================================
+    function calculerDateNaissance() {
+        const age = parseInt(document.getElementById('age').value);
+        const dateNaissance = document.getElementById('dateNaissance');
+
+        if (age && age > 0 && age < 130) {
+            const aujourdhui = new Date();
+            const date = new Date(aujourdhui.getFullYear() - age, aujourdhui.getMonth(), aujourdhui.getDate());
+            const annee = date.getFullYear();
+            const mois = String(date.getMonth() + 1).padStart(2, '0');
+            const jour = String(date.getDate()).padStart(2, '0');
+            dateNaissance.value = `${annee}-${mois}-${jour}`;
+        }
+    }
+
+    function calculerAge() {
+        const dateNaissance = document.getElementById('dateNaissance').value;
+        const ageInput = document.getElementById('age');
+
+        if (dateNaissance) {
+            const naissance = new Date(dateNaissance);
+            const aujourdhui = new Date();
+            let age = aujourdhui.getFullYear() - naissance.getFullYear();
+            const moisDiff = aujourdhui.getMonth() - naissance.getMonth();
+            if (moisDiff < 0 || (moisDiff === 0 && aujourdhui.getDate() < naissance.getDate())) {
+                age--;
+            }
+            if (age >= 0) {
+                ageInput.value = age;
+            }
+        } else {
+            ageInput.value = '';
+        }
+    }
 </script>
 
 <style>
