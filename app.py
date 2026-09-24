@@ -5280,9 +5280,14 @@ def nouvelle_hospitalisation():
             infirmiers_ids.append(str(current_user.id))
 
         # ===== NOTE D'ADMISSION =====
+        # ⭐ L'examen clinique n'est plus un textarea séparé — il vient de
+        # l'éditeur d'examen physique embarqué (voir plus bas), rempli
+        # directement ici plutôt qu'en étape séparée depuis la fiche
+        # hospitalisation.
         note_motif = request.form.get('note_motif', '').strip()
         note_contexte = request.form.get('note_contexte', '').strip()
-        note_examen_clinique = request.form.get('note_examen_clinique', '').strip()
+        examen_complet_pose = nettoyer_examen_complet(request.form.get('examen_complet', '')) if current_user.role != 'infirmier' else ''
+        note_examen_clinique = examen_complet_pose
         note_diagnostic = request.form.get('note_diagnostic', '').strip()
         note_examens = request.form.get('note_examens', '').strip()
         note_traitement = request.form.get('note_traitement', '').strip()
@@ -5348,22 +5353,29 @@ def nouvelle_hospitalisation():
             db.session.add(hospitalisation)
             db.session.flush()
 
-            # --- Copier l'examen physique de la consultation d'origine ---
-            # (patron : "examen physique préremplie à modifier exactement
-            # comme dans consultations") — sections_origine fige la copie
-            # pour permettre, ensuite, de griser ce que le médecin change
-            # depuis l'admission (voir hospitalisation_examen_physique).
-            if consultation_id:
+            # --- Examen physique — rempli directement dans ce formulaire
+            #     (éditeur embarqué, voir hospitalisations/
+            #     _examen_physique_editor.html) plutôt qu'en étape séparée
+            #     depuis la fiche hospitalisation. sections_origine fige la
+            #     copie de la consultation d'origine (même sans que
+            #     l'utilisateur y ait touché) pour permettre, ensuite, de
+            #     mettre en évidence ce que le médecin change depuis
+            #     l'admission (voir hospitalisation_examen_physique).
+            if current_user.role != 'infirmier':
                 from models import ExamenPhysique
-                examen_source = ExamenPhysique.query.filter_by(consultation_id=consultation_id).first()
-                if examen_source:
-                    db.session.add(ExamenPhysique(
-                        hospitalisation_id=hospitalisation.id,
-                        sections_modifiees=examen_source.sections_modifiees,
-                        sections_origine=examen_source.sections_modifiees or '{}',
-                        examen_complet=examen_source.examen_complet,
-                        created_by=current_user.id
-                    ))
+                sections_modifiees_posees = request.form.get('sections_modifiees', '{}')
+                sections_origine_posees = '{}'
+                if consultation_id:
+                    examen_source = ExamenPhysique.query.filter_by(consultation_id=consultation_id).first()
+                    if examen_source and examen_source.sections_modifiees:
+                        sections_origine_posees = examen_source.sections_modifiees
+                db.session.add(ExamenPhysique(
+                    hospitalisation_id=hospitalisation.id,
+                    sections_modifiees=sections_modifiees_posees,
+                    sections_origine=sections_origine_posees,
+                    examen_complet=examen_complet_pose,
+                    created_by=current_user.id
+                ))
 
             # --- Assigner le lit ---
             if lit_id:
@@ -5489,12 +5501,25 @@ def nouvelle_hospitalisation():
     # ⭐ Arrivée depuis "Hospitalisations en attente" (liste_hospitalisations)
     # — pré-sélectionne le patient et prépare le lien vers la consultation
     # d'origine (motif pré-rempli, examen physique copié à la création).
-    from models import Consultation
+    from models import Consultation, ExamenPhysique
+    import json as json_module
     consultation_origine = None
     patient_id_prerempli = request.args.get('patient_id', type=int)
     consultation_id_prerempli = request.args.get('consultation_id', type=int)
     if consultation_id_prerempli:
         consultation_origine = Consultation.query.get(consultation_id_prerempli)
+
+    # ⭐ Pré-remplit l'éditeur d'examen physique embarqué avec celui de la
+    # consultation d'origine, si elle en a un — l'utilisateur le voit et
+    # peut l'ajuster avant de créer l'hospitalisation (plutôt qu'une copie
+    # silencieuse côté serveur qu'il fallait ensuite aller vérifier).
+    examen_sections_modifiees_json = '{}'
+    examen_sections_origine_json = '{}'
+    if consultation_origine:
+        examen_source = ExamenPhysique.query.filter_by(consultation_id=consultation_origine.id).first()
+        if examen_source and examen_source.sections_modifiees:
+            examen_sections_modifiees_json = json_module.dumps(json_module.loads(examen_source.sections_modifiees))
+            examen_sections_origine_json = examen_sections_modifiees_json
 
     return render_template('hospitalisations/nouvelle.html',
                          patients=patients,
@@ -5502,6 +5527,8 @@ def nouvelle_hospitalisation():
                          infirmiers=infirmiers,
                          services=services,
                          consultation_origine=consultation_origine,
+                         examen_sections_modifiees_json=examen_sections_modifiees_json,
+                         examen_sections_origine_json=examen_sections_origine_json,
                          patient_id_prerempli=patient_id_prerempli)
 
 
@@ -5881,17 +5908,22 @@ def equipe_soignante_retirer(id):
 # ============================================================
 # AJOUTER UNE NOUVELLE NOTE D'ADMISSION (RÉÉVALUATION)
 # ============================================================
-@app.route('/hospitalisation/<int:id>/note/ajouter', methods=['POST'])
+@app.route('/hospitalisation/<int:id>/note/ajouter', methods=['GET', 'POST'])
 @login_required
 def ajouter_note_admission(id):
     """
-    Ajouter une nouvelle version de la note d'admission
-    (Réévaluation du patient par le médecin)
+    Rédiger une nouvelle version de la note d'admission (réévaluation, ou
+    première note si l'hospitalisation a été admise par un infirmier —
+    voir nouvelle_hospitalisation). ⭐ Page complète (plus une modale) car
+    l'examen physique se remplit maintenant directement ici, système par
+    système, plutôt qu'en étape séparée depuis la fiche hospitalisation
+    (patron : "remplisse directement l'examen physique dans la note
+    d'admission, pour ne pas qu'on ait à le faire dans hospitalisation").
     """
-    from models import Hospitalisation, NoteAdmission, HospitalisationMedecin
-    from datetime import datetime
+    from models import Hospitalisation, NoteAdmission, HospitalisationMedecin, ExamenPhysique
 
     hospitalisation = Hospitalisation.query.get_or_404(id)
+    patient = hospitalisation.patient
 
     # ============================================================
     # 1. VÉRIFICATION DES PERMISSIONS
@@ -5907,12 +5939,23 @@ def ajouter_note_admission(id):
         flash('Impossible d\'ajouter une note sur une hospitalisation clôturée.', 'danger')
         return redirect(url_for('detail_hospitalisation', id=id))
 
-    # ⭐ Vérifier que le médecin est assigné — SAUF si l'hospitalisation n'a
-    # encore AUCUN médecin assigné (cas d'une admission par un infirmier
-    # sans médecin sélectionné, voir nouvelle_hospitalisation) : dans ce
-    # cas, n'importe quel médecin de la structure peut rédiger la première
-    # note, ce qui l'assigne du même coup comme médecin traitant — sinon
-    # personne ne pourrait jamais la compléter.
+    # ⭐ Même accès que le reste de la fiche (couvre le cas orphelin — voir
+    # _a_acces_hospitalisation) ; l'assignation comme médecin traitant ne
+    # se fait qu'à la soumission réelle (POST), pas juste en consultant ce
+    # formulaire.
+    if not _a_acces_hospitalisation(current_user, hospitalisation):
+        flash('Vous n\'êtes pas assigné à cette hospitalisation.', 'danger')
+        return redirect(url_for('detail_hospitalisation', id=id))
+
+    examen_actuel = ExamenPhysique.query.filter_by(hospitalisation_id=id).first()
+
+    if request.method == 'GET':
+        return render_template('hospitalisations/reevaluation_form.html',
+                             hospitalisation=hospitalisation,
+                             patient=patient,
+                             examen_sections_modifiees_json=(examen_actuel.sections_modifiees if examen_actuel else '{}') or '{}',
+                             examen_sections_origine_json=(examen_actuel.sections_origine if examen_actuel else '{}') or '{}')
+
     if current_user.role == 'medecin':
         aucun_medecin_assigne = not HospitalisationMedecin.query.filter_by(
             hospitalisation_id=id, actif=True
@@ -5925,34 +5968,26 @@ def ajouter_note_admission(id):
                 date_assignation=datetime.utcnow(),
                 actif=True
             ))
-        else:
-            assigne = HospitalisationMedecin.query.filter_by(
-                hospitalisation_id=id,
-                medecin_id=current_user.id,
-                actif=True
-            ).first()
-            if not assigne:
-                flash('Vous n\'êtes pas assigné à cette hospitalisation.', 'danger')
-                return redirect(url_for('detail_hospitalisation', id=id))
-    
+
     # ============================================================
     # 2. RÉCUPÉRATION DES DONNÉES DU FORMULAIRE
     # ============================================================
-    
+
     note_motif = request.form.get('note_motif', '').strip()
     note_contexte = request.form.get('note_contexte', '').strip()
-    note_examen_clinique = request.form.get('note_examen_clinique', '').strip()
+    examen_complet_pose = nettoyer_examen_complet(request.form.get('examen_complet', ''))
+    note_examen_clinique = examen_complet_pose
     note_diagnostic = request.form.get('note_diagnostic', '').strip()
     note_examens = request.form.get('note_examens', '').strip()
     note_traitement = request.form.get('note_traitement', '').strip()
     note_evolution_prevue = request.form.get('note_evolution_prevue', '').strip()
     note_conclusion = request.form.get('note_conclusion', '').strip()
     note_constantes = request.form.get('note_constantes', '').strip()
-    
+
     # ============================================================
     # 3. VALIDATION
     # ============================================================
-    
+
     champs_obligatoires = {
         'Motif d\'hospitalisation': note_motif,
         'Contexte et antécédents': note_contexte,
@@ -5961,15 +5996,15 @@ def ajouter_note_admission(id):
         'Traitement initial': note_traitement,
         'Conclusion du médecin': note_conclusion
     }
-    
+
     champs_manquants = []
     for nom, valeur in champs_obligatoires.items():
         if not valeur:
             champs_manquants.append(nom)
-    
+
     if champs_manquants:
         flash(f'La note est incomplète. Champs obligatoires : {", ".join(champs_manquants)}', 'danger')
-        return redirect(url_for('detail_hospitalisation', id=id))
+        return redirect(url_for('ajouter_note_admission', id=id))
     
     # ============================================================
     # 4. CALCUL DU NUMÉRO DE VERSION
@@ -6023,6 +6058,24 @@ def ajouter_note_admission(id):
         # ⭐ Lève l'alerte "à compléter" si c'était une admission infirmière
         # sans note — voir nouvelle_hospitalisation.
         hospitalisation.note_admission_a_completer = False
+
+        # ⭐ Examen physique — upsert de la même ExamenPhysique singleton
+        # que l'éditeur autonome (enregistrer_examen_physique_hospitalisation),
+        # sections_origine JAMAIS touchée ici (référence figée à
+        # l'admission, comparaison valable sur tout le séjour).
+        sections_modifiees_posees = request.form.get('sections_modifiees', '{}')
+        if examen_actuel:
+            examen_actuel.examen_complet = examen_complet_pose
+            examen_actuel.sections_modifiees = sections_modifiees_posees
+            examen_actuel.modified_at = datetime.utcnow()
+        else:
+            db.session.add(ExamenPhysique(
+                hospitalisation_id=id,
+                examen_complet=examen_complet_pose,
+                sections_modifiees=sections_modifiees_posees,
+                sections_origine='{}',
+                created_by=current_user.id
+            ))
 
         # ============================================================
         # 7. LOG DANS LES NOTES CLINIQUES (optionnel)
@@ -6418,11 +6471,16 @@ def visites_infirmieres_liste(id):
         return redirect(url_for('dashboard'))
 
     visites = hospitalisation.visites_infirmieres.order_by(VisiteInfirmiere.date_visite.desc()).all()
+    # ⭐ Même rendu section-par-section (avec surlignage des sections
+    # modifiées) que partout ailleurs où l'examen physique s'affiche —
+    # voir hospitalisations/_examen_physique_sections.html.
+    visite_sections = {v.id: _rendre_sections_examen_physique(v) for v in visites}
 
     return render_template('hospitalisations/visites_infirmieres_liste.html',
                          hospitalisation=hospitalisation,
                          patient=hospitalisation.patient,
-                         visites=visites)
+                         visites=visites,
+                         visite_sections=visite_sections)
 
 
 # ==================== CONSIGNE MÉDICALE ====================
@@ -12274,12 +12332,17 @@ def imprimer_dossier_patient(patient_id):
         examen_physique = ExamenPhysique.query.filter_by(
             consultation_id=consultation.id
         ).first()
-        
+        # ⭐ Même rendu section-par-section (avec surlignage des sections
+        # modifiées) que sur les pages détail — voir
+        # hospitalisations/_examen_physique_sections.html.
+        examen_physique_sections = _rendre_sections_examen_physique(examen_physique)
+
         consultations_data.append({
             'consultation': consultation,
             'medecin': medecin,
             'prescriptions': prescriptions,
             'examens_prescrits': examens_prescrits,
+            'examen_physique_sections': examen_physique_sections,
             'analyses': analyses,
             'examen_physique': examen_physique
         })
@@ -12330,7 +12393,15 @@ def imprimer_dossier_patient(patient_id):
             hospitalisation_id=hosp.id,
             est_active=True
         ).all()
-        
+
+        # ⭐ L'examen physique n'apparaissait nulle part côté hospitalisation
+        # dans ce dossier imprimé (seulement côté consultation) — même
+        # rendu section-par-section que partout ailleurs.
+        examen_physique_hosp = ExamenPhysique.query.filter_by(
+            hospitalisation_id=hosp.id
+        ).first()
+        examen_physique_sections_hosp = _rendre_sections_examen_physique(examen_physique_hosp)
+
         hospitalisations_data.append({
             'hospitalisation': hosp,
             'medecins': medecins,
@@ -12341,6 +12412,7 @@ def imprimer_dossier_patient(patient_id):
             'note_active': note_active,
             'ordonnance_medicaments': ordonnance_medicaments,
             'examens_prescrits': examens_hosp,
+            'examen_physique_sections': examen_physique_sections_hosp,
             'protocole': hosp.protocole
         })
     

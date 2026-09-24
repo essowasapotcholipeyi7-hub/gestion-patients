@@ -260,26 +260,9 @@
                     <!-- Examen physique -->
                     <h5 class="mt-3 mb-3">Examen physique</h5>
                     <hr>
-                    {% if examen_physique_sections %}
-                        {% set nb_modifiees = examen_physique_sections|selectattr('modifie')|list|length %}
-                        {% if nb_modifiees > 0 %}
-                        <p class="small mb-3" style="color: var(--hp-warning);">
-                            <i class="fas fa-pen me-1"></i>
-                            {{ nb_modifiees }} section(s) modifiée(s) par rapport au texte type (mise(s) en évidence ci-dessous).
-                        </p>
-                        {% endif %}
-                        {% for section in examen_physique_sections %}
-                            {% if section.texte and section.texte.strip() %}
-                            <div class="mb-3 p-2 rounded{% if section.modifie %} border-start border-4{% endif %}" {% if section.modifie %}style="background: var(--hp-warning-light); border-color: var(--hp-warning) !important;"{% endif %}>
-                                <strong><i class="fas {{ section.icone }} me-1"></i>{{ section.nom }}</strong>
-                                {% if section.modifie %}<span class="badge ms-2" style="background: var(--hp-warning);">Modifié</span>{% endif %}
-                                <p class="mb-0 mt-1{% if section.modifie %} fw-bold{% endif %}" style="white-space: pre-wrap;{% if section.modifie %} color: var(--hp-warning);{% endif %}">{{ section.texte }}</p>
-                            </div>
-                            {% endif %}
-                        {% endfor %}
-                    {% else %}
-                        <p class="text-muted">Aucun examen physique renseigné pour cette consultation.</p>
-                    {% endif %}
+                    {% with sections = examen_physique_sections, toggle_id = 'examenPhysiqueConsultation' %}
+                        {% include "hospitalisations/_examen_physique_sections.html" %}
+                    {% endwith %}
 
 
 <!-- ========================================================== -->

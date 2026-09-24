@@ -194,15 +194,15 @@
 {% if hospitalisation.statut == 'actif' %}
 <div class="row mb-4">
     <div class="col-md-3">
-        <a href="{{ url_for('ajouter_evolution', id=hospitalisation.id) }}" class="btn btn-primary w-100">
-            <i class="fas fa-notes-medical me-2"></i>Évolution
-            <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé au médecin</small>
-        </a>
-    </div>
-    <div class="col-md-3">
         <a href="{{ url_for('ajouter_constante', id=hospitalisation.id) }}" class="btn btn-success w-100">
             <i class="fas fa-heartbeat me-2"></i>Constantes
             <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé aux infirmiers</small>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('ajouter_evolution', id=hospitalisation.id) }}" class="btn btn-primary w-100">
+            <i class="fas fa-notes-medical me-2"></i>Évolution
+            <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé au médecin</small>
         </a>
     </div>
     <div class="col-md-3">
@@ -244,9 +244,9 @@
                         {% endif %}
                     </div>
                     {% if hospitalisation.statut == 'actif' and current_user.role in ['admin_structure', 'medecin'] %}
-                    <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#nouvelleNoteModal">
+                    <a href="{{ url_for('ajouter_note_admission', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
                         <i class="fas fa-plus me-1"></i>{% if note_active %}Nouvelle réévaluation{% else %}Compléter la note d'admission{% endif %}
-                    </button>
+                    </a>
                     {% endif %}
                 </div>
                 <div class="card-body">
@@ -260,7 +260,13 @@
                             <div class="col-md-6">
                                 <p><strong>Motif d'hospitalisation</strong><br>{{ note_active.motif_admission or '-' }}</p>
                                 <p><strong>Contexte et antécédents</strong><br>{{ note_active.contexte_admission or '-' }}</p>
-                                <p><strong>Examen clinique initial</strong><br>{{ note_active.examen_clinique_admission or '-' }}</p>
+                                <p>
+                                    <strong>Examen clinique initial</strong><br>
+                                    {{ note_active.examen_clinique_admission|truncate(150) if note_active.examen_clinique_admission else '-' }}
+                                    {% if note_active.examen_clinique_admission %}
+                                    <br><a href="#examenPhysiqueCard" class="small"><i class="fas fa-arrow-down me-1"></i>Voir l'examen physique détaillé ci-dessous</a>
+                                    {% endif %}
+                                </p>
                                 {% if note_active.constantes_admission %}
                                 <p><strong>Constantes</strong><br>{{ note_active.constantes_admission }}</p>
                                 {% endif %}
@@ -622,7 +628,7 @@
 <!-- ⭐ CARTE EXAMEN PHYSIQUE (pré-rempli depuis la consultation, -->
 <!-- sections modifiées depuis l'admission grisées)              -->
 <!-- ========================================================== -->
-<div class="card mb-4 border-primary">
+<div class="card mb-4 border-primary" id="examenPhysiqueCard">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
         <div>
             <i class="fas fa-stethoscope me-2"></i>
@@ -635,28 +641,9 @@
         {% endif %}
     </div>
     <div class="card-body">
-        {% if examen_physique_sections %}
-            {% set nb_modifiees = examen_physique_sections|selectattr('modifie')|list|length %}
-            {% if nb_modifiees > 0 %}
-            <p class="small mb-3" style="color: var(--hp-warning);">
-                <i class="fas fa-pen me-1"></i>
-                {{ nb_modifiees }} section(s) modifiée(s) depuis l'admission (mise(s) en évidence ci-dessous).
-            </p>
-            {% endif %}
-            {% for section in examen_physique_sections %}
-                {% if section.texte and section.texte.strip() %}
-                <div class="mb-3 p-2 rounded{% if section.modifie %} border-start border-4{% endif %}" {% if section.modifie %}style="background: var(--hp-warning-light); border-color: var(--hp-warning) !important;"{% endif %}>
-                    <strong><i class="fas {{ section.icone }} me-1"></i>{{ section.nom }}</strong>
-                    {% if section.modifie %}<span class="badge ms-2" style="background: var(--hp-warning);">Modifié depuis l'admission</span>{% endif %}
-                    <p class="mb-0 mt-1{% if section.modifie %} fw-bold{% endif %}" style="white-space: pre-wrap;{% if section.modifie %} color: var(--hp-warning);{% endif %}">{{ section.texte }}</p>
-                </div>
-                {% endif %}
-            {% endfor %}
-        {% else %}
-            <p class="text-muted text-center my-3">
-                <i class="fas fa-info-circle me-2"></i>Aucun examen physique renseigné pour cette hospitalisation.
-            </p>
-        {% endif %}
+        {% with sections = examen_physique_sections, toggle_id = 'examenPhysiqueHospitalisation' %}
+            {% include "hospitalisations/_examen_physique_sections.html" %}
+        {% endwith %}
     </div>
 </div>
 
@@ -892,76 +879,12 @@
             </div>
             {% endif %}
 
-            <!-- ========================================================== -->
-            <!-- ÉVOLUTIONS                                                  -->
-            <!-- ========================================================== -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Évolutions</h5>
-                    <span class="badge bg-primary">{{ evolutions|length }}</span>
-                </div>
-                <div class="card-body">
-                    {% if evolutions %}
-                    <div class="timeline">
-                        {% for evolution in evolutions %}
-                        <div class="border-start border-3 ps-3 mb-3 {% if evolution.etat_echelle >= 7 %}border-success{% elif evolution.etat_echelle >= 4 %}border-warning{% else %}border-danger{% endif %}">
-                            <div class="d-flex justify-content-between">
-                                <strong>{{ evolution.date_evolution.strftime('%d/%m/%Y %H:%M') }}</strong>
-                                <span class="badge bg-{% if evolution.etat_echelle >= 7 %}success{% elif evolution.etat_echelle >= 4 %}warning{% else %}danger{% endif %}">
-                                    État: {{ evolution.etat_echelle }}/10
-                                </span>
-                            </div>
-                            <p class="mb-1">
-                                <strong>Symptômes :</strong> {{ evolution.symptomes or 'Non renseignés' }}
-                            </p>
-                            <p class="mb-1">
-                                <strong>Observations :</strong> {{ evolution.observations or 'Non renseignées' }}
-                            </p>
-                            {% if evolution.traitement_administre %}
-                            <p class="mb-1">
-                                <strong>Traitement :</strong> {{ evolution.traitement_administre }}
-                            </p>
-                            {% endif %}
-                            {% if evolution.prochaines_etapes %}
-                            <p class="mb-1">
-                                <strong>Prochaines étapes :</strong> {{ evolution.prochaines_etapes }}
-                            </p>
-                            {% endif %}
-                            <!-- Évolution par rapport à l'admission -->
-                            {% if evolution.evolution_par_rapport %}
-                            <p class="mb-1">
-                                <strong>Évolution :</strong>
-                                <span class="badge 
-                                    {% if evolution.evolution_par_rapport == 'amelioration' %}bg-success
-                                    {% elif evolution.evolution_par_rapport == 'aggravation' %}bg-danger
-                                    {% elif evolution.evolution_par_rapport == 'stable' %}bg-secondary
-                                    {% else %}bg-info{% endif %}">
-                                    {% if evolution.evolution_par_rapport == 'amelioration' %}Amélioration
-                                    {% elif evolution.evolution_par_rapport == 'aggravation' %}Aggravation
-                                    {% elif evolution.evolution_par_rapport == 'stable' %}Stable
-                                    {% else %}{{ evolution.evolution_par_rapport }}{% endif %}
-                                </span>
-                            </p>
-                            {% endif %}
-                            <small class="text-muted">
-                                <i class="fas fa-user me-1"></i> {{ evolution.redacteur.nom }} {{ evolution.redacteur.prenom }}
-                                ({{ evolution.redacteur.role }})
-                            </small>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <p class="text-muted text-center my-4">
-                        <i class="fas fa-info-circle me-2"></i>Aucune évolution enregistrée
-                    </p>
-                    {% endif %}
-                </div>
-            </div>
-
+            <!-- ⭐ Constantes avant évolution — patron : "logique normale" -->
+            <!-- (on prend les constantes avant d'évaluer l'évolution).      -->
             <!-- ========================================================== -->
             <!-- CONSTANTES VITALES                                          -->
             <!-- ========================================================== -->
-            <div class="card">
+            <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Constantes Vitales</h5>
                     <span class="badge bg-success">{{ constantes|length }}</span>
@@ -1029,7 +952,7 @@
                                     </td>
                                     <td>
                                         {% if c.evolution_par_rapport %}
-                                            <span class="badge 
+                                            <span class="badge
                                                 {% if c.evolution_par_rapport == 'amelioration' %}bg-success
                                                 {% elif c.evolution_par_rapport == 'aggravation' %}bg-danger
                                                 {% else %}bg-secondary{% endif %}">
@@ -1047,7 +970,7 @@
                             </tbody>
                         </table>
                     </div>
-                    
+
                     <!-- Dernière constante en évidence -->
                     {% if constantes %}
                     <div class="mt-3">
@@ -1096,6 +1019,72 @@
                         </a>
                         {% endif %}
                     </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- ÉVOLUTIONS                                                  -->
+            <!-- ========================================================== -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Évolutions</h5>
+                    <span class="badge bg-primary">{{ evolutions|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if evolutions %}
+                    <div class="timeline">
+                        {% for evolution in evolutions %}
+                        <div class="border-start border-3 ps-3 mb-3 {% if evolution.etat_echelle >= 7 %}border-success{% elif evolution.etat_echelle >= 4 %}border-warning{% else %}border-danger{% endif %}">
+                            <div class="d-flex justify-content-between">
+                                <strong>{{ evolution.date_evolution.strftime('%d/%m/%Y %H:%M') }}</strong>
+                                <span class="badge bg-{% if evolution.etat_echelle >= 7 %}success{% elif evolution.etat_echelle >= 4 %}warning{% else %}danger{% endif %}">
+                                    État: {{ evolution.etat_echelle }}/10
+                                </span>
+                            </div>
+                            <p class="mb-1">
+                                <strong>Symptômes :</strong> {{ evolution.symptomes or 'Non renseignés' }}
+                            </p>
+                            <p class="mb-1">
+                                <strong>Observations :</strong> {{ evolution.observations or 'Non renseignées' }}
+                            </p>
+                            {% if evolution.traitement_administre %}
+                            <p class="mb-1">
+                                <strong>Traitement :</strong> {{ evolution.traitement_administre }}
+                            </p>
+                            {% endif %}
+                            {% if evolution.prochaines_etapes %}
+                            <p class="mb-1">
+                                <strong>Prochaines étapes :</strong> {{ evolution.prochaines_etapes }}
+                            </p>
+                            {% endif %}
+                            <!-- Évolution par rapport à l'admission -->
+                            {% if evolution.evolution_par_rapport %}
+                            <p class="mb-1">
+                                <strong>Évolution :</strong>
+                                <span class="badge
+                                    {% if evolution.evolution_par_rapport == 'amelioration' %}bg-success
+                                    {% elif evolution.evolution_par_rapport == 'aggravation' %}bg-danger
+                                    {% elif evolution.evolution_par_rapport == 'stable' %}bg-secondary
+                                    {% else %}bg-info{% endif %}">
+                                    {% if evolution.evolution_par_rapport == 'amelioration' %}Amélioration
+                                    {% elif evolution.evolution_par_rapport == 'aggravation' %}Aggravation
+                                    {% elif evolution.evolution_par_rapport == 'stable' %}Stable
+                                    {% else %}{{ evolution.evolution_par_rapport }}{% endif %}
+                                </span>
+                            </p>
+                            {% endif %}
+                            <small class="text-muted">
+                                <i class="fas fa-user me-1"></i> {{ evolution.redacteur.nom }} {{ evolution.redacteur.prenom }}
+                                ({{ evolution.redacteur.role }})
+                            </small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center my-4">
+                        <i class="fas fa-info-circle me-2"></i>Aucune évolution enregistrée
+                    </p>
                     {% endif %}
                 </div>
             </div>
@@ -1714,88 +1703,6 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                     <button type="submit" class="btn btn-info text-white">
                         <i class="fas fa-save me-2"></i>Enregistrer l'avis
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-
-<!-- ============================================================ -->
-<!-- ⭐ MODAL NOUVELLE NOTE (RÉÉVALUATION)                         -->
-<!-- ============================================================ -->
-<div class="modal fade" id="nouvelleNoteModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title">
-                    <i class="fas fa-file-medical-alt me-2"></i>
-                    Nouvelle note de réévaluation
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST" action="{{ url_for('ajouter_note_admission', id=hospitalisation.id) }}">
-                <div class="modal-body">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-info-circle me-2"></i>
-                        Vous créez une <strong>nouvelle version</strong> de la note d'admission.
-                        {% if note_active %}
-                        <br>La version précédente (v{{ note_active.version }}) restera consultable dans l'historique.
-                        {% endif %}
-                    </div>
-                    
-                    <!-- Réutilisation du même formulaire que pour la note initiale -->
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold"><span class="text-danger">*</span> Motif d'hospitalisation</label>
-                                <textarea name="note_motif" class="form-control" rows="2" required placeholder="Raison principale..."></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold"><span class="text-danger">*</span> Contexte et Antécédents</label>
-                                <textarea name="note_contexte" class="form-control" rows="3" required placeholder="Antécédents, traitements en cours..."></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold"><span class="text-danger">*</span> Examen clinique initial</label>
-                                <textarea name="note_examen_clinique" class="form-control" rows="3" required placeholder="Constantes, symptômes observés..."></textarea>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold"><span class="text-danger">*</span> Diagnostic présumé</label>
-                                <textarea name="note_diagnostic" class="form-control" rows="2" required placeholder="Hypothèses diagnostiques..."></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Examens complémentaires</label>
-                                <textarea name="note_examens" class="form-control" rows="2" placeholder="Analyses, imagerie..."></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold"><span class="text-danger">*</span> Traitement initial</label>
-                                <textarea name="note_traitement" class="form-control" rows="2" required placeholder="Médicaments prescrits..."></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Évolution prévue / Objectifs</label>
-                                <textarea name="note_evolution_prevue" class="form-control" rows="2" placeholder="Objectifs, prochaines étapes..."></textarea>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold"><span class="text-danger">*</span> Conclusion du médecin</label>
-                                <textarea name="note_conclusion" class="form-control" rows="2" required placeholder="Synthèse, recommandations..."></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    <input type="hidden" name="est_initial" value="false">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="submit" class="btn btn-warning text-dark">
-                        <i class="fas fa-save me-2"></i>Créer la nouvelle note
                     </button>
                 </div>
             </form>

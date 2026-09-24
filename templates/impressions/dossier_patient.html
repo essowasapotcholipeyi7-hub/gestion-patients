@@ -269,11 +269,13 @@
             {% endif %}
 
             <!-- EXAMEN PHYSIQUE - COMPLET SANS LIMITATION -->
-            {% if data.examen_physique and data.examen_physique.examen_complet %}
+            {% if data.examen_physique_sections %}
             <div class="examen-physique-block">
                 <span class="ep-label">Examen physique</span>
-                <div style="white-space: pre-wrap; font-size: 11px; margin-top: 3px; padding: 8px; background: #f8f9fa; border-radius: 3px; border: 1px solid #e9ecef;">
-                    {{ data.examen_physique.examen_complet }}
+                <div style="font-size: 11px; margin-top: 3px;">
+                    {% with sections = data.examen_physique_sections, collapsible = false %}
+                        {% include "hospitalisations/_examen_physique_sections.html" %}
+                    {% endwith %}
                 </div>
             </div>
             {% endif %}
@@ -427,6 +429,18 @@
                         Rédigé par : {{ hd.note_active.redacteur.prenom if hd.note_active.redacteur else 'Inconnu' }} {{ hd.note_active.redacteur.nom if hd.note_active.redacteur else '' }}
                         le {{ hd.note_active.date_redaction.strftime('%d/%m/%Y %H:%M') if hd.note_active.date_redaction else '-' }}
                     </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- EXAMEN PHYSIQUE -->
+            {% if hd.examen_physique_sections %}
+            <div class="examen-physique-block">
+                <span class="ep-label">Examen physique</span>
+                <div style="font-size: 11px; margin-top: 3px;">
+                    {% with sections = hd.examen_physique_sections, collapsible = false %}
+                        {% include "hospitalisations/_examen_physique_sections.html" %}
+                    {% endwith %}
                 </div>
             </div>
             {% endif %}

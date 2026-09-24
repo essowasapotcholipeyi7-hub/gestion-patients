@@ -1,0 +1,209 @@
+{# ============================================================
+   Éditeur d'examen physique EMBARQUÉ dans le formulaire de note
+   d'admission (création ou réévaluation) — patron : "remplisse
+   directement l'examen physique dans la note d'admission, pour ne
+   pas qu'on ait à faire ça séparément dans l'hospitalisation". Même
+   logique de sections/diff que consultations/examen_physique.html et
+   hospitalisations/visite_infirmiere_form.html, packagée ici pour ne
+   pas la tripler. L'affichage en lecture seule reste à sa place
+   habituelle (carte "Examen physique" de la fiche hospitalisation) —
+   ce bloc ne fait qu'ALIMENTER la même ExamenPhysique via les champs
+   cachés sections_modifiees/examen_complet, lus côté serveur par la
+   route qui traite le formulaire englobant.
+
+   Contexte attendu :
+     sections_modifiees_initial_json — JSON (str) des sections déjà
+       personnalisées, '{}' si aucune
+     sections_origine_initial_json   — JSON (str) de la référence de
+       diff (ex. examen de la consultation d'origine), '{}' si aucune
+   ============================================================ #}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="fas fa-stethoscope me-2"></i>Examen physique</span>
+        <div>
+            <button type="button" class="btn btn-sm btn-success" onclick="epAjouterAppareil()">
+                <i class="fas fa-plus me-1"></i>Ajouter un appareil non cité
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="epToutReinitialiser()">
+                <i class="fas fa-undo me-1"></i>Réinitialiser tout
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="epSectionsContainer">
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Chargement...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<input type="hidden" name="sections_modifiees" id="epSectionsModifiees">
+<input type="hidden" name="examen_complet" id="epExamenComplet">
+
+<!-- Modal de modification d'une section -->
+<div class="modal fade" id="epEditModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Modifier la section : <span id="epEditName"></span></h5>
+                <button type="button" class="btn-close" id="epBtnCloseModal"></button>
+            </div>
+            <div class="modal-body">
+                <textarea id="epEditText" class="form-control" rows="8" style="font-family: 'Courier New', monospace; font-size: 14px;"></textarea>
+                <small class="text-muted">Modifiez le texte ci-dessus. Laissez vide pour revenir au texte original.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="epBtnAnnulerModal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="epBtnSaveSection">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    let epSectionsModifiees = JSON.parse('{{ (sections_modifiees_initial_json or "{}")|safe }}');
+    let epSectionsOriginales = JSON.parse('{{ (sections_origine_initial_json or "{}")|safe }}');
+    let epSectionsData = [];
+    let epCurrentEditIndex = null;
+    let epValeurOriginaleModal = '';
+
+    async function epChargerSections() {
+        const container = document.getElementById('epSectionsContainer');
+        try {
+            const response = await fetch('/api/examen-physique/sections?lang=fr');
+            epSectionsData = await response.json();
+            epAfficherSections();
+        } catch (error) {
+            container.innerHTML = '<div class="alert alert-danger">Erreur de chargement des sections. Rafraîchissez la page.</div>';
+        }
+    }
+
+    function epAfficherSections() {
+        const container = document.getElementById('epSectionsContainer');
+        container.innerHTML = '';
+
+        epSectionsData.forEach((section, index) => {
+            if (epSectionsOriginales[index] === undefined) {
+                epSectionsOriginales[index] = section.texte;
+            }
+            const reference = epSectionsOriginales[index];
+            const isModified = epSectionsModifiees[index] !== undefined && epSectionsModifiees[index] !== reference;
+            const texte = epSectionsModifiees[index] !== undefined ? epSectionsModifiees[index] : reference;
+
+            const div = document.createElement('div');
+            div.className = 'card mb-3';
+            div.innerHTML = `
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas ${section.icone} me-2"></i>
+                        <strong>${section.nom}</strong>
+                        ${isModified ? '<span class="badge ms-2" style="background: var(--hp-warning);">Modifié</span>' : '<span class="badge bg-light text-dark ms-2">Original</span>'}
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-primary me-1" onclick="epOuvrirModal(${index})">
+                            <i class="fas fa-edit me-1"></i>Modifier
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="epResetSection(${index})" ${!isModified ? 'disabled' : ''}>
+                            <i class="fas fa-undo me-1"></i>Réinitialiser
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" style="${isModified ? 'background: var(--hp-warning-light);' : ''}">
+                    <p class="mb-0${isModified ? ' fw-bold' : ''}" style="white-space: pre-wrap; font-size: 14px;${isModified ? ' color: var(--hp-warning);' : ''}">${texte}</p>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
+        epGenererResume();
+    }
+
+    function epGenererResume() {
+        let resume = '';
+        epSectionsData.forEach((section, index) => {
+            const reference = epSectionsOriginales[index] !== undefined ? epSectionsOriginales[index] : section.texte;
+            const texte = epSectionsModifiees[index] !== undefined ? epSectionsModifiees[index] : reference;
+            resume += `--- ${section.nom.toUpperCase()} ---\n${texte}\n\n`;
+        });
+        document.getElementById('epExamenComplet').value = resume.trim();
+        document.getElementById('epSectionsModifiees').value = JSON.stringify(epSectionsModifiees);
+    }
+
+    window.epAjouterAppareil = function() {
+        const nom = prompt('Nom de l\'appareil / section :');
+        if (!nom) return;
+        const texte = prompt(`Texte pour "${nom}" :`);
+        if (!texte) return;
+        const index = epSectionsData.length;
+        epSectionsData.push({ nom: nom, icone: 'fa-plus-circle', texte: texte });
+        epSectionsModifiees[index] = texte;
+        epAfficherSections();
+    };
+
+    window.epToutReinitialiser = function() {
+        if (confirm('Réinitialiser toutes les sections ?')) {
+            epSectionsModifiees = {};
+            epAfficherSections();
+        }
+    };
+
+    window.epResetSection = function(index) {
+        if (confirm(`Revenir au texte original pour la section "${epSectionsData[index].nom}" ?`)) {
+            delete epSectionsModifiees[index];
+            epAfficherSections();
+        }
+    };
+
+    window.epOuvrirModal = function(index) {
+        const section = epSectionsData[index];
+        if (!section) return;
+        epCurrentEditIndex = index;
+        const reference = epSectionsOriginales[index] !== undefined ? epSectionsOriginales[index] : section.texte;
+        const texteActuel = epSectionsModifiees[index] !== undefined ? epSectionsModifiees[index] : reference;
+        document.getElementById('epEditName').textContent = section.nom;
+        document.getElementById('epEditText').value = texteActuel;
+        epValeurOriginaleModal = texteActuel;
+        new bootstrap.Modal(document.getElementById('epEditModal')).show();
+    };
+
+    function epSauvegarderModification() {
+        if (epCurrentEditIndex === null) return;
+        const nouveauTexte = document.getElementById('epEditText').value;
+        if (nouveauTexte.trim() === '') {
+            delete epSectionsModifiees[epCurrentEditIndex];
+        } else {
+            epSectionsModifiees[epCurrentEditIndex] = nouveauTexte.trim();
+        }
+        epFermerModal();
+        epAfficherSections();
+    }
+
+    function epAnnulerModification() {
+        document.getElementById('epEditText').value = epValeurOriginaleModal;
+        epFermerModal();
+    }
+
+    function epFermerModal() {
+        epCurrentEditIndex = null;
+        const modalElement = document.getElementById('epEditModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) modal.hide();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('epBtnSaveSection').addEventListener('click', epSauvegarderModification);
+        document.getElementById('epBtnAnnulerModal').addEventListener('click', epAnnulerModification);
+        document.getElementById('epBtnCloseModal').addEventListener('click', epAnnulerModification);
+        epChargerSections();
+    });
+
+    // ⭐ Regénère le résumé/JSON juste avant la soumission du formulaire
+    // englobant (celui-ci n'a pas son propre bouton "Enregistrer" — il
+    // fait partie du formulaire de note d'admission).
+    window.epPreparerAvantEnvoi = epGenererResume;
+})();
+</script>

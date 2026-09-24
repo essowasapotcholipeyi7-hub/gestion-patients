@@ -1,0 +1,48 @@
+{# ============================================================
+   Affichage en LECTURE SEULE de l'examen physique — système par
+   système, sections modifiées mises en évidence en ambre/gras
+   (patron : "texte modifié dans une autre couleur, en gras, pour
+   voir clairement la partie touchée"). Partagé entre consultation
+   détail, hospitalisation détail, visites infirmières et impression,
+   pour un rendu identique partout (patron : "fait ça partout où
+   s'affiche l'examen physique").
+
+   Contexte attendu :
+     sections     — liste depuis _rendre_sections_examen_physique() (app.py)
+     toggle_id    — id HTML unique pour le bloc plié/étendu
+     collapsible  — bool, def. true ; false pour un rendu figé (impression)
+   ============================================================ #}
+{% set collapsible = collapsible if collapsible is defined else true %}
+{% if sections %}
+    {% set nb_modifiees = sections|selectattr('modifie')|list|length %}
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+        {% if nb_modifiees > 0 %}
+        <p class="small mb-0" style="color: var(--hp-warning);">
+            <i class="fas fa-pen me-1"></i>
+            {{ nb_modifiees }} section(s) modifiée(s) (mise(s) en évidence ci-dessous).
+        </p>
+        {% else %}
+        <span></span>
+        {% endif %}
+        {% if collapsible %}
+        <button type="button" class="btn btn-sm btn-outline-secondary no-print" id="btn-{{ toggle_id }}" onclick="toggleExamenPhysique('{{ toggle_id }}')">
+            <i class="fas fa-chevron-up me-1"></i>Réduire
+        </button>
+        {% endif %}
+    </div>
+    <div id="{{ toggle_id }}">
+        {% for section in sections %}
+            {% if section.texte and section.texte.strip() %}
+            <div class="mb-3 p-2 rounded{% if section.modifie %} border-start border-4{% endif %}" {% if section.modifie %}style="background: var(--hp-warning-light); border-color: var(--hp-warning) !important;"{% endif %}>
+                <strong><i class="fas {{ section.icone }} me-1"></i>{{ section.nom }}</strong>
+                {% if section.modifie %}<span class="badge ms-2" style="background: var(--hp-warning);">Modifié</span>{% endif %}
+                <p class="mb-0 mt-1{% if section.modifie %} fw-bold{% endif %}" style="white-space: pre-wrap;{% if section.modifie %} color: var(--hp-warning);{% endif %}">{{ section.texte }}</p>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="text-muted text-center my-3">
+        <i class="fas fa-info-circle me-2"></i>Aucun examen physique renseigné.
+    </p>
+{% endif %}

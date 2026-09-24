@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Réévaluation - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-file-medical-alt me-2 text-warning"></i>
+            Note d'admission - {{ patient.prenom }} {{ patient.nom }}
+        </h1>
+        <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Retour
+        </a>
+    </div>
+
+    <div class="alert alert-warning">
+        <i class="fas fa-info-circle me-2"></i>
+        Vous créez une <strong>nouvelle version</strong> de la note d'admission — la version précédente
+        reste consultable dans l'historique. L'examen physique se remplit directement ci-dessous.
+    </div>
+
+    <form method="POST" action="{{ url_for('ajouter_note_admission', id=hospitalisation.id) }}" id="reevaluationForm">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold"><span class="text-danger">*</span> Motif d'hospitalisation</label>
+                            <textarea name="note_motif" class="form-control" rows="2" required placeholder="Raison principale..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold"><span class="text-danger">*</span> Contexte et Antécédents</label>
+                            <textarea name="note_contexte" class="form-control" rows="3" required placeholder="Antécédents, traitements en cours..."></textarea>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold"><span class="text-danger">*</span> Diagnostic présumé</label>
+                            <textarea name="note_diagnostic" class="form-control" rows="2" required placeholder="Hypothèses diagnostiques..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Examens complémentaires</label>
+                            <textarea name="note_examens" class="form-control" rows="2" placeholder="Analyses, imagerie..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold"><span class="text-danger">*</span> Traitement initial</label>
+                            <textarea name="note_traitement" class="form-control" rows="2" required placeholder="Médicaments prescrits..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Évolution prévue / Objectifs</label>
+                            <textarea name="note_evolution_prevue" class="form-control" rows="2" placeholder="Objectifs, prochaines étapes..."></textarea>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold"><span class="text-danger">*</span> Conclusion du médecin</label>
+                            <textarea name="note_conclusion" class="form-control" rows="4" required placeholder="Synthèse, recommandations..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <input type="hidden" name="note_constantes" value="">
+                <input type="hidden" name="est_initial" value="false">
+            </div>
+        </div>
+
+        {% with sections_modifiees_initial_json = examen_sections_modifiees_json, sections_origine_initial_json = examen_sections_origine_json %}
+            {% include "hospitalisations/_examen_physique_editor.html" %}
+        {% endwith %}
+
+        <div class="d-flex justify-content-between">
+            <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Annuler
+            </a>
+            <button type="submit" class="btn btn-warning text-dark" id="btnSubmitReevaluation">
+                <i class="fas fa-save me-2"></i>Enregistrer la note
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.getElementById('reevaluationForm').addEventListener('submit', function(e) {
+    if (window.epPreparerAvantEnvoi) window.epPreparerAvantEnvoi();
+
+    const champs = ['note_motif', 'note_contexte', 'note_diagnostic', 'note_traitement', 'note_conclusion'];
+    for (const nom of champs) {
+        const el = this.querySelector(`[name="${nom}"]`);
+        if (!el.value.trim()) {
+            e.preventDefault();
+            alert('Merci de compléter tous les champs obligatoires de la note.');
+            el.focus();
+            return false;
+        }
+    }
+});
+</script>
+{% endblock %}

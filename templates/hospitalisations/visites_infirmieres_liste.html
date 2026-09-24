@@ -52,10 +52,12 @@
                 </a>
                 {% endif %}
 
-                <details class="mt-2">
-                    <summary class="text-muted small">Voir l'examen physique de cette visite</summary>
-                    <p class="mt-2 mb-0 small" style="white-space: pre-wrap;">{{ v.examen_complet or 'Non renseigné' }}</p>
-                </details>
+                <div class="mt-2">
+                    <h6 class="small text-muted mb-2">Examen physique de cette visite</h6>
+                    {% with sections = visite_sections[v.id], toggle_id = 'examenPhysiqueVisite' ~ v.id %}
+                        {% include "hospitalisations/_examen_physique_sections.html" %}
+                    {% endwith %}
+                </div>
             </div>
         </div>
         {% endfor %}

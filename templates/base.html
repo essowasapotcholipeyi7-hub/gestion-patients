@@ -1351,6 +1351,23 @@
     </script>
     {% endif %}
 
+    <!-- ⭐ Plier/étendre l'affichage de l'examen physique — partagé par
+         toutes les pages qui l'affichent (consultation, hospitalisation,
+         visites infirmières), voir hospitalisations/_examen_physique_sections.html -->
+    <script>
+    function toggleExamenPhysique(id) {
+        const el = document.getElementById(id);
+        const btn = document.getElementById('btn-' + id);
+        if (!el) return;
+        const estCache = el.classList.toggle('d-none');
+        if (btn) {
+            btn.innerHTML = estCache
+                ? '<i class="fas fa-chevron-down me-1"></i>Afficher'
+                : '<i class="fas fa-chevron-up me-1"></i>Réduire';
+        }
+    }
+    </script>
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>
