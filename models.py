@@ -16,6 +16,14 @@ class Structure(db.Model):
     adresse = db.Column(db.Text)
     telephone = db.Column(db.String(50))
     email = db.Column(db.String(100), unique=True)
+    # ⭐ Pays/ville renseignés par la structure elle-même (voir /structure) —
+    # servent à déterminer sa zone climatique pour les observations
+    # épidémiologiques contextualisées des statistiques (voir
+    # _resoudre_zone_climatique, app.py) : l'appli n'est pas utilisée qu'à
+    # Lomé/au Togo, donc l'interprétation locale (saison des pluies,
+    # harmattan...) ne peut plus être codée en dur pour une seule ville.
+    pays = db.Column(db.String(100), nullable=True)
+    ville = db.Column(db.String(100), nullable=True)
     statut = db.Column(db.String(20), default='en_attente')
     logo_url = db.Column(db.String(500))
     primary_color = db.Column(db.String(7), default='#0d6efd')

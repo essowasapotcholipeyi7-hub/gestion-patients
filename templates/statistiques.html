@@ -249,8 +249,27 @@
     <div class="row mt-4">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header"><i class="fas fa-chart-line me-2"></i>Répartition mensuelle des pathologies les plus fréquentes</div>
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span><i class="fas fa-chart-line me-2"></i>Répartition mensuelle des pathologies les plus fréquentes</span>
+                    {% if zone_climatique_label %}
+                        <span class="badge bg-light text-dark border" title="Utilisée pour les observations épidémiologiques ci-dessous">
+                            <i class="fas fa-map-marker-alt me-1"></i>{{ zone_climatique_label }}{% if zone_climatique_lieu %} — {{ zone_climatique_lieu }}{% endif %}
+                        </span>
+                    {% else %}
+                        <a href="{{ url_for('structure_dashboard') }}" class="badge bg-warning text-dark text-decoration-none no-print" title="Renseignez le pays de votre structure pour des observations contextualisées">
+                            <i class="fas fa-triangle-exclamation me-1"></i>Zone non renseignée — cliquez pour configurer
+                        </a>
+                    {% endif %}
+                </div>
                 <div class="card-body">
+                    {% if not zone_climatique_label %}
+                    <div class="alert alert-warning small py-2 no-print">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Pays/ville non renseignés pour cette structure : les observations ci-dessous restent
+                        purement statistiques (pas d'interprétation liée au climat local).
+                        <a href="{{ url_for('structure_dashboard') }}">Configurer la localisation</a>.
+                    </div>
+                    {% endif %}
                     <div style="height: 280px;">
                         <canvas id="pathologiesChart"></canvas>
                     </div>

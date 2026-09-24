@@ -1897,10 +1897,40 @@ def structure_dashboard():
         Consultation.date_consultation >= datetime.utcnow().replace(day=1)
     ).count()
     
+    structure = current_user.structure
+    zone_key = _resoudre_zone_climatique(structure)
+
     return render_template('structure/dashboard.html',
                          total_patients=total_patients,
                          total_medecins=total_medecins,
-                         consultations_mois=consultations_mois)
+                         consultations_mois=consultations_mois,
+                         pays_liste=_PAYS_AFRIQUE_LISTE,
+                         zone_climatique_label=_ZONES_CLIMATIQUES[zone_key]['label'] if zone_key else None)
+
+
+@app.route('/structure/localisation', methods=['POST'])
+@login_required
+def structure_localisation():
+    """Enregistre le pays/ville de la structure — sert à déterminer sa zone
+    climatique pour contextualiser les observations épidémiologiques des
+    statistiques (voir _resoudre_zone_climatique). L'appli n'est pas
+    utilisée qu'à Lomé/au Togo : sans ce réglage, aucune interprétation
+    locale (saison des pluies, harmattan...) n'est générée, par choix."""
+    if current_user.role != 'admin_structure':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
+    structure = current_user.structure
+    pays = (request.form.get('pays') or '').strip()
+    if pays == '__autre__':
+        pays = (request.form.get('pays_autre') or '').strip()
+    ville = (request.form.get('ville') or '').strip()
+
+    structure.pays = pays or None
+    structure.ville = ville or None
+    db.session.commit()
+    flash('Localisation de la structure mise à jour.', 'success')
+    return redirect(url_for('structure_dashboard'))
 
 @app.route('/patients')
 @login_required
@@ -4005,67 +4035,64 @@ def _extraire_pathologies(diagnostic_text):
     return resultats
 
 
-# ⭐ Grille de lecture épidémiologique locale (climat guinéen de Lomé/Togo :
-# grande saison des pluies mi-mars à juillet, petite saison des pluies
-# septembre-octobre, saison sèche/harmattan novembre à février). Sert à
-# donner du sens aux pics saisonniers détectés statistiquement (ci-dessous)
-# au lieu de se limiter à "plus fréquent en tel mois" — reconnaît les
-# pathologies dont la saisonnalité est un fait épidémiologique bien établi
-# en Afrique de l'Ouest, et signale au contraire quand un pic tombe HORS de
-# la période attendue (potentiellement plus intéressant pour un clinicien
-# qu'une confirmation de l'attendu). Phrasé au conditionnel/"cohérent avec"
-# — jamais affirmé comme la cause certaine d'un cas particulier.
-_SAISON_PLUIES = {'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Sep', 'Oct'}
-_SAISON_HARMATTAN = {'Nov', 'Déc', 'Jan', 'Fév'}
-
+# ⭐ Grille de lecture épidémiologique — GÉNÉRIQUE PAR ZONE CLIMATIQUE, pas
+# figée sur Lomé : l'appli est utilisée par des structures dans plusieurs
+# pays, avec des saisons différentes (l'Afrique australe est même dans
+# l'hémisphère sud — pluies en décembre, pas en juillet). Chaque catégorie
+# ne connaît que son TYPE de période ('pluies' ou 'seche'), résolu en mois
+# concrets pour la zone de LA STRUCTURE via _resoudre_zone_climatique
+# ci-dessous (déterminée à partir de son pays/ville, renseignés dans
+# /structure). Si la zone de la structure est inconnue, aucune explication
+# climatique n'est inventée — seul le constat statistique brut est gardé
+# (voir _construire_analyse_pathologies).
 _CATEGORIES_EPIDEMIO = [
     {
         'icone': '🦟', 'nom': 'paludisme',
         'codes': ('B50', 'B51', 'B52', 'B53', 'B54'),
         'mots_cles': ('paludisme', 'palu', 'malaria'),
-        'saison_mois': _SAISON_PLUIES, 'saison_label': "la saison des pluies",
+        'periode_type': 'pluies',
         'explication': "la prolifération des moustiques anophèles vecteurs après les pluies",
     },
     {
         'icone': '💧', 'nom': 'maladies hydriques',
         'codes': ('A00', 'A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09'),
         'mots_cles': ('choléra', 'cholera', 'diarrh', 'typho', 'gastro-entérite', 'gastro entérite', 'intoxication alimentaire'),
-        'saison_mois': _SAISON_PLUIES, 'saison_label': "la saison des pluies",
+        'periode_type': 'pluies',
         'explication': "la contamination des points d'eau et les risques d'inondation",
     },
     {
         'icone': '🌬️', 'nom': 'infections respiratoires',
         'codes': ('J',),
         'mots_cles': ('ira', 'grippe', 'rhume', 'bronchite', 'pneumonie', 'rhinopharyngite', 'toux', 'respiratoire'),
-        'saison_mois': _SAISON_HARMATTAN, 'saison_label': "l'harmattan",
-        'explication': "l'air sec, froid la nuit et chargé de poussière, qui fragilise les voies respiratoires",
+        'periode_type': 'seche',
+        'explication': "l'air sec (souvent chargé de poussière en saison sèche), qui fragilise les voies respiratoires",
     },
     {
         'icone': '🌡️', 'nom': 'méningite',
         'codes': ('A39', 'G00', 'G01', 'G02', 'G03'),
         'mots_cles': ('méningite', 'meningite'),
-        'saison_mois': _SAISON_HARMATTAN, 'saison_label': "la saison sèche/harmattan",
-        'explication': "la saison sèche, propice à la transmission du méningocoque en Afrique de l'Ouest",
+        'periode_type': 'seche',
+        'explication': "la saison sèche, propice à la transmission du méningocoque",
     },
     {
         'icone': '👁️', 'nom': 'conjonctivite',
         'codes': ('H10', 'H11'),
         'mots_cles': ('conjonctiv',),
-        'saison_mois': _SAISON_HARMATTAN, 'saison_label': "l'harmattan",
-        'explication': "la poussière de l'harmattan, irritante pour les yeux",
+        'periode_type': 'seche',
+        'explication': "la poussière de la saison sèche, irritante pour les yeux",
     },
     {
         'icone': '🔴', 'nom': 'rougeole',
         'codes': ('B05',),
         'mots_cles': ('rougeole',),
-        'saison_mois': _SAISON_HARMATTAN, 'saison_label': "la saison sèche",
+        'periode_type': 'seche',
         'explication': "la saison sèche, période de circulation accrue du virus",
     },
     {
         'icone': '❤️', 'nom': 'maladie chronique non transmissible', 'chronique': True,
         'codes': ('I10', 'I11', 'I12', 'I13', 'I14', 'I15', 'I20', 'I21', 'I22', 'I23', 'I24', 'I25', 'E10', 'E11', 'E12', 'E13', 'E14'),
         'mots_cles': ('hypertension', 'diabète', 'diabete', 'cardiopathie', 'cardiovasculaire'),
-        'saison_mois': set(), 'saison_label': None, 'explication': None,
+        'periode_type': None, 'explication': None,
     },
 ]
 
@@ -4073,8 +4100,8 @@ _CATEGORIES_EPIDEMIO = [
 def _categorie_epidemiologique(code, label):
     """Retourne la catégorie épidémiologique connue correspondant à ce code
     CIM-10/libellé, ou None si la pathologie n'est pas dans la grille de
-    lecture locale (dans ce cas, on n'invente aucune explication — seul le
-    constat statistique brut est gardé)."""
+    lecture (dans ce cas, on n'invente aucune explication — seul le constat
+    statistique brut est gardé)."""
     code = (code or '').upper()
     texte = (label or '').lower()
     for cat in _CATEGORIES_EPIDEMIO:
@@ -4085,14 +4112,138 @@ def _categorie_epidemiologique(code, label):
     return None
 
 
-def _construire_analyse_pathologies(consultations):
+# ⭐ Zones climatiques d'Afrique subsaharienne, simplifiées pour l'usage
+# statistique ci-dessus (pas une classification climatologique complète —
+# juste de quoi situer "saison des pluies" / "saison sèche" par grande
+# région). L'Afrique australe est en hémisphère sud : ses pluies tombent en
+# été austral (nov-mars), pas en même temps que l'Afrique de l'Ouest.
+_ZONES_CLIMATIQUES = {
+    'sahel': {
+        'label': "zone sahélienne",
+        'pluies': {'Juin', 'Juil', 'Août', 'Sep'},
+        'seche': {'Nov', 'Déc', 'Jan', 'Fév', 'Mar'},
+    },
+    'soudanien': {
+        'label': "zone soudanienne",
+        'pluies': {'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct'},
+        'seche': {'Nov', 'Déc', 'Jan', 'Fév', 'Mar', 'Avr'},
+    },
+    'guineen': {
+        'label': "zone guinéenne/côtière",
+        'pluies': {'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Sep', 'Oct'},
+        'seche': {'Nov', 'Déc', 'Jan', 'Fév'},
+    },
+    'equatorial': {
+        'label': "zone équatoriale",
+        'pluies': {'Mar', 'Avr', 'Mai', 'Sep', 'Oct', 'Nov'},
+        'seche': {'Juin', 'Juil', 'Août', 'Déc', 'Jan', 'Fév'},
+    },
+    'est_africain': {
+        'label': "zone d'Afrique de l'Est (pluies bimodales)",
+        'pluies': {'Mar', 'Avr', 'Mai', 'Oct', 'Nov'},
+        'seche': {'Juin', 'Juil', 'Août', 'Sep', 'Déc', 'Jan', 'Fév'},
+    },
+    'australe': {
+        'label': "zone d'Afrique australe (hémisphère sud)",
+        'pluies': {'Nov', 'Déc', 'Jan', 'Fév', 'Mar'},
+        'seche': {'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct'},
+    },
+}
+
+# Villes reconnues avec leur zone précise (prioritaire sur le pays — utile
+# pour les pays qui chevauchent plusieurs zones, ex. Nigeria, Cameroun).
+_ZONE_PAR_VILLE = {
+    'lome': 'guineen', 'lomé': 'guineen', 'cotonou': 'guineen', 'lagos': 'guineen',
+    'abuja': 'soudanien', 'kano': 'sahel', 'accra': 'guineen', 'abidjan': 'guineen',
+    'conakry': 'guineen', 'freetown': 'guineen', 'monrovia': 'guineen', 'banjul': 'guineen',
+    'dakar': 'sahel', 'bamako': 'sahel', 'niamey': 'sahel', "n'djamena": 'sahel',
+    'nouakchott': 'sahel', 'ouagadougou': 'soudanien', 'bissau': 'soudanien',
+    'douala': 'equatorial', 'yaounde': 'equatorial', 'yaoundé': 'equatorial',
+    'kinshasa': 'equatorial', 'brazzaville': 'equatorial', 'libreville': 'equatorial',
+    'bangui': 'equatorial', 'malabo': 'equatorial',
+    'nairobi': 'est_africain', 'dar es salaam': 'est_africain', 'kampala': 'est_africain',
+    'kigali': 'est_africain', 'bujumbura': 'est_africain', 'addis-abeba': 'est_africain',
+    'addis abeba': 'est_africain', 'mogadiscio': 'est_africain',
+    'johannesburg': 'australe', 'pretoria': 'australe', 'le cap': 'australe',
+    'harare': 'australe', 'lusaka': 'australe', 'maputo': 'australe', 'luanda': 'australe',
+    'antananarivo': 'australe', 'windhoek': 'australe', 'gaborone': 'australe',
+    'lilongwe': 'australe', 'mbabane': 'australe', 'maseru': 'australe',
+}
+
+# Pays reconnus, zone par défaut (climat dominant/capitale) si la ville
+# n'est pas renseignée ou pas reconnue ci-dessus.
+_ZONE_PAR_PAYS = {
+    'togo': 'guineen', 'bénin': 'guineen', 'benin': 'guineen', 'ghana': 'guineen',
+    "côte d'ivoire": 'guineen', "cote d'ivoire": 'guineen', 'nigeria': 'guineen',
+    'sierra leone': 'guineen', 'liberia': 'guineen', 'guinée': 'guineen', 'guinee': 'guineen',
+    'gambie': 'guineen',
+    'mali': 'sahel', 'niger': 'sahel', 'mauritanie': 'sahel', 'tchad': 'sahel',
+    'sénégal': 'sahel', 'senegal': 'sahel', 'soudan': 'sahel',
+    'burkina faso': 'soudanien', 'guinée-bissau': 'soudanien', 'guinee-bissau': 'soudanien',
+    'cameroun': 'equatorial', 'gabon': 'equatorial', 'congo': 'equatorial', 'rdc': 'equatorial',
+    'république démocratique du congo': 'equatorial', 'republique democratique du congo': 'equatorial',
+    'centrafrique': 'equatorial', 'république centrafricaine': 'equatorial',
+    'guinée équatoriale': 'equatorial',
+    'kenya': 'est_africain', 'tanzanie': 'est_africain', 'ouganda': 'est_africain',
+    'rwanda': 'est_africain', 'burundi': 'est_africain', 'éthiopie': 'est_africain',
+    'ethiopie': 'est_africain', 'somalie': 'est_africain', 'djibouti': 'est_africain',
+    'afrique du sud': 'australe', 'zimbabwe': 'australe', 'zambie': 'australe',
+    'mozambique': 'australe', 'angola': 'australe', 'namibie': 'australe',
+    'botswana': 'australe', 'madagascar': 'australe', 'malawi': 'australe',
+    'lesotho': 'australe', 'eswatini': 'australe',
+}
+
+
+def _resoudre_zone_climatique(structure):
+    """Détermine la zone climatique d'une structure à partir de sa ville
+    (précis, prioritaire) ou son pays (repli), tels que renseignés dans son
+    profil (voir /structure/localisation). Retourne None si rien n'est
+    renseigné ou reconnu — dans ce cas, aucune observation climatique
+    n'est fabriquée ailleurs, par choix (mieux vaut une structure qui
+    configure son pays qu'une supposition fausse)."""
+    if not structure:
+        return None
+    ville = (structure.ville or '').strip().lower()
+    if ville in _ZONE_PAR_VILLE:
+        return _ZONE_PAR_VILLE[ville]
+    pays = (structure.pays or '').strip().lower()
+    if pays in _ZONE_PAR_PAYS:
+        return _ZONE_PAR_PAYS[pays]
+    return None
+
+
+# Liste affichée dans le sélecteur "Pays" de /structure (voir
+# structure_localisation ci-dessous) — chaque libellé, en minuscules, doit
+# être une clé de _ZONE_PAR_PAYS pour que la zone soit reconnue. Une
+# structure hors de cette liste peut quand même saisir son pays via
+# "Autre" : il sera enregistré tel quel, la zone restera simplement
+# inconnue (pas d'observation climatique inventée pour elle).
+_PAYS_AFRIQUE_LISTE = [
+    'Togo', 'Bénin', 'Ghana', "Côte d'Ivoire", 'Nigeria', 'Sierra Leone', 'Liberia', 'Guinée', 'Gambie',
+    'Mali', 'Niger', 'Mauritanie', 'Tchad', 'Sénégal', 'Soudan',
+    'Burkina Faso', 'Guinée-Bissau',
+    'Cameroun', 'Gabon', 'Congo', 'République démocratique du Congo', 'Centrafrique', 'Guinée équatoriale',
+    'Kenya', 'Tanzanie', 'Ouganda', 'Rwanda', 'Burundi', 'Éthiopie', 'Somalie', 'Djibouti',
+    'Afrique du Sud', 'Zimbabwe', 'Zambie', 'Mozambique', 'Angola', 'Namibie', 'Botswana',
+    'Madagascar', 'Malawi', 'Lesotho', 'Eswatini',
+]
+
+
+def _construire_analyse_pathologies(consultations, zone_key=None, lieu_label=None):
     """Construit, à partir d'une liste d'objets Consultation (avec
     date_consultation et diagnostic déjà chargés), un classement des
     pathologies avec répartition mensuelle et un pic saisonnier détecté
     par pathologie — voir _extraire_pathologies ci-dessus pour le
     découpage. `consultations` doit être une vraie liste (pas une requête
-    encore lazy), un seul passage suffit."""
+    encore lazy), un seul passage suffit.
+
+    `zone_key` (voir _ZONES_CLIMATIQUES/_resoudre_zone_climatique) et
+    `lieu_label` (ville ou pays à citer dans le texte) pilotent
+    l'interprétation contextuelle — si `zone_key` est None (structure sans
+    pays/ville renseigné, ou zone non reconnue), aucune explication
+    climatique n'est ajoutée, seul le constat statistique brut est gardé."""
     NOMS_MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+    zone = _ZONES_CLIMATIQUES.get(zone_key)
     pathologies = {}  # cle -> {'label', 'code', 'total', 'par_mois': [0]*12}
 
     for c in consultations:
@@ -4130,9 +4281,12 @@ def _construire_analyse_pathologies(consultations):
             insight_parts.append(f"Nettement plus fréquent en {', '.join(pic_mois)} (jusqu'à {ratio:.1f}× la moyenne mensuelle de cette pathologie).")
 
         # ⭐ Interprétation contextuelle (voir _CATEGORIES_EPIDEMIO) : compare
-        # le pic détecté à la saisonnalité habituellement attendue localement.
-        # Un pic HORS saison attendue est signalé "atypique" plutôt que tu —
-        # c'est potentiellement l'observation la plus utile pour la structure.
+        # le pic détecté à la saisonnalité habituellement attendue dans LA
+        # ZONE CLIMATIQUE DE LA STRUCTURE (zone=None → pays/ville non
+        # renseigné ou non reconnu → pas d'explication climatique inventée,
+        # constat statistique brut uniquement). Un pic HORS saison attendue
+        # est signalé "atypique" — potentiellement l'observation la plus
+        # utile pour la structure.
         atypique = False
         categorie_icone = None
         cat = _categorie_epidemiologique(p['code'], p['label'])
@@ -4143,15 +4297,18 @@ def _construire_analyse_pathologies(consultations):
                     insight_parts.append(f"{cat['icone']} Pic ponctuel malgré une pathologie habituellement non saisonnière — probablement lié au suivi médical (renouvellements d'ordonnance, rendez-vous programmés) plutôt qu'à un facteur épidémiologique.")
                 elif p['total'] >= 3:
                     insight_parts.append(f"{cat['icone']} Maladie chronique non transmissible : répartition stable attendue, cohérente avec un suivi régulier plutôt que saisonnier.")
-            else:
-                chevauche = bool(set(pic_mois) & cat['saison_mois'])
+            elif zone and cat.get('periode_type'):
+                saison_mois = zone[cat['periode_type']]
+                saison_label = "la saison des pluies" if cat['periode_type'] == 'pluies' else "la saison sèche"
+                ou = f" à {lieu_label}" if lieu_label else f" en {zone['label']}"
+                chevauche = bool(set(pic_mois) & saison_mois)
                 if pic_mois and chevauche:
-                    insight_parts.append(f"{cat['icone']} Cohérent avec {cat['saison_label']} à Lomé : {cat['explication']}.")
+                    insight_parts.append(f"{cat['icone']} Cohérent avec {saison_label}{ou} : {cat['explication']}.")
                 elif pic_mois and not chevauche:
                     atypique = True
-                    insight_parts.append(f"{cat['icone']} Pic atypique : survient hors de {cat['saison_label']} habituellement associée à cette pathologie — à surveiller (foyer localisé, ou effectif encore faible).")
+                    insight_parts.append(f"{cat['icone']} Pic atypique : survient hors de {saison_label} habituellement associée à cette pathologie{ou} — à surveiller (foyer localisé, ou effectif encore faible).")
                 elif not pic_mois and p['total'] >= 3:
-                    insight_parts.append(f"{cat['icone']} Habituellement plus marqué en {cat['saison_label']} à Lomé, mais réparti ici de façon régulière sur la période analysée.")
+                    insight_parts.append(f"{cat['icone']} Habituellement plus marqué en {saison_label}{ou}, mais réparti ici de façon régulière sur la période analysée.")
 
         resultat.append({
             'code': p['code'],
@@ -4266,7 +4423,15 @@ def _calculer_statistiques():
         Consultation.diagnostic.isnot(None),
         Consultation.diagnostic != ''
     ).all()
-    analyse_pathologies, noms_mois = _construire_analyse_pathologies(consultations_diag)
+    # ⭐ Zone climatique de LA STRUCTURE (pas figée sur Lomé — voir
+    # _resoudre_zone_climatique) : None si pays/ville non renseigné dans
+    # /structure, auquel cas aucune explication climatique locale n'est
+    # inventée dans l'analyse ci-dessous.
+    zone_key = _resoudre_zone_climatique(current_user.structure)
+    lieu_label = None
+    if current_user.structure:
+        lieu_label = current_user.structure.ville or current_user.structure.pays
+    analyse_pathologies, noms_mois = _construire_analyse_pathologies(consultations_diag, zone_key, lieu_label)
 
     # ========== Répartition assurances ==========
     # ⭐ FIX : comptait Patient.id une fois PAR CONSULTATION (jointure
@@ -4449,6 +4614,8 @@ def _calculer_statistiques():
         'top_pathologies': top_pathologies,
         'analyse_pathologies': analyse_pathologies,
         'noms_mois': noms_mois,
+        'zone_climatique_label': _ZONES_CLIMATIQUES[zone_key]['label'] if zone_key else None,
+        'zone_climatique_lieu': lieu_label,
         'assurances': assurances,
         'stats_medecins': stats_medecins,
         'stats_infirmiers': stats_infirmiers,
@@ -4517,6 +4684,9 @@ def export_statistiques_excel():
     ws.append([f"Statistiques — {current_user.structure.nom if current_user.structure else ''}"])
     ws['A1'].font = Font(bold=True, size=14)
     ws.append([f"Période : {_nom_periode_filtre(d)} — généré le {datetime.now().strftime('%d/%m/%Y %H:%M')}"])
+    if d['zone_climatique_label']:
+        lieu = f" ({d['zone_climatique_lieu']})" if d['zone_climatique_lieu'] else ''
+        ws.append([f"Zone climatique : {d['zone_climatique_label']}{lieu} — utilisée pour les observations épidémiologiques"])
     ws.append([])
     _entete(ws, ['Indicateur', 'Valeur'])
     ws.append(['Total consultations', d['total_consultations']])
@@ -4604,6 +4774,9 @@ def export_statistiques_txt():
     lignes.append(f"STATISTIQUES — {nom_structure}")
     lignes.append(f"Période : {_nom_periode_filtre(d)}")
     lignes.append(f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}")
+    if d['zone_climatique_label']:
+        lieu = f" ({d['zone_climatique_lieu']})" if d['zone_climatique_lieu'] else ''
+        lignes.append(f"Zone climatique : {d['zone_climatique_label']}{lieu} — utilisée pour les observations épidémiologiques")
     lignes.append('=' * 70)
     lignes.append('')
     lignes.append('RÉSUMÉ')
