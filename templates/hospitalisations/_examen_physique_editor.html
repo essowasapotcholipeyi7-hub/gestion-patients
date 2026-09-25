@@ -65,8 +65,14 @@
 
 <script>
 (function() {
-    let epSectionsModifiees = JSON.parse('{{ (sections_modifiees_initial_json or "{}")|safe }}');
-    let epSectionsOriginales = JSON.parse('{{ (sections_origine_initial_json or "{}")|safe }}');
+    {# ⭐ FIX (même bug que consultations/examen_physique.html) : ces
+       valeurs sont déjà des chaînes JSON (syntaxe littérale JS objet
+       valide telle quelle) — les envelopper dans JSON.parse('...') avec
+       des guillemets simples cassait dès qu'un texte contenait une
+       apostrophe (français médical courant), SyntaxError silencieuse,
+       éditeur jamais initialisé. #}
+    let epSectionsModifiees = {{ (sections_modifiees_initial_json or "{}") | safe }};
+    let epSectionsOriginales = {{ (sections_origine_initial_json or "{}") | safe }};
     let epSectionsData = [];
     let epCurrentEditIndex = null;
     let epValeurOriginaleModal = '';

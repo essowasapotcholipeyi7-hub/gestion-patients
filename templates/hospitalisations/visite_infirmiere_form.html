@@ -160,11 +160,17 @@ let sectionsData = [];
 let sectionsOriginales = {};
 let currentEditIndex = null;
 
+{# ⭐ FIX (même bug que consultations/examen_physique.html) : ces valeurs
+   sont déjà des chaînes JSON (syntaxe littérale JS objet valide telle
+   quelle) — les envelopper dans JSON.parse('...') avec des guillemets
+   simples cassait dès qu'un texte contenait une apostrophe (français
+   médical courant), SyntaxError silencieuse, formulaire jamais
+   initialisé. #}
 {% if visite.sections_modifiees %}
-    sectionsModifiees = JSON.parse('{{ visite.sections_modifiees|safe }}');
+    sectionsModifiees = {{ visite.sections_modifiees | safe }};
 {% endif %}
 {% if visite.sections_origine and visite.sections_origine != '{}' %}
-    sectionsOriginales = JSON.parse('{{ visite.sections_origine|safe }}');
+    sectionsOriginales = {{ visite.sections_origine | safe }};
 {% endif %}
 
 async function chargerSections() {

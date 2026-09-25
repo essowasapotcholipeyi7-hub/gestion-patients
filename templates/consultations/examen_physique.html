@@ -141,11 +141,20 @@ async function chargerSections() {
         const data = await response.json();
         sectionsData = data;
         
+        {# ⭐ FIX : sections_modifiees/sections_origine sont déjà des chaînes
+           JSON (donc une syntaxe littérale JS objet valide telle quelle) —
+           les envelopper dans JSON.parse('...') avec des guillemets simples
+           cassait dès qu'un texte contenait une apostrophe (très fréquent en
+           français médical : "Pas d'œdème", "l'humeur"...), qui terminait la
+           chaîne JS prématurément → SyntaxError, script entier jamais
+           exécuté, spinner "Chargement des sections..." bloqué pour
+           toujours (jamais d'erreur visible puisque le script plantait
+           avant même d'atteindre le bloc try/catch). #}
         {% if examen and examen.sections_modifiees %}
-            sectionsModifiees = JSON.parse('{{ examen.sections_modifiees|safe }}');
+            sectionsModifiees = {{ examen.sections_modifiees | safe }};
         {% endif %}
         {% if examen and examen.sections_origine and examen.sections_origine != '{}' %}
-            sectionsOriginales = JSON.parse('{{ examen.sections_origine|safe }}');
+            sectionsOriginales = {{ examen.sections_origine | safe }};
         {% endif %}
 
         afficherSections();
