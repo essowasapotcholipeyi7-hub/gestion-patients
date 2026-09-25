@@ -138,7 +138,7 @@
                                         invitez le patient à appeler le centre pour l'obtenir, après vérification de son
                                         identité (nom, date de naissance).
                                     </p>
-                                    <a href="{{ url_for('pdf_protege_analyse', id=analyse.id) }}" class="btn btn-sm btn-primary" data-loading="true">
+                                    <a href="{{ url_for('pdf_protege_analyse', id=analyse.id) }}" target="_blank" class="btn btn-sm btn-primary" onclick="pdfProtegeAnalyseTelecharge = true;">
                                         <i class="fas fa-file-pdf me-1"></i>Télécharger le PDF protégé
                                     </a>
                                     <button type="button" class="btn btn-sm btn-success" onclick="envoyerParEmailAnalyse()">
@@ -484,7 +484,23 @@ function regenererCodeAccesPdf() {
 // sans jamais redemander par défaut si l'email n'a pas changé.
 let emailPatientActuelAnalyse = {{ (analyse.patient.email or '') | tojson }};
 
+// ⭐ mailto: ne peut JAMAIS joindre de fichier automatiquement (limitation
+// universelle des navigateurs, pas un bug ici) — sans ce garde-fou, un
+// clic direct sur "Envoyer par email" sans avoir téléchargé le PDF avant
+// ouvrait un mail parfaitement normal en apparence mais SANS AUCUNE pièce
+// jointe, risque réel de résultat "envoyé" sans rien de joint.
+let pdfProtegeAnalyseTelecharge = false;
+
 function envoyerParEmailAnalyse() {
+    if (!pdfProtegeAnalyseTelecharge) {
+        const continuer = confirm(
+            "Vous n'avez pas encore téléchargé le PDF protégé.\n\n" +
+            "Un email ne peut jamais joindre de fichier automatiquement : si vous continuez maintenant, " +
+            "le mail s'ouvrira SANS AUCUNE pièce jointe.\n\n" +
+            "Annuler pour télécharger le PDF d'abord (recommandé), OK pour continuer quand même."
+        );
+        if (!continuer) return;
+    }
     let email = emailPatientActuelAnalyse;
     if (!email) {
         email = prompt("Aucun email enregistré pour ce patient — saisissez-en un :", '');
