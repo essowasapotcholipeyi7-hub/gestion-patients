@@ -2229,7 +2229,14 @@ def patient_detail(id):
             try:
                 consultation.sections_modifiees = json.loads(examen.sections_modifiees)
                 consultation.examen_complet = examen.examen_complet
-            except:
+            except Exception as e:
+                # ⭐ Avant : except: silencieux — si ce JSON est un jour
+                # invalide, l'examen physique de cette consultation
+                # disparaissait purement et simplement du dossier du
+                # patient, sans qu'aucune trace n'en indique la raison (un
+                # médecin pouvait croire qu'aucun examen n'a été fait).
+                # Log minimal pour au moins voir le problème s'il survient.
+                print(f"⚠️ JSON invalide sections_modifiees (examen #{examen.id}, consultation #{consultation.id}): {e}")
                 consultation.sections_modifiees = {}
                 consultation.examen_complet = None
         else:
@@ -5733,7 +5740,8 @@ def detail_hospitalisation(id):
     if hospitalisation.protocole_id:
         try:
             protocole_actif = ProtocoleSoins.query.get(hospitalisation.protocole_id)
-        except:
+        except Exception as e:
+            print(f"⚠️ Erreur chargement protocole_actif #{hospitalisation.protocole_id} (hospitalisation #{hospitalisation.id}): {e}")
             protocole_actif = None
     
     # ============================================================
