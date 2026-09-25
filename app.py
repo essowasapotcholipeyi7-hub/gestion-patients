@@ -6550,20 +6550,53 @@ def enregistrer_visite_infirmiere(id):
         return jsonify({'success': False, 'message': 'Vous n\'êtes pas assigné à cette hospitalisation'}), 403
 
     try:
+        # ⭐⭐ Anti double-soumission : verrouille l'hospitalisation le temps
+        # de vérifier/insérer, pour qu'un double-clic (ou une resoumission
+        # réseau) ne puisse pas passer entre la vérification et l'insertion
+        # d'une seconde requête concurrente et créer deux fois la même
+        # visite.
+        Hospitalisation.query.filter_by(id=id).with_for_update().first()
+
+        plaintes_patient = request.form.get('plaintes_patient')
+        etat_general = request.form.get('etat_general')
+        examen_complet = nettoyer_examen_complet(request.form.get('examen_complet', ''))
+        sections_modifiees = request.form.get('sections_modifiees', '{}')
+        decision_suggeree = request.form.get('decision_suggeree')
+
+        # Une visite au contenu identique enregistrée par le même infirmier
+        # il y a moins de 10s est traitée comme un doublon (double-clic),
+        # pas comme une nouvelle visite.
+        fenetre = datetime.utcnow() - timedelta(seconds=10)
+        doublon = VisiteInfirmiere.query.filter(
+            VisiteInfirmiere.hospitalisation_id == id,
+            VisiteInfirmiere.infirmier_id == current_user.id,
+            VisiteInfirmiere.plaintes_patient == plaintes_patient,
+            VisiteInfirmiere.etat_general == etat_general,
+            VisiteInfirmiere.examen_complet == examen_complet,
+            VisiteInfirmiere.date_visite >= fenetre,
+        ).order_by(VisiteInfirmiere.id.desc()).first()
+
+        if doublon:
+            return jsonify({
+                'success': True,
+                'message': 'Visite enregistrée',
+                'redirect': url_for('detail_hospitalisation', id=id),
+            })
+
         examen_actuel = ExamenPhysique.query.filter_by(hospitalisation_id=id).first()
         sections_origine = examen_actuel.sections_modifiees if examen_actuel else '{}'
 
         visite = VisiteInfirmiere(
             hospitalisation_id=id,
             infirmier_id=current_user.id,
-            plaintes_patient=request.form.get('plaintes_patient'),
-            etat_general=request.form.get('etat_general'),
-            examen_complet=nettoyer_examen_complet(request.form.get('examen_complet', '')),
-            sections_modifiees=request.form.get('sections_modifiees', '{}'),
+            plaintes_patient=plaintes_patient,
+            etat_general=etat_general,
+            examen_complet=examen_complet,
+            sections_modifiees=sections_modifiees,
             sections_origine=sections_origine or '{}',
             appareil_dysfonctionnel=bool(request.form.get('appareil_dysfonctionnel')),
             appareil_dysfonctionnel_detail=request.form.get('appareil_dysfonctionnel_detail'),
-            decision_suggeree=request.form.get('decision_suggeree'),
+            decision_suggeree=decision_suggeree,
         )
         db.session.add(visite)
         db.session.commit()
@@ -7841,16 +7874,25 @@ def saisir_resultats_analyse(id):
     # dupliqué en texte brut ici.
     consultation = Consultation.query.get(analyse.consultation_id)
     if consultation and resultats:
+        marqueur = f"--- {analyse.nom_analyse} ---"
+        bloc = f"{marqueur}\n{resultats}"
+
+        def _maj_bloc_resultat(texte_existant):
+            # ⭐⭐ Remplace le bloc existant de CETTE analyse au lieu de
+            # toujours l'ajouter à la suite — sinon une correction de
+            # résultat (ou un double-clic/double-soumission sur
+            # "Enregistrer") dupliquait indéfiniment le même texte dans
+            # les résultats de la consultation.
+            texte_existant = texte_existant or ''
+            if marqueur in texte_existant:
+                pattern = re.escape(marqueur) + r'\n.*?(?=\n\n---|\Z)'
+                return re.sub(pattern, bloc, texte_existant, count=1, flags=re.DOTALL)
+            return f"{texte_existant}\n\n{bloc}" if texte_existant else bloc
+
         if analyse.type_analyse == 'BIOLOGIE':
-            if consultation.resultats_biologie:
-                consultation.resultats_biologie += f"\n\n--- {analyse.nom_analyse} ---\n{resultats}"
-            else:
-                consultation.resultats_biologie = f"--- {analyse.nom_analyse} ---\n{resultats}"
+            consultation.resultats_biologie = _maj_bloc_resultat(consultation.resultats_biologie)
         elif analyse.type_analyse == 'IMAGERIE':
-            if consultation.resultats_imagerie:
-                consultation.resultats_imagerie += f"\n\n--- {analyse.nom_analyse} ---\n{resultats}"
-            else:
-                consultation.resultats_imagerie = f"--- {analyse.nom_analyse} ---\n{resultats}"
+            consultation.resultats_imagerie = _maj_bloc_resultat(consultation.resultats_imagerie)
 
         consultation.date_resultats = datetime.utcnow()
 
