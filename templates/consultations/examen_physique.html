@@ -297,8 +297,20 @@ function enregistrerEtFermer() {
         if (data.success) {
             showToast('✅ Examen enregistré avec succès !', 'success');
 
-            // Transmettre l'examen à la page parente
-            if (window.opener && !window.opener.closed) {
+            // ⭐ FIX : cette page est le plus souvent ouverte par un simple
+            // lien (voir le bouton "Examen physique"/"Modifier" sur
+            // hospitalisations/detail.html), PAS par window.open() — dans
+            // ce cas window.close() est TOUJOURS refusé par le navigateur
+            // (sécurité), silencieusement, sans erreur. L'enregistrement
+            // réussissait bien côté serveur (vérifié en direct), mais le
+            // bouton restait bloqué sur "Enregistrement..." pour toujours,
+            // sans aucun moyen de sortir de la page (patron : "xa tourne
+            // seulement sans arrêt enregistrement encours xa ne fini
+            // pas"). On ne tente la fermeture QUE si la page a vraiment
+            // été ouverte en popup (window.opener présent) — sinon on
+            // retourne directement à la page précédente.
+            const estPopup = window.opener && !window.opener.closed;
+            if (estPopup) {
                 window.opener.postMessage({
                     type: 'EXAMEN_PHYSIQUE_ENREGISTRE',
                     examen_complet: data.examen_complet || document.getElementById('examenComplet').value,
@@ -307,9 +319,17 @@ function enregistrerEtFermer() {
                     examen_id: data.examen_id
                 }, '*');
             }
-            
+
             setTimeout(() => {
-                window.close();
+                if (estPopup) {
+                    window.close();
+                }
+                // Repli : si la fermeture a été refusée (ou si ce n'était
+                // pas un popup), on retourne à la page précédente au lieu
+                // de laisser le bouton bloqué indéfiniment.
+                setTimeout(() => {
+                    window.location.href = {{ retour_url|tojson }};
+                }, 300);
             }, 1000);
         } else {
             showToast('❌ Erreur : ' + (data.message || 'Inconnue'), 'danger');
