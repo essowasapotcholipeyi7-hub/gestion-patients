@@ -2742,10 +2742,15 @@ def consultation_ajouter():
 @login_required
 def consultation_detail(id):
     from models import Consultation, Patient, ExamenType
-    
+
     consultation = Consultation.query.get_or_404(id)
     patient = Patient.query.get(consultation.id_patient)
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     # ⭐ RÉCUPÉRER LES EXAMENS TYPES DISPONIBLES POUR LA STRUCTURE
     examens_types = ExamenType.query.filter_by(
         structure_id=current_user.id_structure,
@@ -2830,7 +2835,12 @@ def prescription_ajouter():
             if not patient:
                 flash('Patient non trouvé', 'danger')
                 return redirect(url_for('prescription_ajouter'))
-            
+
+            # ⭐ Isolation multi-structure (voir patient_detail)
+            if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+                flash('Accès non autorisé', 'danger')
+                return redirect(url_for('prescription_ajouter'))
+
             prescriptions = []
             
             for med in meds_data:
@@ -3630,6 +3640,11 @@ def consultation_ajouter_avec_patient(id):
     import json
     
     patient = Patient.query.get_or_404(id)
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
 
     # ⭐ FIX E2E : un patient tout juste synchronisé depuis GHP (ou sans
     # consultation antérieure) n'a pas encore de médecin référent
@@ -5609,8 +5624,17 @@ def _a_acces_hospitalisation(user, hospitalisation):
     from models import HospitalisationMedecin, HospitalisationInfirmier, DemandeAccesHospitalisation
     from datetime import datetime
 
-    if user.role in ('super_admin', 'admin_structure'):
+    if user.role == 'super_admin':
         return True
+
+    # ⭐⭐ SÉCURITÉ : admin_structure avait un accès inconditionnel, sans
+    # vérifier que cette hospitalisation appartient bien à SA structure —
+    # un admin de la clinique A pouvait ouvrir/modifier une hospitalisation
+    # (visite infirmière, réévaluation...) de la clinique B en devinant
+    # l'id. Contrairement à super_admin (rôle multi-structure légitime),
+    # admin_structure est scopé à une seule structure.
+    if user.role == 'admin_structure':
+        return user.id_structure == hospitalisation.patient.id_structure
 
     if user.role == 'medecin':
         assigne = HospitalisationMedecin.query.filter_by(
@@ -7505,12 +7529,17 @@ def ajouter_resultats(id):
     from datetime import datetime
     
     consultation = Consultation.query.get_or_404(id)
-    
+
     # Vérifier les permissions
     if current_user.role not in ['super_admin', 'admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if current_user.role != 'super_admin' and consultation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     # Récupération des données
     resultats_biologie = request.form.get('resultats_biologie', '').strip()
     resultats_imagerie = request.form.get('resultats_imagerie', '').strip()
@@ -8630,7 +8659,12 @@ def imprimer_resultat_analyse(id):
     
     analyse = AnalyseDemande.query.get_or_404(id)
     structure = Structure.query.get(current_user.id_structure)
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if analyse.structure_id != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_analyses'))
+
     # ⭐ NETTOYER LE NOM DE L'ANALYSE
     nom_analyse = analyse.nom_analyse
     
@@ -8687,11 +8721,16 @@ def ajouter_analyse_demande(id):
     from models import Consultation, AnalyseDemande
     
     consultation = Consultation.query.get_or_404(id)
-    
+
     if current_user.role not in ['medecin', 'admin_structure']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if consultation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     type_analyse = request.form.get('type_analyse')
     nom_analyse = request.form.get('nom_analyse')
     description = request.form.get('description')
@@ -8769,11 +8808,16 @@ def ajouter_reference(id):
     
     consultation = Consultation.query.get_or_404(id)
     patient = Patient.query.get(consultation.id_patient)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     if request.method == 'POST':
         motif = request.form.get('motif')
         diagnostic = request.form.get('diagnostic')
@@ -12269,15 +12313,20 @@ def modifier_ordonnance_hospitalisation(id):
     from datetime import datetime
     
     hospitalisation = Hospitalisation.query.get_or_404(id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('detail_hospitalisation', id=id))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+
     if hospitalisation.statut != 'actif':
         flash('Impossible de modifier une hospitalisation clôturée', 'danger')
         return redirect(url_for('detail_hospitalisation', id=id))
-    
+
     medicaments_json = request.form.get('medicaments_json', '[]')
     motif_modification = request.form.get('motif_modification', 'Modification')
     
@@ -12440,6 +12489,11 @@ def imprimer_ordonnance_sortie(id):
     structure = Structure.query.get(current_user.id_structure)
     patient = hospitalisation.patient
 
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+
     if not hospitalisation.ordonnance_sortie:
         flash('Aucune ordonnance de sortie pour cette hospitalisation', 'danger')
         return redirect(url_for('detail_hospitalisation', id=id))
@@ -12472,7 +12526,12 @@ def historique_ordonnances_hospitalisation(id):
     from datetime import datetime
     
     hospitalisation = Hospitalisation.query.get_or_404(id)
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+
     # Récupérer l'historique
     historique = []
     if hospitalisation.ordonnance_historique:
@@ -12519,7 +12578,12 @@ def imprimer_ordonnance_version(id, version):
     
     # ⭐ RÉCUPÉRER LE PATIENT
     patient = hospitalisation.patient
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+
     # ⭐ SI C'EST LA VERSION ACTUELLE
     if version == hospitalisation.ordonnance_version:
         medicaments = []
@@ -12584,11 +12648,16 @@ def creer_ordonnance_hospitalisation(id):
     from datetime import datetime
     
     hospitalisation = Hospitalisation.query.get_or_404(id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('detail_hospitalisation', id=id))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+
     if hospitalisation.statut != 'actif':
         flash('Impossible de créer une ordonnance sur une hospitalisation clôturée', 'danger')
         return redirect(url_for('detail_hospitalisation', id=id))
@@ -13054,7 +13123,12 @@ def imprimer_ordonnance(id):
     
     hospitalisation = Hospitalisation.query.get_or_404(id)
     structure = Structure.query.get(current_user.id_structure)
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+
     if not hospitalisation.ordonnance_prescite:
         flash('Aucune ordonnance à imprimer', 'warning')
         return redirect(url_for('detail_hospitalisation', id=id))
@@ -13079,9 +13153,14 @@ def imprimer_examen(id, examen_id):
     hospitalisation = Hospitalisation.query.get_or_404(id)
     examen = ExamenPrescrit.query.get_or_404(examen_id)
     structure = Structure.query.get(current_user.id_structure)
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+
     examens_list = json.loads(examen.examens) if examen.examens else []
-    
+
     return render_template('impressions/examen.html',
                          hospitalisation=hospitalisation,
                          structure=structure,
@@ -13197,11 +13276,16 @@ def creer_ordonnance_consultation(id):
     import json
     
     consultation = Consultation.query.get_or_404(id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('consultation_detail', id=id))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if consultation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     # Récupérer les templates et protocoles disponibles
     ordonnances_types = OrdonnanceType.query.filter_by(
         structure_id=current_user.id_structure,
@@ -13349,11 +13433,16 @@ def modifier_ordonnance_consultation(id, ordonnance_id):
     
     consultation = Consultation.query.get_or_404(id)
     ordonnance_old = Ordonnance.query.get_or_404(ordonnance_id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('consultation_detail', id=id))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if consultation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     if request.method == 'POST':
         medicaments_json = request.form.get('medicaments_json', '[]')
         motif_modification = request.form.get('motif_modification', 'Modification')
@@ -13432,7 +13521,12 @@ def imprimer_ordonnance_consultation(id):
     consultation = Consultation.query.get_or_404(id)
     structure = Structure.query.get(current_user.id_structure)
     patient = consultation.patient
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     ordonnance_active = consultation.ordonnance_active
     
     if not ordonnance_active:
@@ -13456,7 +13550,12 @@ def historique_ordonnances_consultation(id):
     from models import Consultation, Ordonnance  # ⭐ AJOUTE CET IMPORT
     
     consultation = Consultation.query.get_or_404(id)
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if consultation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     ordonnances = consultation.ordonnances.order_by(
         Ordonnance.version.desc()
     ).all()
@@ -13476,11 +13575,16 @@ def ajouter_examen_prescrit_consultation(id):
     import json
     
     consultation = Consultation.query.get_or_404(id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('consultation_detail', id=id))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if consultation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     examen_type_id = request.form.get('examen_type_id', type=int)
     nature = request.form.get('nature', '').strip()
     motif = request.form.get('motif', '').strip()
@@ -13565,11 +13669,16 @@ def supprimer_examen_prescrit_consultation(id, examen_id):
     from models import ExamenPrescrit
     
     examen = ExamenPrescrit.query.get_or_404(examen_id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('consultation_detail', id=id))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if examen.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     db.session.delete(examen)
     db.session.commit()
     
@@ -13589,11 +13698,16 @@ def creer_examen_consultation(id):
     import json
     
     consultation = Consultation.query.get_or_404(id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('consultation_detail', id=id))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if consultation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     examens_types = ExamenType.query.filter_by(
         structure_id=current_user.id_structure,
         actif=True
@@ -13719,11 +13833,16 @@ def modifier_examen_consultation(id, examen_id):
     
     consultation = Consultation.query.get_or_404(id)
     examen_old = ExamenPrescrit.query.get_or_404(examen_id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('consultation_detail', id=id))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if consultation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     if request.method == 'POST':
         nature = request.form.get('nature', '').strip()
         motif = request.form.get('motif', '').strip()
@@ -13810,7 +13929,12 @@ def imprimer_examen_consultation(id, examen_id):
     examen = ExamenPrescrit.query.get_or_404(examen_id)
     structure = Structure.query.get(current_user.id_structure)
     patient = consultation.patient
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     examens_list = examen.get_examens_list()
     
     return render_template('impressions/examen_consultation.html',
@@ -13828,11 +13952,16 @@ def ajouter_reference_hospitalisation(id):
     
     hospitalisation = Hospitalisation.query.get_or_404(id)
     patient = Patient.query.get(hospitalisation.patient_id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('detail_hospitalisation', id=id))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+
     if request.method == 'POST':
         motif = request.form.get('motif')
         diagnostic = request.form.get('diagnostic')
