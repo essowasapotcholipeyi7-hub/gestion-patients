@@ -1515,10 +1515,14 @@ def save_motif_pre_consultation(patient_id):
     from flask import jsonify
     
     patient = Patient.query.get_or_404(patient_id)
-    
+
     if current_user.role != 'infirmier':
         return jsonify({'success': False, 'message': 'Accès non autorisé'}), 403
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if patient.id_structure != current_user.id_structure:
+        return jsonify({'success': False, 'message': 'Accès non autorisé'}), 403
+
     motif = request.form.get('motif', '').strip()
     patient.motif_pre_consultation = motif
     db.session.commit()
@@ -1534,10 +1538,14 @@ def save_constantes_pre_consultation(patient_id):
     from flask import jsonify
     
     patient = Patient.query.get_or_404(patient_id)
-    
+
     if current_user.role != 'infirmier':
         return jsonify({'success': False, 'message': 'Accès non autorisé'}), 403
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if patient.id_structure != current_user.id_structure:
+        return jsonify({'success': False, 'message': 'Accès non autorisé'}), 403
+
     # Récupérer les constantes
     tension = request.form.get('tension')
     temperature = request.form.get('temperature')
@@ -1642,9 +1650,13 @@ def medecin_dashboard():
 @login_required
 def api_patient_pre_consultation(patient_id):
     from models import Patient
-    
+
     patient = Patient.query.get_or_404(patient_id)
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+        return jsonify({'success': False, 'message': 'Accès non autorisé'}), 403
+
     return jsonify({
         'motif': patient.motif_pre_consultation or '',
         'pre_consultation_faite': patient.pre_consultation_faite or False,
@@ -2186,12 +2198,20 @@ def patient_detail(id):
     import json
     
     patient = Patient.query.get_or_404(id)
-    
+
+    # ⭐ Isolation multi-structure : un utilisateur ne doit jamais pouvoir
+    # ouvrir le dossier d'un patient d'une AUTRE structure en changeant
+    # simplement l'id dans l'URL (voir aussi routes/engagements.py pour le
+    # même principe). super_admin seul y échappe (gestion multi-structure).
+    if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     # Vérification pour le médecin
     if current_user.role == 'medecin' and patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
         flash('Accès non autorisé - Ce patient n\'est pas votre patient référent', 'danger')
         return redirect(url_for('patients_list'))
-    
+
     consultations = Consultation.query.filter_by(id_patient=patient.id).order_by(Consultation.date_consultation.desc()).all()
     prescriptions = Prescription.query.filter_by(id_patient=patient.id).order_by(Prescription.date_prescription.desc()).all()
 
@@ -9569,8 +9589,14 @@ def api_lits_disponibles():
 @login_required
 def patient_antecedents(patient_id):
     from models import Patient, AntecedentPatient
-    
+
     patient = Patient.query.get_or_404(patient_id)
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('patients_list'))
+
     antecedents = AntecedentPatient.query.filter_by(patient_id=patient_id).order_by(AntecedentPatient.date_recueil.desc()).all()
     
     # ⭐ Récupérer les paramètres de retour
@@ -9591,11 +9617,16 @@ def ajouter_antecedent(patient_id):
     from datetime import datetime, timezone
     
     patient = Patient.query.get_or_404(patient_id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
     type_antecedent = request.form.get('type_antecedent')
     type_precision = request.form.get('type_precision')
     description = request.form.get('description')
@@ -9739,9 +9770,13 @@ def modifier_habitudes_vie(patient_id):
 def api_patient_habitudes_vie(patient_id):
     """Récupère les habitudes de vie d'un patient"""
     from models import Patient
-    
+
     patient = Patient.query.get_or_404(patient_id)
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+        return jsonify({'success': False, 'message': 'Accès non autorisé'}), 403
+
     return jsonify({
         'tabac': patient.tabac,
         'alcool': patient.alcool,
@@ -9756,11 +9791,16 @@ def api_patient_habitudes_vie(patient_id):
 @login_required
 def api_patient_antecedents(patient_id):
     """API pour récupérer les antécédents (pour le formulaire consultation)"""
-    from models import AntecedentPatient
-    
+    from models import AntecedentPatient, Patient
+
     if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
         return jsonify([])
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    patient = Patient.query.get_or_404(patient_id)
+    if patient.id_structure != current_user.id_structure:
+        return jsonify([])
+
     antecedents = AntecedentPatient.query.filter_by(
         patient_id=patient_id,
         actif=True
@@ -9936,13 +9976,19 @@ def patient_pdf(id):
     """Générer le dossier patient en PDF"""
     from models import Patient, Consultation, Prescription, Hospitalisation, AnalyseDemande, Reference, AntecedentPatient
     from datetime import datetime
+    from flask import send_file
     
     patient = Patient.query.get_or_404(id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
     # Récupérer les données
     consultations = Consultation.query.filter_by(id_patient=patient.id).order_by(
         Consultation.date_consultation.desc()
@@ -9986,9 +10032,17 @@ def patient_pdf(id):
                                  antecedents=antecedents,
                                  now=datetime.utcnow())
     
-    # Chemin vers wkhtmltopdf
-    path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
-    
+    # ⭐ wkhtmltopdf n'est PAS installé sur Render (buildCommand = juste
+    # pip install, voir render.yaml) — le chemin Windows en dur plantait
+    # cette route en production (pdfkit ne trouve pas le binaire).
+    # Repli : rediriger vers la version imprimable (déjà fonctionnelle,
+    # même contenu, Ctrl+P côté navigateur) plutôt qu'un crash 500.
+    import shutil
+    path_wkhtmltopdf = shutil.which('wkhtmltopdf') or r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
+    if not os.path.exists(path_wkhtmltopdf):
+        flash('Génération PDF indisponible sur ce serveur — voici la version imprimable (Ctrl+P puis "Enregistrer en PDF").', 'warning')
+        return redirect(url_for('patient_pdf_impression', id=id))
+
     # Options de configuration
     options = {
         'page-size': 'A4',
@@ -10023,13 +10077,18 @@ def patient_pdf_impression(id):
     """Version imprimable du dossier patient (pour PDF via navigateur)"""
     from models import Patient, Consultation, Prescription, Hospitalisation, AnalyseDemande, Reference, AntecedentPatient
     from datetime import datetime
-    
+
     patient = Patient.query.get_or_404(id)
-    
+
     if current_user.role not in ['admin_structure', 'medecin', 'infirmier']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
     consultations = Consultation.query.filter_by(id_patient=patient.id).order_by(
         Consultation.date_consultation.desc()
     ).all()
@@ -10236,14 +10295,19 @@ def _rendre_sections_examen_physique(examen, lang='fr'):
 def examen_physique(id):
     """Page de l'examen physique"""
     from models import Consultation, Patient, ExamenPhysique
-    
+
     consultation = Consultation.query.get_or_404(id)
     patient = Patient.query.get(consultation.id_patient)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if patient and current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
     # Récupérer l'examen existant
     examen = ExamenPhysique.query.filter_by(consultation_id=id).first()
     
@@ -10293,14 +10357,19 @@ def examen_physique_ajouter(patient_id):
 def examen_physique_page(consultation_id):
     """Affiche la page d'examen physique avec l'ID de consultation"""
     from models import Consultation, Patient, ExamenPhysique
-    
+
     consultation = Consultation.query.get_or_404(consultation_id)
     patient = Patient.query.get(consultation.id_patient)
-    
+
     if current_user.role not in ['admin_structure', 'medecin']:
         flash('Accès non autorisé', 'danger')
         return redirect(url_for('dashboard'))
-    
+
+    # ⭐ Isolation multi-structure (voir patient_detail)
+    if patient and current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+
     # Récupérer l'examen existant
     examen = ExamenPhysique.query.filter_by(consultation_id=consultation_id).first()
     

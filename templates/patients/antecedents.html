@@ -386,7 +386,8 @@ window.notifierParente = notifierParente;
 // ==================== FERMER ET NOTIFIER ====================
 function fermerEtNotifier() {
     // Notifier la page parente
-    if (window.opener && !window.opener.closed) {
+    const estPopup = window.opener && !window.opener.closed;
+    if (estPopup) {
         try {
             window.opener.postMessage({
                 type: 'ANTECEDENTS_MODIFIES',
@@ -397,10 +398,18 @@ function fermerEtNotifier() {
             console.error('Erreur notification:', e);
         }
     }
-    
-    // Fermer la fenêtre
+
+    // ⭐ FIX : cette page est aussi reliée par un simple lien (voir
+    // patients/detail.html) — window.close() est alors refusé
+    // silencieusement par le navigateur, laissant le bouton "Fermer"
+    // sans aucun effet. On ne tente la fermeture que si c'est un vrai
+    // popup, sinon on retourne à la fiche patient.
     setTimeout(function() {
-        window.close();
+        if (estPopup) {
+            window.close();
+        } else {
+            window.location.href = "{{ url_for('patient_detail', id=patient.id) }}";
+        }
     }, 300);
 }
 

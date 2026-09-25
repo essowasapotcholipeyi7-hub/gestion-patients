@@ -73,11 +73,20 @@ def liste():
     if patient_id:
         patient = Patient.query.get(patient_id)
         if patient:
+            # ⭐⭐ SÉCURITÉ : isolation multi-structure — la seule vérification
+            # d'avant (médecin référent) était silencieusement contournée
+            # pour un patient sans référent assigné (id_medecin_referent
+            # is None), laissant voir/imprimer/signer des documents
+            # légaux (DNR, refus de traitement...) d'une AUTRE clinique.
+            if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+                flash('Accès non autorisé', 'danger')
+                return redirect(url_for('engagements.liste'))
+
             # Vérifier que le médecin a accès à ce patient
             if current_user.role == 'medecin' and patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
                 flash('Accès non autorisé à ce patient', 'danger')
                 return redirect(url_for('engagements.liste'))  # ⭐ CHANGÉ
-    
+
             engagements = Engagement.query.filter_by(
                 patient_id=patient.id
             ).order_by(Engagement.date_creation.desc()).all()
@@ -101,10 +110,13 @@ def ajouter():
     
     if patient_id:
         patient = Patient.query.get(patient_id)
+        if patient and current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+            flash('Accès non autorisé', 'danger')
+            return redirect(url_for('engagements.liste'))
         if patient and current_user.role == 'medecin' and patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
             flash('Accès non autorisé à ce patient', 'danger')
             return redirect(url_for('engagements.liste'))
-    
+
     if request.method == 'POST':
         patient_id = request.form.get('patient_id')
         type_engagement = request.form.get('type_engagement')
@@ -122,7 +134,11 @@ def ajouter():
         if not patient:
             flash('Patient non trouvé', 'danger')
             return redirect(url_for('engagements.ajouter'))
-        
+
+        if current_user.role != 'super_admin' and patient.id_structure != current_user.id_structure:
+            flash('Accès non autorisé', 'danger')
+            return redirect(url_for('engagements.liste'))
+
         # Vérifier que le médecin a accès
         if current_user.role == 'medecin' and patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
             flash('Accès non autorisé à ce patient', 'danger')
@@ -179,14 +195,19 @@ def ajouter():
 def detail(id):
     """Voir le détail d'un engagement"""
     engagement = Engagement.query.get_or_404(id)
-    
+
+    # ⭐ Isolation multi-structure (voir liste/ajouter ci-dessus)
+    if current_user.role != 'super_admin' and engagement.structure_id != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('engagements.liste'))
+
     # Vérifier l'accès
     if current_user.role == 'medecin':
         patient = engagement.patient
         if patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
             flash('Accès non autorisé', 'danger')
             return redirect(url_for('engagements.liste'))  # ⭐ CHANGÉ
-    
+
     return render_template('engagements/detail.html',
                          engagement=engagement,
                          now=datetime.now())
@@ -197,14 +218,19 @@ def detail(id):
 def print_view(id):
     """Version imprimable de l'engagement"""
     engagement = Engagement.query.get_or_404(id)
-    
+
+    # ⭐ Isolation multi-structure (voir liste/ajouter ci-dessus)
+    if current_user.role != 'super_admin' and engagement.structure_id != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('engagements.liste'))
+
     # Vérifier l'accès
     if current_user.role == 'medecin':
         patient = engagement.patient
         if patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
             flash('Accès non autorisé', 'danger')
             return redirect(url_for('engagements.liste'))  # ⭐ CHANGÉ
-    
+
     return render_template('engagements/print.html',
                          engagement=engagement,
                          now=datetime.now())
@@ -215,13 +241,17 @@ def print_view(id):
 def signer_patient(id):
     """Marquer que le patient a signé"""
     engagement = Engagement.query.get_or_404(id)
-    
+
+    # ⭐ Isolation multi-structure (voir liste/ajouter ci-dessus)
+    if current_user.role != 'super_admin' and engagement.structure_id != current_user.id_structure:
+        return jsonify({'error': 'Non autorisé'}), 403
+
     # Vérifier l'accès
     if current_user.role == 'medecin':
         patient = engagement.patient
         if patient.id_medecin_referent is not None and patient.id_medecin_referent != current_user.id:
             return jsonify({'error': 'Non autorisé'}), 403
-    
+
     engagement.signe_par_patient = True
     engagement.date_signature_patient = datetime.utcnow()
     db.session.commit()
