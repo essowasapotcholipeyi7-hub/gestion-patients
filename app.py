@@ -632,6 +632,19 @@ def _pousser_protocole_ghp(categorie, source_model, source_id, structure_id,
     if not mappings:
         return
 
+    # ⭐ Document né dans GHP (reçu par /api/protocoles/sync-externe ci-dessous) :
+    # GHP met à jour SON original au lieu d'en créer un second.
+    ghp_id = None
+    try:
+        from models import ProtocoleSoins, OrdonnanceType, ExamenType
+        modele = {'ProtocoleSoins': ProtocoleSoins, 'OrdonnanceType': OrdonnanceType,
+                  'ExamenType': ExamenType}.get(source_model)
+        objet = modele.query.get(source_id) if modele else None
+        if objet is not None and getattr(objet, 'source_app', None) == 'ghp':
+            ghp_id = objet.source_id
+    except Exception:
+        pass
+
     auteur_nom = None
     try:
         auteur_nom = f"{current_user.prenom} {current_user.nom}".strip()
@@ -656,11 +669,93 @@ def _pousser_protocole_ghp(categorie, source_model, source_id, structure_id,
                     'actif': actif,
                     'action': action,
                     'auteur_nom': auteur_nom,
+                    'ghp_id': ghp_id,
                 },
                 timeout=10
             )
         except Exception as e:
             print(f"⚠️ Push protocole GHP échoué (structure {structure_id}) : {e}")
+
+
+@app.route('/api/protocoles/sync-externe', methods=['POST'])
+def api_recevoir_protocole_externe():
+    """
+    ⭐ Sens GHP -> gestion_patients (patron, 2026-10-11 : « tu ajoutes ça dans
+    les protocoles de GHP et tu le récupères dans gestion_patients ») : un
+    protocole de soins / une ordonnance type / un bulletin d'examen créé ou
+    modifié dans GHP arrive ici. Symétrique de _pousser_protocole_ghp ci-dessus
+    et de /api/protocoles/sync-externe côté GHP. Token = StructureMapping.api_key.
+
+    - Document né dans GHP : upsert sur (structure_id, source_app='ghp', source_id).
+    - Document né ici puis modifié dans GHP (`gp_id`) : on met à jour l'original.
+    ⭐ ANTI-BOUCLE : rien n'est renvoyé vers GHP depuis cette route.
+    """
+    import json as _json
+    from models import StructureMapping, ProtocoleSoins, OrdonnanceType, ExamenType, Utilisateur
+
+    token = request.args.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Token manquant'}), 401
+    mapping = StructureMapping.query.filter_by(api_key=token, actif=True).first()
+    if not mapping:
+        return jsonify({'success': False, 'error': 'Token invalide'}), 401
+
+    try:
+        data = request.json or {}
+        modele = {'protocole_soins': ProtocoleSoins, 'ordonnance_type': OrdonnanceType,
+                  'bulletin_examen': ExamenType}.get(data.get('categorie'))
+        if modele is None:
+            return jsonify({'success': False, 'error': 'Catégorie non synchronisable'}), 400
+
+        structure_id = mapping.local_structure_id
+        objet = None
+        if data.get('gp_id'):
+            objet = modele.query.filter_by(id=int(data['gp_id']), structure_id=structure_id).first()
+        if objet is None and data.get('source_id'):
+            objet = modele.query.filter_by(structure_id=structure_id, source_app='ghp',
+                                           source_id=int(data['source_id'])).first()
+
+        maintenant = datetime.utcnow()
+        if data.get('action') == 'archive' or not data.get('actif', True):
+            if objet is not None:
+                objet.actif = False
+                objet.source_synced_at = maintenant
+                db.session.commit()
+            return jsonify({'success': True, 'message': 'Désactivé' if objet else 'Rien à désactiver'})
+
+        if objet is None:
+            if data.get('gp_id') or not data.get('source_id'):
+                return jsonify({'success': True, 'message': 'Original introuvable : rien à faire'})
+            createur = (Utilisateur.query.filter_by(id_structure=structure_id, role='admin_structure').first()
+                        or Utilisateur.query.filter_by(id_structure=structure_id).first())
+            if createur is None:
+                return jsonify({'success': False, 'error': 'Aucun utilisateur dans la structure'}), 409
+            objet = modele(structure_id=structure_id, created_by=createur.id,
+                           source_app='ghp', source_id=int(data['source_id']))
+            db.session.add(objet)
+
+        titre = (data.get('titre') or 'Sans titre').strip()[:200]
+        description = (data.get('description') or '').strip()
+        contenu = (data.get('contenu') or '').strip()
+        objet.nom = titre
+        objet.actif = True
+        objet.source_synced_at = maintenant
+        if modele is ProtocoleSoins:
+            objet.description = contenu or description or titre
+        elif modele is OrdonnanceType:
+            objet.description = description or None
+            objet.medicaments = _json.dumps(data.get('medicaments') or [], ensure_ascii=False)
+        else:
+            objet.motif = description or None
+            objet.description = description or None
+            objet.examens = _json.dumps(data.get('examens') or [], ensure_ascii=False)
+            objet.nature = objet.nature or 'AUTRE'
+        db.session.commit()
+        return jsonify({'success': True, 'id': objet.id})
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Réception protocole GHP : {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ============================================================

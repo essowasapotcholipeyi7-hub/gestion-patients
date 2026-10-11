@@ -60,7 +60,18 @@ class Utilisateur(UserMixin, db.Model):
         self.password_hash = generate_password_hash(password)
     
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        h = self.password_hash or ''
+        # ⭐ Mot de passe recopié depuis GHP (2026-10-11 : « mêmes identifiants
+        # que GHP ») : GHP stocke un SHA-256 hexadécimal. Reconnu tel quel, puis
+        # converti au format sûr de werkzeug — enregistré par l'appelant
+        # (la connexion fait le commit).
+        if len(h) == 64 and all(ch in '0123456789abcdef' for ch in h):
+            import hmac
+            if hmac.compare_digest(hashlib.sha256((password or '').encode()).hexdigest(), h):
+                self.set_password(password)
+                return True
+            return False
+        return check_password_hash(h, password)
     
     def set_reset_answer(self, answer):
         self.reset_answer_hash = hashlib.sha256(answer.lower().strip().encode()).hexdigest()
@@ -1478,6 +1489,12 @@ class ProtocoleSoins(db.Model):
     fichier_mime = db.Column(db.String(100), nullable=True)
     fichier_data = db.Column(db.LargeBinary, nullable=True)
 
+    # ⭐ Origine miroir (2026-10-11) : document créé dans GHP et reçu par
+    # /api/protocoles/sync-externe — NULL pour un document né ici.
+    source_app = db.Column(db.String(30), nullable=True)      # 'ghp'
+    source_id = db.Column(db.Integer, nullable=True)          # id ProtocoleMedical côté GHP
+    source_synced_at = db.Column(db.DateTime, nullable=True)
+
     # Métadonnées
     created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1525,6 +1542,12 @@ class OrdonnanceType(db.Model):
     fichier_nom = db.Column(db.String(255), nullable=True)
     fichier_mime = db.Column(db.String(100), nullable=True)
     fichier_data = db.Column(db.LargeBinary, nullable=True)
+
+    # ⭐ Origine miroir (2026-10-11) : document créé dans GHP et reçu par
+    # /api/protocoles/sync-externe — NULL pour un document né ici.
+    source_app = db.Column(db.String(30), nullable=True)      # 'ghp'
+    source_id = db.Column(db.Integer, nullable=True)          # id ProtocoleMedical côté GHP
+    source_synced_at = db.Column(db.DateTime, nullable=True)
 
     # Métadonnées
     created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
@@ -1625,6 +1648,12 @@ class ExamenType(db.Model):
     fichier_nom = db.Column(db.String(255), nullable=True)
     fichier_mime = db.Column(db.String(100), nullable=True)
     fichier_data = db.Column(db.LargeBinary, nullable=True)
+
+    # ⭐ Origine miroir (2026-10-11) : document créé dans GHP et reçu par
+    # /api/protocoles/sync-externe — NULL pour un document né ici.
+    source_app = db.Column(db.String(30), nullable=True)      # 'ghp'
+    source_id = db.Column(db.Integer, nullable=True)          # id ProtocoleMedical côté GHP
+    source_synced_at = db.Column(db.DateTime, nullable=True)
 
     # Métadonnées
     created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
