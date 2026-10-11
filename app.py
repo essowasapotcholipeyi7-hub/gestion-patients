@@ -11842,9 +11842,11 @@ def _telecharger_fichier_source(modele, nom_defaut):
     from flask import Response
     if not modele.fichier_data:
         return "Aucun fichier importé pour cet élément.", 404
+    # ⭐ ?voir=1 : ouvert dans le navigateur (lecture / impression du PDF) au lieu d'être téléchargé
+    disposition = 'inline' if request.args.get('voir') else 'attachment'
     return Response(
         modele.fichier_data, mimetype=modele.fichier_mime or 'application/octet-stream',
-        headers={'Content-Disposition': f'attachment; filename="{modele.fichier_nom or nom_defaut}"'}
+        headers={'Content-Disposition': f'{disposition}; filename="{modele.fichier_nom or nom_defaut}"'}
     )
 
 
@@ -11876,6 +11878,97 @@ def api_telecharger_fichier_examen_type(id):
     if not examen:
         return "Examen type introuvable", 404
     return _telecharger_fichier_source(examen, 'examen')
+
+
+# ⭐ Lire et imprimer un modèle (patron, 2026-10-11 : « comment voir le contenu,
+# avec possibilité d'imprimer ? … fais de même pour ordonnance et bulletin
+# d'examens ») — les listes n'offraient que Modifier / Supprimer. Lecture
+# ouverte aussi à l'infirmier, qui applique les soins.
+ROLES_LECTURE_MODELE = ('admin_structure', 'medecin', 'infirmier')
+INFOS_MODELE = {
+    'protocole': {'libelle': 'Protocole de soins', 'icone': 'fa-notes-medical', 'liste': 'liste_protocoles',
+                  'modifier': 'modifier_protocole', 'imprimer': 'imprimer_protocole',
+                  'fichier': 'api_telecharger_fichier_protocole'},
+    'ordonnance': {'libelle': 'Ordonnance type', 'icone': 'fa-prescription', 'liste': 'liste_ordonnances',
+                   'modifier': 'modifier_ordonnance', 'imprimer': 'imprimer_ordonnance_type',
+                   'fichier': 'api_telecharger_fichier_ordonnance_type'},
+    'examen': {'libelle': "Bulletin d'examens", 'icone': 'fa-flask', 'liste': 'liste_examens',
+               'modifier': 'modifier_examen', 'imprimer': 'imprimer_examen_type',
+               'fichier': 'api_telecharger_fichier_examen_type'},
+}
+
+
+def _modele_lisible(type_modele, id):
+    from models import ProtocoleSoins, OrdonnanceType, ExamenType
+    if current_user.role not in ROLES_LECTURE_MODELE:
+        return None
+    modele = {'protocole': ProtocoleSoins, 'ordonnance': OrdonnanceType, 'examen': ExamenType}[type_modele]
+    return modele.query.filter_by(id=id, structure_id=current_user.id_structure).first()
+
+
+def _contenu_protocole(modele):
+    """Texte du protocole sans sa 1re ligne quand elle répète le titre (affiché à part)."""
+    texte = (getattr(modele, 'description', '') or '').strip()
+    premiere, _, reste = texte.partition(chr(10))
+    if premiere.strip().upper() == (modele.nom or '').strip().upper():
+        return reste.lstrip('\r\n')
+    return texte
+
+
+def _voir_modele(type_modele, id):
+    modele = _modele_lisible(type_modele, id)
+    if not modele:
+        flash('Document introuvable ou accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    return render_template('templates/modele_voir.html', modele=modele, type_modele=type_modele,
+                           info=INFOS_MODELE[type_modele], contenu=_contenu_protocole(modele))
+
+
+def _imprimer_modele(type_modele, id):
+    from models import Structure
+    modele = _modele_lisible(type_modele, id)
+    if not modele:
+        flash('Document introuvable ou accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    return render_template('impressions/modele_type.html', modele=modele, type_modele=type_modele,
+                           info=INFOS_MODELE[type_modele], structure=Structure.query.get(current_user.id_structure),
+                           now=datetime.utcnow(), contenu=_contenu_protocole(modele))
+
+
+@app.route('/templates/protocole/<int:id>')
+@login_required
+def voir_protocole(id):
+    return _voir_modele('protocole', id)
+
+
+@app.route('/templates/protocole/<int:id>/imprimer')
+@login_required
+def imprimer_protocole(id):
+    return _imprimer_modele('protocole', id)
+
+
+@app.route('/templates/ordonnance/<int:id>')
+@login_required
+def voir_ordonnance_type(id):
+    return _voir_modele('ordonnance', id)
+
+
+@app.route('/templates/ordonnance/<int:id>/imprimer')
+@login_required
+def imprimer_ordonnance_type(id):
+    return _imprimer_modele('ordonnance', id)
+
+
+@app.route('/templates/examen/<int:id>')
+@login_required
+def voir_examen_type(id):
+    return _voir_modele('examen', id)
+
+
+@app.route('/templates/examen/<int:id>/imprimer')
+@login_required
+def imprimer_examen_type(id):
+    return _imprimer_modele('examen', id)
 
 
 @app.route('/templates/protocole/ajouter', methods=['GET', 'POST'])

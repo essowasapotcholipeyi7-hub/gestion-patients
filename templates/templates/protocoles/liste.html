@@ -57,7 +57,7 @@
                     <tbody>
                         {% for p in protocoles %}
                         <tr data-nom="{{ p.nom|lower }}" data-description="{{ (p.description or '')|lower }}" data-statut="{{ 'actif' if p.actif else 'inactif' }}">
-                            <td><strong>{{ p.nom }}</strong></td>
+                            <td><a href="{{ url_for('voir_protocole', id=p.id) }}" class="text-decoration-none"><strong>{{ p.nom }}</strong></a>{% if p.source_app == 'ghp' %} <span class="badge bg-info text-dark" title="Synchronisé depuis GHP">GHP</span>{% endif %}</td>
                             <td>
                                 <span class="text-muted">
                                     {{ p.description[:80] }}{% if p.description|length > 80 %}...{% endif %}
@@ -90,8 +90,14 @@
                                 <span class="badge bg-secondary">Inactif</span>
                                 {% endif %}
                             </td>
-                            <td>
-                                <a href="{{ url_for('modifier_protocole', id=p.id) }}" class="btn btn-sm btn-primary">
+                            <td class="text-nowrap">
+                                <a href="{{ url_for('voir_protocole', id=p.id) }}" class="btn btn-sm btn-outline-info" title="Voir le protocole">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ url_for('imprimer_protocole', id=p.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Imprimer">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                                <a href="{{ url_for('modifier_protocole', id=p.id) }}" class="btn btn-sm btn-primary" title="Modifier">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ p.id }}">

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{# ⭐ Lecture d'un modèle (protocole de soins, ordonnance type, bulletin d'examens)
+   avec impression — patron, 2026-10-11 : « comment voir le contenu, avec
+   possibilité d'imprimer ? … fais de même pour ordonnance et bulletin d'examens ». #}
+
+{% block title %}{{ modele.nom }} — {{ info.libelle }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+            <div class="text-muted small text-uppercase" style="letter-spacing:.05em;"><i class="fas {{ info.icone }} me-1"></i>{{ info.libelle }}</div>
+            <h1 class="mb-0">{{ modele.nom }}</h1>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for(info.liste) if current_user.role in ['admin_structure', 'medecin'] else url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+            <a href="{{ url_for(info.imprimer, id=modele.id) }}" target="_blank" class="btn btn-primary">
+                <i class="fas fa-print me-2"></i>Imprimer
+            </a>
+            {% if current_user.role in ['admin_structure', 'medecin'] %}
+            <a href="{{ url_for(info.modifier, id=modele.id) }}" class="btn btn-outline-primary">
+                <i class="fas fa-edit me-2"></i>Modifier
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+                    {% if modele.actif %}<span class="badge bg-success">Actif</span>{% else %}<span class="badge bg-secondary">Inactif</span>{% endif %}
+                    {% if type_modele == 'examen' %}
+                    <span class="badge {{ 'bg-danger' if modele.nature == 'BIOLOGIE' else ('bg-primary' if modele.nature == 'IMAGERIE' else 'bg-secondary') }}">{{ (modele.nature or 'AUTRE')|capitalize }}</span>
+                    {% endif %}
+                    {% if modele.source_app == 'ghp' %}
+                    <span class="badge bg-info text-dark" title="Créé dans GHP › Protocoles et modèles, recopié automatiquement ici">
+                        <i class="fas fa-rotate me-1"></i>Synchronisé depuis GHP
+                    </span>
+                    {% endif %}
+                    {% if modele.updated_at %}<small class="text-muted ms-auto">Mis à jour le {{ modele.updated_at.strftime('%d/%m/%Y') }}</small>{% endif %}
+                </div>
+                <div class="card-body">
+                    {% if type_modele == 'protocole' %}
+                        <div style="white-space: pre-wrap; line-height: 1.6; font-size: 1.02rem;">{{ contenu }}</div>
+
+                    {% elif type_modele == 'ordonnance' %}
+                        {% if modele.description %}<p class="text-muted" style="white-space: pre-wrap;">{{ modele.description }}</p>{% endif %}
+                        {% set meds = modele.get_medicaments_list() %}
+                        {% if meds %}
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead><tr><th>#</th><th>Médicament</th><th>Dosage</th><th>Posologie</th><th>Durée</th><th>Quantité</th></tr></thead>
+                                <tbody>
+                                {% for med in meds %}
+                                <tr>
+                                    <td class="text-muted">{{ loop.index }}</td>
+                                    <td><strong>{{ med.medicament or med.nom or '' }}</strong></td>
+                                    <td>{{ med.dosage or '—' }}</td>
+                                    <td>{{ med.posologie or med.frequence or '—' }}</td>
+                                    <td>{{ med.duree or '—' }}</td>
+                                    <td>{{ med.quantite or '—' }}</td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted mb-0">Aucun médicament dans cette ordonnance type.</p>
+                        {% endif %}
+
+                    {% else %}
+                        <dl class="row mb-3">
+                            <dt class="col-sm-3">Motif / diagnostic</dt><dd class="col-sm-9" style="white-space: pre-wrap;">{{ modele.motif or '—' }}</dd>
+                            {% if modele.description and modele.description != modele.motif %}
+                            <dt class="col-sm-3">Précisions</dt><dd class="col-sm-9" style="white-space: pre-wrap;">{{ modele.description }}</dd>
+                            {% endif %}
+                        </dl>
+                        {% set exs = modele.get_examens_list() %}
+                        <h6>Examens demandés ({{ exs|length }})</h6>
+                        {% if exs %}
+                        <ol class="mb-0">{% for ex in exs %}<li>{{ ex }}</li>{% endfor %}</ol>
+                        {% else %}
+                        <p class="text-muted mb-0">Aucun examen dans ce bulletin type.</p>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 d-flex flex-column gap-3">
+            {% if modele.fichier_nom %}
+            <div class="card">
+                <div class="card-header"><i class="fas fa-file-lines me-2 text-danger"></i>Document d'origine</div>
+                <div class="card-body">
+                    <p class="small mb-2 text-break">{{ modele.fichier_nom }}</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{{ url_for(info.fichier, id=modele.id, voir=1) }}" target="_blank" class="btn btn-sm btn-outline-danger"><i class="fas fa-eye me-1"></i>Ouvrir</a>
+                        <a href="{{ url_for(info.fichier, id=modele.id) }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-download me-1"></i>Télécharger</a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if type_modele == 'protocole' and (modele.ordonnance_type or modele.examen_type) %}
+            <div class="card">
+                <div class="card-header"><i class="fas fa-link me-2"></i>Associé à ce protocole</div>
+                <ul class="list-group list-group-flush">
+                    {% if modele.ordonnance_type %}
+                    <li class="list-group-item"><a href="{{ url_for('voir_ordonnance_type', id=modele.ordonnance_type.id) }}"><i class="fas fa-prescription me-2 text-success"></i>Ordonnance : {{ modele.ordonnance_type.nom }}</a></li>
+                    {% endif %}
+                    {% if modele.examen_type %}
+                    <li class="list-group-item"><a href="{{ url_for('voir_examen_type', id=modele.examen_type.id) }}"><i class="fas fa-flask me-2 text-info"></i>Examens : {{ modele.examen_type.nom }}</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

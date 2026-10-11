@@ -65,7 +65,7 @@
                     <tbody>
                         {% for e in examens %}
                         <tr data-nom="{{ e.nom|lower }}" data-motif="{{ (e.motif or '')|lower }}" data-nature="{{ e.nature or '' }}" data-statut="{{ 'actif' if e.actif else 'inactif' }}">
-                            <td><strong>{{ e.nom }}</strong></td>
+                            <td><a href="{{ url_for('voir_examen_type', id=e.id) }}" class="text-decoration-none"><strong>{{ e.nom }}</strong></a>{% if e.source_app == 'ghp' %} <span class="badge bg-info text-dark" title="Synchronisé depuis GHP">GHP</span>{% endif %}</td>
                             <td>
                                 {% if e.nature == 'BIOLOGIE' %}
                                 <span class="badge bg-danger">Biologie</span>
@@ -88,8 +88,14 @@
                                 <span class="badge bg-secondary">Inactif</span>
                                 {% endif %}
                             </td>
-                            <td>
-                                <a href="{{ url_for('modifier_examen', id=e.id) }}" class="btn btn-sm btn-primary">
+                            <td class="text-nowrap">
+                                <a href="{{ url_for('voir_examen_type', id=e.id) }}" class="btn btn-sm btn-outline-info" title="Voir">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ url_for('imprimer_examen_type', id=e.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Imprimer">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                                <a href="{{ url_for('modifier_examen', id=e.id) }}" class="btn btn-sm btn-primary" title="Modifier">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ e.id }}">
