@@ -60,6 +60,15 @@ def load_user(user_id):
     from models import db, Utilisateur
     return db.session.get(Utilisateur, int(user_id))
 
+# ⭐ heures de calcul Neon : les synchronisations automatiques ne tournent
+# que si quelqu'un a utilisé l'application récemment — voir activite.py
+@app.before_request
+def _noter_activite_utilisateur():
+    from activite import noter_activite
+    if request.endpoint not in (None, 'static') and current_user.is_authenticated:
+        noter_activite()
+
+
 @app.context_processor
 def inject_non_lus():
     from models import Message
@@ -11016,6 +11025,9 @@ def normalize_assurance_type(value):
     # Si rien ne correspond, retourner la valeur en majuscules
     return value.upper().replace('_', '-')
 
+_SYNCHRO_PATIENTS_COMPLETE = {}  # id du mapping -> heure de la dernière synchro complète (par processus)
+
+
 def sync_patients_from_ghp(structure_mapping):
     """
     Synchronise UNIQUEMENT les informations patient depuis GHP
@@ -11035,6 +11047,14 @@ def sync_patients_from_ghp(structure_mapping):
         
         url = f"{structure_mapping.api_url}/api/sync/patients"
         params = {'token': token}
+        # ⭐ 2026-10-12 : seuls les patients créés ou modifiés dans GHP depuis le
+        # passage précédent (marge de 10 min) ; une synchro complète par jour et
+        # par processus, par sécurité. last_sync = « curseur » renvoyé par GHP.
+        import time as _time
+        from datetime import timedelta
+        complete = _time.time() - _SYNCHRO_PATIENTS_COMPLETE.get(structure_mapping.id, 0) > 24 * 3600
+        if not complete and structure_mapping.last_sync:
+            params['depuis'] = (structure_mapping.last_sync - timedelta(minutes=10)).isoformat()
         
         print(f"🔄 Synchronisation depuis: {url}")
         
@@ -11046,6 +11066,7 @@ def sync_patients_from_ghp(structure_mapping):
         
         data = response.json()
         patients = data.get('patients', [])
+        incremental = bool(data.get('incremental'))
         
         print(f"✅ {len(patients)} patients récupérés depuis GHP")
         
@@ -11061,13 +11082,14 @@ def sync_patients_from_ghp(structure_mapping):
         # par passage (≈ 2,7 Go/jour pour ~1 400 patients, facturés par Render).
         # Désormais : une seule lecture de tous les patients connus, et une
         # écriture seulement pour un patient réellement modifié ou nouveau.
-        existants = {
-            str(p.patient_source_id): p
-            for p in Patient.query.filter_by(
-                source_structure_id=structure_mapping.source_structure_id,
-                id_structure=structure_mapping.local_structure_id,
-            ).all()
-        }
+        requete_existants = Patient.query.filter_by(
+            source_structure_id=structure_mapping.source_structure_id,
+            id_structure=structure_mapping.local_structure_id,
+        )
+        if incremental:
+            ids_recus = [str(p.get('ID')) for p in patients if p.get('ID')]
+            requete_existants = requete_existants.filter(Patient.patient_source_id.in_(ids_recus)) if ids_recus else None
+        existants = {str(p.patient_source_id): p for p in requete_existants.all()} if requete_existants is not None else {}
         compteur['inchange'] = 0
 
         for p_data in patients:
@@ -11211,8 +11233,13 @@ def sync_patients_from_ghp(structure_mapping):
                 db.session.rollback()
                 continue
         
-        # Mettre à jour la date de dernière synchronisation
-        structure_mapping.last_sync = datetime.utcnow()
+        # Mettre à jour la date de dernière synchronisation (horloge de GHP si fournie)
+        try:
+            structure_mapping.last_sync = datetime.fromisoformat(data['curseur']) if data.get('curseur') else datetime.utcnow()
+        except (TypeError, ValueError):
+            structure_mapping.last_sync = datetime.utcnow()
+        if not incremental:
+            _SYNCHRO_PATIENTS_COMPLETE[structure_mapping.id] = _time.time()
         db.session.commit()
         
         message = f"✅ Sync terminée: {compteur['cree']} créés, {compteur['mis_a_jour']} mis à jour, {compteur['inchange']} inchangés, {compteur['erreur']} erreurs"

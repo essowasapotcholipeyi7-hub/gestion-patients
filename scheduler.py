@@ -6,6 +6,21 @@ import os
 
 logger = logging.getLogger(__name__)
 
+
+def _si_activite(tache):
+    """⭐ Heures de calcul Neon (2026-10-12) : ces synchronisations tournaient
+    toutes les 3 et 5 minutes jour et nuit — la base de gestion_patients (et
+    celle de GHP, interrogée à chaque passage) ne dormait jamais. Elles ne
+    tournent plus que si quelqu'un a utilisé l'application dans les 15
+    dernières minutes (activite.py) : sinon il n'y a rien de nouveau."""
+    def executer():
+        from activite import activite_recente
+        if activite_recente():
+            tache()
+    executer.__name__ = tache.__name__
+    return executer
+
+
 # ⭐ Une seule instance du scheduler
 scheduler = None
 
@@ -110,7 +125,7 @@ def start_scheduler():
         
         # ---- 1. SYNCHRONISATION GHP (toutes les 3 minutes) ----
         scheduler.add_job(
-            func=scheduled_sync_ghp,
+            func=_si_activite(scheduled_sync_ghp),
             trigger=IntervalTrigger(minutes=3),
             id='ghp_sync',
             replace_existing=True
@@ -123,7 +138,7 @@ def start_scheduler():
         
         # ---- 3. SYNCHRONISATION PRESCRIPTIONS (toutes les 5 minutes) ----
         scheduler.add_job(
-            func=scheduled_sync_prescriptions,
+            func=_si_activite(scheduled_sync_prescriptions),
             trigger=IntervalTrigger(minutes=5),
             id='sync_prescriptions',
             replace_existing=True
@@ -132,7 +147,7 @@ def start_scheduler():
 
         # ---- 4. SYNCHRONISATION ACTES POSÉS (toutes les 5 minutes) ----
         scheduler.add_job(
-            func=scheduled_sync_actes_poses,
+            func=_si_activite(scheduled_sync_actes_poses),
             trigger=IntervalTrigger(minutes=5),
             id='sync_actes_poses',
             replace_existing=True
@@ -141,7 +156,7 @@ def start_scheduler():
 
         # ---- 5. SYNCHRONISATION FACTURATION HOSPITALISATION (toutes les 5 minutes) ----
         scheduler.add_job(
-            func=scheduled_sync_hospitalisations,
+            func=_si_activite(scheduled_sync_hospitalisations),
             trigger=IntervalTrigger(minutes=5),
             id='sync_hospitalisations',
             replace_existing=True
@@ -150,7 +165,7 @@ def start_scheduler():
 
         # ---- 6. SYNCHRONISATION RÉSULTATS EXAMENS (toutes les 5 minutes) ----
         scheduler.add_job(
-            func=scheduled_sync_resultats_examens,
+            func=_si_activite(scheduled_sync_resultats_examens),
             trigger=IntervalTrigger(minutes=5),
             id='sync_resultats_examens',
             replace_existing=True
