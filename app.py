@@ -11028,7 +11028,18 @@ def normalize_assurance_type(value):
 _SYNCHRO_PATIENTS_COMPLETE = {}  # id du mapping -> heure de la dernière synchro complète (par processus)
 
 
-def sync_patients_from_ghp(structure_mapping):
+class _ReponseDirecte:
+    """Patients envoyés directement par GHP : même traitement qu'une réponse de /api/sync/patients."""
+    status_code = 200
+
+    def __init__(self, patients):
+        self._donnees = {'patients': patients, 'incremental': True}
+
+    def json(self):
+        return self._donnees
+
+
+def sync_patients_from_ghp(structure_mapping, patients_pousses=None):
     """
     Synchronise UNIQUEMENT les informations patient depuis GHP
     Version avec normalisation des données
@@ -11058,7 +11069,10 @@ def sync_patients_from_ghp(structure_mapping):
         
         print(f"🔄 Synchronisation depuis: {url}")
         
-        response = requests.get(url, params=params, timeout=60)
+        if patients_pousses is not None:
+            response = _ReponseDirecte(patients_pousses)   # envoi direct de GHP
+        else:
+            response = requests.get(url, params=params, timeout=60)
         
         if response.status_code != 200:
             print(f"❌ Erreur API GHP: {response.status_code}")
@@ -11234,12 +11248,14 @@ def sync_patients_from_ghp(structure_mapping):
                 continue
         
         # Mettre à jour la date de dernière synchronisation (horloge de GHP si fournie)
-        try:
-            structure_mapping.last_sync = datetime.fromisoformat(data['curseur']) if data.get('curseur') else datetime.utcnow()
-        except (TypeError, ValueError):
-            structure_mapping.last_sync = datetime.utcnow()
-        if not incremental:
-            _SYNCHRO_PATIENTS_COMPLETE[structure_mapping.id] = _time.time()
+        # — pas pour un envoi direct de GHP : le curseur reste celui de la recherche
+        if patients_pousses is None:
+            try:
+                structure_mapping.last_sync = datetime.fromisoformat(data['curseur']) if data.get('curseur') else datetime.utcnow()
+            except (TypeError, ValueError):
+                structure_mapping.last_sync = datetime.utcnow()
+            if not incremental:
+                _SYNCHRO_PATIENTS_COMPLETE[structure_mapping.id] = _time.time()
         db.session.commit()
         
         message = f"✅ Sync terminée: {compteur['cree']} créés, {compteur['mis_a_jour']} mis à jour, {compteur['inchange']} inchangés, {compteur['erreur']} erreurs"
@@ -11323,6 +11339,26 @@ def api_sync_patients(mapping_id):
             'success': False,
             'message': f'Erreur: {str(e)}'
         }), 500
+
+@app.route('/api/patients/sync-externe', methods=['POST'])
+def api_recevoir_patients_ghp():
+    """⭐ Envoi DIRECT GHP -> gestion_patients (patron, 2026-10-12) : un patient
+    créé ou modifié dans GHP arrive ici aussitôt (services/sync_patients_gp.py
+    côté GHP), comme les prescriptions et les RDV vont déjà directement vers GHP.
+    Même traitement que la recherche périodique (sync_patients_from_ghp), qui ne
+    reste qu'un filet de sécurité. Token = StructureMapping.api_key.
+    ⭐ ANTI-BOUCLE : rien n'est renvoyé vers GHP depuis cette route."""
+    from models import StructureMapping
+    token = request.args.get('token') or request.headers.get('X-API-Token')
+    mapping = StructureMapping.query.filter_by(api_key=token, actif=True).first() if token else None
+    if not mapping:
+        return jsonify({'success': False, 'error': 'Token invalide'}), 401
+    patients = (request.get_json(silent=True) or {}).get('patients')
+    if not isinstance(patients, list) or not patients:
+        return jsonify({'success': False, 'error': 'Liste de patients attendue'}), 400
+    resultat = sync_patients_from_ghp(mapping, patients_pousses=patients[:500])
+    return jsonify({'success': not resultat.get('erreur'), **resultat})
+
 
 @app.route('/api/webhook/patient-created', methods=['POST'])
 def webhook_patient_created():

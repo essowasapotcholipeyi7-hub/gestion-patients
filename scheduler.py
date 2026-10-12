@@ -126,11 +126,14 @@ def start_scheduler():
         # ---- 1. SYNCHRONISATION GHP (toutes les 3 minutes) ----
         scheduler.add_job(
             func=_si_activite(scheduled_sync_ghp),
-            trigger=IntervalTrigger(minutes=3),
+            # ⭐ 2026-10-12 : GHP envoie désormais chaque patient créé ou modifié
+            # directement (/api/patients/sync-externe) ; cette recherche n'est plus
+            # qu'un filet de sécurité (application hors ligne, envoi échoué)
+            trigger=IntervalTrigger(minutes=30),
             id='ghp_sync',
             replace_existing=True
         )
-        logger.info("🔄 GHP: Synchronisation automatique toutes les 3 minutes")
+        logger.info("🔄 GHP: patients reçus directement de GHP ; recherche de sécurité toutes les 30 minutes")
         
         # ---- 2. (supprimé 2026-10-12) l'ancienne synchro « sécurité » horaire
         # refaisait exactement la même chose que la synchro des 3 minutes :
