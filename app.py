@@ -11054,7 +11054,22 @@ def sync_patients_from_ghp(structure_mapping):
         # ⭐⭐⭐ AUCUN MÉDECIN RÉFÉRENT N'EST ASSIGNÉ ICI ⭐⭐⭐
         # Le médecin référent sera assigné lors de la première consultation
         print("ℹ️ Aucun médecin référent assigné automatiquement - assignation lors de la première consultation")
-        
+
+        # ⭐ Bande passante (2026-10-12) : cette synchro tourne toutes les 3 minutes.
+        # Avant, chaque patient était relu un par un PUIS réécrit (synced_at)
+        # même sans aucun changement : ~3,7 Ko envoyés à la base par patient et
+        # par passage (≈ 2,7 Go/jour pour ~1 400 patients, facturés par Render).
+        # Désormais : une seule lecture de tous les patients connus, et une
+        # écriture seulement pour un patient réellement modifié ou nouveau.
+        existants = {
+            str(p.patient_source_id): p
+            for p in Patient.query.filter_by(
+                source_structure_id=structure_mapping.source_structure_id,
+                id_structure=structure_mapping.local_structure_id,
+            ).all()
+        }
+        compteur['inchange'] = 0
+
         for p_data in patients:
             try:
                 source_id = p_data.get('ID')
@@ -11091,16 +11106,11 @@ def sync_patients_from_ghp(structure_mapping):
                 elif isinstance(date_naissance, datetime):
                     date_naissance = date_naissance.date()
                 
-                # Chercher si le patient existe déjà
-                patient = Patient.query.filter_by(
-                    patient_source_id=str(source_id),
-                    source_structure_id=structure_mapping.source_structure_id,
-                    id_structure=structure_mapping.local_structure_id
-                ).first()
+                # Chercher si le patient existe déjà (lu une seule fois plus haut)
+                patient = existants.get(str(source_id))
                 
                 if patient:
                     # 📝 MISE À JOUR DU PATIENT EXISTANT
-                    print(f"📝 Mise à jour: {p_data.get('nom')} {p_data.get('prenom')} (ID GHP: {source_id})")
                     
                     patient.nom = p_data.get('nom') or ''
                     patient.prenom = p_data.get('prenom') or ''
@@ -11125,8 +11135,11 @@ def sync_patients_from_ghp(structure_mapping):
                     
                     # ⭐⭐⭐ ON NE TOUCHE PAS AU MÉDECIN RÉFÉRENT ⭐⭐⭐
                     # Le médecin référent reste celui qui a été assigné lors de la première consultation
-                    print(f"   👨‍⚕️ Médecin référent actuel: ID {patient.id_medecin_referent if patient.id_medecin_referent else 'Aucun'}")
                     
+                    if not db.session.is_modified(patient):
+                        compteur['inchange'] += 1   # rien à écrire
+                        continue
+                    print(f"📝 Mise à jour: patient ID GHP {source_id}")
                     patient.synced_at = datetime.utcnow()
                     patient.synced_from = 'ghp'
                     compteur['mis_a_jour'] += 1
@@ -11184,6 +11197,7 @@ def sync_patients_from_ghp(structure_mapping):
                     
                     db.session.add(patient)
                     compteur['cree'] += 1
+                    existants[str(source_id)] = patient   # doublon éventuel dans la même liste
                     
                     print(f"   ℹ️ Patient créé sans médecin référent - sera assigné lors de la première consultation")
                 
@@ -11201,7 +11215,7 @@ def sync_patients_from_ghp(structure_mapping):
         structure_mapping.last_sync = datetime.utcnow()
         db.session.commit()
         
-        message = f"✅ Sync terminée: {compteur['cree']} créés, {compteur['mis_a_jour']} mis à jour, {compteur['erreur']} erreurs"
+        message = f"✅ Sync terminée: {compteur['cree']} créés, {compteur['mis_a_jour']} mis à jour, {compteur['inchange']} inchangés, {compteur['erreur']} erreurs"
         print(message)
         
         return {

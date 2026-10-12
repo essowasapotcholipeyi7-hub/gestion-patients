@@ -117,14 +117,9 @@ def start_scheduler():
         )
         logger.info("🔄 GHP: Synchronisation automatique toutes les 3 minutes")
         
-        # ---- 2. SYNCHRONISATION GHP (sécurité horaire) ----
-        scheduler.add_job(
-            func=scheduled_sync_ghp,
-            trigger=CronTrigger(minute=0),
-            id='ghp_sync_hourly',
-            replace_existing=True
-        )
-        logger.info("🔄 GHP: Synchronisation horaire (sécurité)")
+        # ---- 2. (supprimé 2026-10-12) l'ancienne synchro « sécurité » horaire
+        # refaisait exactement la même chose que la synchro des 3 minutes :
+        # trafic en double, sans rien de plus.
         
         # ---- 3. SYNCHRONISATION PRESCRIPTIONS (toutes les 5 minutes) ----
         scheduler.add_job(
