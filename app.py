@@ -8267,8 +8267,8 @@ def api_recevoir_resultat_examen_externe():
     toute ligne créée/mise à jour ici (jamais laissé NULL) — sans ça, le job
     sortant de tasks.sync_resultats_examens_to_ghp (qui ne filtre QUE sur
     `source_synced_at IS NULL`) la repousserait vers GHP au prochain cycle,
-    créant une boucle infinie. Volontairement PAS de secret statique façon
-    /api/webhook/patient-created (WEBHOOK_SECRET) — même token que partout
+    créant une boucle infinie. Volontairement PAS de secret statique (comme
+    l'ancien webhook, retiré) — même token que partout
     ailleurs dans cette intégration, seule source d'auth fiable pour
     identifier la structure appelante.
     """
@@ -11360,110 +11360,10 @@ def api_recevoir_patients_ghp():
     return jsonify({'success': not resultat.get('erreur'), **resultat})
 
 
-@app.route('/api/webhook/patient-created', methods=['POST'])
-def webhook_patient_created():
-    from models import StructureMapping
-    from threading import Thread
-    import os
-    
-    try:
-        webhook_secret = os.environ.get('WEBHOOK_SECRET', 'mon_secret_webhook_123456')
-        token = request.headers.get('X-Webhook-Token')
-        
-        if token != webhook_secret:
-            return jsonify({'success': False, 'message': 'Token invalide'}), 401
-        
-        data = request.json
-        if not data:
-            return jsonify({'success': False, 'message': 'Données JSON manquantes'}), 400
-        
-        patient_id = data.get('patient_id')
-        structure_id = data.get('structure_id')
-        
-        if not patient_id or not structure_id:
-            return jsonify({'success': False, 'message': 'patient_id et structure_id sont obligatoires'}), 400
-        
-        mapping = StructureMapping.query.filter_by(
-            local_structure_id=structure_id,
-            actif=True
-        ).first()
-        
-        if not mapping:
-            return jsonify({
-                'success': False,
-                'message': f'Configuration GHP non trouvée pour la structure {structure_id}'
-            }), 404
-        
-        def sync_in_background():
-            with app.app_context():
-                try:
-                    print(f"⚡ Webhook: Sync immédiate patient {patient_id}")
-                    resultat = sync_patients_from_ghp(mapping)
-                    
-                    if resultat.get('cree', 0) > 0:
-                        print(f"✅ Patient {patient_id} synchronisé immédiatement")
-                    else:
-                        print(f"⚠️ Patient {patient_id} déjà existant ou non trouvé")
-                except Exception as e:
-                    print(f"❌ Erreur webhook patient {patient_id}: {e}")
-                    import traceback
-                    traceback.print_exc()
-        
-        Thread(target=sync_in_background).start()
-        
-        print(f"📡 Webhook: Sync déclenchée pour patient {patient_id}")
-        
-        return jsonify({
-            'success': True,
-            'message': f'Synchronisation déclenchée en arrière-plan pour patient {patient_id}'
-        })
-        
-    except Exception as e:
-        print(f"❌ Erreur webhook: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'message': f'Erreur interne: {str(e)}'
-        }), 500
-
-# ═══════════════════════════════════════════
-# ROUTE DE TEST DU WEBHOOK
-# ═══════════════════════════════════════════
-
-# app.py - Ajouter cette route
-
-@app.route('/api/webhook/test', methods=['GET', 'POST'])
-def webhook_test():
-    """
-    Route de test pour vérifier que le webhook est accessible
-    """
-    if request.method == 'POST':
-        data = request.json or {}
-        return jsonify({
-            'success': True,
-            'message': 'Webhook accessible',
-            'received_data': data,
-            'headers': dict(request.headers)
-        })
-    else:
-        return jsonify({
-            'success': True,
-            'message': '✅ Webhook accessible',
-            'instructions': 'Envoyer une requête POST avec patient_id et structure_id',
-            'example': {
-                'url': '/api/webhook/patient-created',
-                'method': 'POST',
-                'headers': {
-                    'X-Webhook-Token': 'mon_secret_webhook_123456',
-                    'Content-Type': 'application/json'
-                },
-                'body': {
-                    'patient_id': 123,
-                    'structure_id': 1
-                }
-            }
-        })
+# ⭐ 2026-10-12 : routes /api/webhook/patient-created et /api/webhook/test retirées —
+# jamais appelées par GHP (qui envoie désormais les patients à /api/patients/sync-externe),
+# secret par défaut écrit en dur, et la route de test, ouverte sans connexion,
+# renvoyait les en-têtes de la requête.
 
 @app.route('/api/sync/mapping/<int:id>', methods=['DELETE'])
 @login_required
