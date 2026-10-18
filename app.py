@@ -41,12 +41,17 @@ def create_structure_sheets(structure_id):
     SPREADSHEET_ID = "1nCUArOaWgXVFszjEhH1GqNJXGCV7cF754W87vXvQ-lQ"
     CREDENTIALS_FILE = 'credentials.json'
     
-    if os.path.exists(CREDENTIALS_FILE):
-        syncer = GoogleSheetsSync(SPREADSHEET_ID, CREDENTIALS_FILE)
-        if syncer.authenticate():
-            syncer.ensure_structure_sheets(structure_id)
-            print(f"✅ Feuilles Sheets créées pour structure ID {structure_id}")
-            return True
+    # ⭐ 2026-10-18 : copie FACULTATIVE vers Google Sheets — rien n'y est relu par le logiciel. Une
+    # erreur Google (fichier supprimé, quota, clé absente) ne doit jamais empêcher d'activer une structure.
+    try:
+        if os.path.exists(CREDENTIALS_FILE):
+            syncer = GoogleSheetsSync(SPREADSHEET_ID, CREDENTIALS_FILE)
+            if syncer.authenticate():
+                syncer.ensure_structure_sheets(structure_id)
+                print(f"✅ Feuilles Sheets créées pour structure ID {structure_id}")
+                return True
+    except Exception as e:
+        print(f"ℹ️ Feuilles Google Sheets non créées pour la structure {structure_id} (facultatif) : {e}")
     return False
 
 # Initialisation du login manager
