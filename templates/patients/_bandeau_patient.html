@@ -1,0 +1,76 @@
+{# ⭐ 2026-10-22 (patron : « le dossier n'est pas bien affiché… comme les grands logiciels ») — bandeau patient
+   toujours visible en haut (dossier, consultation, hospitalisation) : identité, âge, sexe, n° de dossier,
+   assurance, groupe sanguin, ALLERGIES en rouge, hospitalisation en cours. Variables : patient ;
+   facultatives : hospitalisation_active, bandeau_actions (HTML des boutons à droite), bandeau_contexte
+   (ex. « Consultation du 22/10/2026 »). #}
+{% set _allergies = patient.antecedents|selectattr('actif')|selectattr('type_antecedent', 'equalto', 'ALLERGIE')|list if patient.antecedents else [] %}
+{% set _autres_atcd = patient.antecedents|selectattr('actif')|rejectattr('type_antecedent', 'equalto', 'ALLERGIE')|list if patient.antecedents else [] %}
+<style>
+    .bandeau-patient { position: sticky; top: 0; z-index: 1010; background: #fff; border: 1px solid #e3e6ef;
+                       border-left: 5px solid var(--hp-primary, #667eea); border-radius: 12px; padding: 10px 14px;
+                       box-shadow: 0 4px 14px rgba(30, 41, 59, .06); margin-bottom: 14px; }
+    [data-bs-theme="dark"] .bandeau-patient { background: #1f2430; border-color: #343a46; }
+    .bandeau-patient .avatar { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center;
+                               justify-content: center; font-weight: 700; font-size: 1.15rem; color: #fff;
+                               background: linear-gradient(135deg, var(--hp-primary, #667eea), var(--hp-secondary, #764ba2)); flex-shrink: 0; }
+    .bandeau-patient .nom { font-size: 1.2rem; font-weight: 700; line-height: 1.2; }
+    .bandeau-patient .meta { font-size: .85rem; color: #5b6475; }
+    .bandeau-patient .meta span + span::before { content: "·"; margin: 0 6px; color: #b5bccb; }
+    .bandeau-patient .alerte-allergie { background: #fde8ea; color: #b4232f; border: 1px solid #f3b7bd; border-radius: 8px;
+                                        padding: 2px 8px; font-size: .8rem; font-weight: 600; }
+    .bandeau-patient .puce { border-radius: 8px; padding: 2px 8px; font-size: .78rem; font-weight: 600; background: #eef1f7; color: #3b4456; }
+    [data-bs-theme="dark"] .bandeau-patient .puce { background: #2b3140; color: #d6dbe6; }
+    /* en défilant, le bandeau se réduit à une ligne : nom, âge, allergies, hospitalisation en cours */
+    .bandeau-patient { transition: padding .15s; }
+    .bandeau-patient.compact { padding: 4px 12px; gap: 10px !important; }
+    .bandeau-patient.compact .avatar { width: 30px; height: 30px; font-size: .75rem; }
+    .bandeau-patient.compact .nom { font-size: 1rem; display: inline; }
+    .bandeau-patient.compact .meta { display: inline; margin-left: 8px; }
+    .bandeau-patient.compact .meta .tel, .bandeau-patient.compact .bandeau-actions,
+    .bandeau-patient.compact .puce:not(.garde) { display: none !important; }
+    .bandeau-patient.compact .puces { display: inline-flex !important; margin: 0 0 0 8px !important; }
+</style>
+<div class="bandeau-patient d-flex flex-wrap align-items-center gap-3">
+    <div class="avatar">{{ (patient.prenom or ' ')[0]|upper }}{{ (patient.nom or ' ')[0]|upper }}</div>
+    <div class="flex-grow-1" style="min-width: 220px;">
+        <div class="nom notranslate">{{ (patient.nom or '')|upper }} {{ patient.prenom or '' }}
+            {% if bandeau_contexte %}<span class="text-muted fw-normal" style="font-size:.9rem">— {{ bandeau_contexte }}</span>{% endif %}</div>
+        <div class="meta">
+            <span>P{{ "%05d"|format(patient.id) }}</span>
+            {% if patient.date_naissance %}<span>{{ patient.age }} ans ({{ patient.date_naissance.strftime('%d/%m/%Y') }})</span>{% endif %}
+            {% if patient.sexe %}<span>{{ {'M': 'Masculin', 'F': 'Féminin'}.get(patient.sexe, patient.sexe) }}</span>{% endif %}
+            {% if patient.telephone %}<span class="tel"><i class="fas fa-phone-alt me-1"></i>{{ patient.telephone }}</span>{% endif %}
+        </div>
+        <div class="puces d-flex flex-wrap gap-2 mt-1">
+            <span class="puce"><i class="fas fa-shield-alt me-1"></i>{{ patient.type_assurance or 'Non assuré' }}{% if patient.taux_prise_charge %} {{ patient.taux_prise_charge }}%{% endif %}{% if patient.assurance2_nom %} + {{ patient.assurance2_nom }}{% if patient.taux_assurance2 %} {{ patient.taux_assurance2|int }}%{% endif %}{% endif %}</span>
+            {% if patient.groupe_sanguin %}<span class="puce" style="background:#fde8ea;color:#b4232f"><i class="fas fa-tint me-1"></i>{{ patient.groupe_sanguin }}</span>{% endif %}
+            {% if _allergies %}
+                <span class="alerte-allergie"><i class="fas fa-triangle-exclamation me-1"></i>Allergies : {{ _allergies|map(attribute='description')|join(', ') }}</span>
+            {% else %}
+                <span class="puce text-muted">Aucune allergie connue</span>
+            {% endif %}
+            {% if _autres_atcd %}<span class="puce" title="{{ _autres_atcd|map(attribute='description')|join(', ') }}"><i class="fas fa-history me-1"></i>{{ _autres_atcd|length }} antécédent(s)</span>{% endif %}
+            {% if patient.grossesse %}<span class="puce garde" style="background:#fdeaf5;color:#a3246b">Grossesse</span>{% endif %}
+            {% if hospitalisation_active %}
+                <a href="{{ url_for('detail_hospitalisation', id=hospitalisation_active.id) }}" class="puce garde text-decoration-none" style="background:#fff1e6;color:#b45309">
+                    <i class="fas fa-procedures me-1"></i>Hospitalisé — {{ hospitalisation_active.service }} depuis le {{ hospitalisation_active.date_debut.strftime('%d/%m/%Y') }}</a>
+            {% endif %}
+            {% if patient.medecin_referent %}<span class="puce"><i class="fas fa-user-md me-1"></i>Dr {{ patient.medecin_referent.prenom }} {{ patient.medecin_referent.nom }}</span>{% endif %}
+        </div>
+    </div>
+    {% if bandeau_actions %}<div class="bandeau-actions d-flex flex-wrap gap-2">{{ bandeau_actions|safe }}</div>{% endif %}
+</div>
+<script>
+// collé sous la barre du haut (elle-même collée) : jamais caché derrière elle
+(function () {
+    const b = document.currentScript.previousElementSibling, barre = document.querySelector('.topbar');
+    function placer() { b.style.top = ((barre && barre.offsetHeight) || 0) + 'px'; }
+    placer(); window.addEventListener('resize', placer);
+    // seuils différents à l'aller et au retour : pas de clignotement quand la hauteur change
+    function reduire() {
+        if (window.scrollY > 180) b.classList.add('compact');
+        else if (window.scrollY < 40) b.classList.remove('compact');
+    }
+    reduire(); window.addEventListener('scroll', reduire, { passive: true });
+})();
+</script>

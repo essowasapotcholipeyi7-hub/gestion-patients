@@ -4,24 +4,8 @@
 
 {% block content %}
 <div class="container-fluid">
-    <!-- En-tête -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3">
-                Hospitalisation - {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}
-            </h1>
-            <p class="text-muted mb-0">
-                Admis le {{ hospitalisation.date_debut.strftime('%d/%m/%Y à %H:%M') }}
-                {% if hospitalisation.statut == 'actif' %}
-                    <span class="badge bg-success ms-2">Actif</span>
-                {% elif hospitalisation.statut == 'sorti' %}
-                    <span class="badge bg-secondary ms-2">Sorti</span>
-                {% elif hospitalisation.statut == 'transfere' %}
-                    <span class="badge bg-warning ms-2">Transféré</span>
-                {% endif %}
-            </p>
-        </div>
-        <div>
+    {# ⭐ 2026-10-22 : bandeau patient (identité, assurance, allergies) au lieu du titre et de la carte « Patient » #}
+    {% set _actions %}
             {% if hospitalisation.statut == 'actif' %}
                 {# ⭐ 2026-10-22 : sortie sur une page, avec note de sortie obligatoire #}
                 <a href="{{ url_for('sortie_hospitalisation', id=hospitalisation.id) }}" class="btn btn-danger">
@@ -29,34 +13,23 @@
                 </a>
             {% endif %}
 
+            <a href="{{ url_for('patient_detail', id=hospitalisation.patient.id) }}" class="btn btn-outline-primary">
+                <i class="fas fa-folder-open me-2"></i>Dossier du patient
+            </a>
             <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Retour
             </a>
-        </div>
-    </div>
+    {% endset %}
+    {% set _contexte = 'Hospitalisation ' ~ ({'actif': 'en cours', 'sorti': 'terminée', 'transfere': 'terminée (transfert)'}.get(hospitalisation.statut, '')) ~ ' — ' ~ (hospitalisation.service or '') ~ ', admis le ' ~ hospitalisation.date_debut.strftime('%d/%m/%Y à %H:%M') %}
+    {% with patient=hospitalisation.patient, bandeau_actions=_actions, bandeau_contexte=_contexte %}
+    {% include "patients/_bandeau_patient.html" %}
+    {% endwith %}
 
     <div class="row">
         <!-- ============================================================ -->
         <!-- COLONNE GAUCHE                                               -->
         <!-- ============================================================ -->
         <div class="col-md-4">
-            <!-- Carte Patient -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Patient</h5>
-                </div>
-                <div class="card-body">
-                    <p><strong>Nom :</strong> {{ hospitalisation.patient.nom }} {{ hospitalisation.patient.prenom }}</p>
-                    <p><strong>Date naissance :</strong> {{ hospitalisation.patient.date_naissance.strftime('%d/%m/%Y') if hospitalisation.patient.date_naissance else '-' }}</p>
-                    <p><strong>Téléphone :</strong> {{ hospitalisation.patient.telephone or '-' }}</p>
-                    <p><strong>Email :</strong> {{ hospitalisation.patient.email or '-' }}</p>
-                    <p><strong>Assurance :</strong> {{ hospitalisation.patient.type_assurance or '-' }}</p>
-                    <a href="{{ url_for('patient_detail', id=hospitalisation.patient.id) }}" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-eye me-1"></i>Voir fiche patient
-                    </a>
-                </div>
-            </div>
-
             <!-- Carte Hospitalisation -->
             <div class="card mb-4">
                 <div class="card-header">

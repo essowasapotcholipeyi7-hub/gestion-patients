@@ -87,7 +87,7 @@
     <div class="doc-patient">
         <div><span>Patient :</span> <strong class="notranslate">{{ (patient.nom or '')|upper }} {{ patient.prenom or '' }}</strong></div>
         {% if age is not none %}<div><span>Âge :</span> <strong>{% if age >= 2 %}{{ age }} ans{% else %}{{ ((now.date() - patient.date_naissance).days // 30) }} mois{% endif %}</strong></div>{% endif %}
-        {% if patient.sexe %}<div><span>Sexe :</span> <strong>{{ patient.sexe }}</strong></div>{% endif %}
+        {% if patient.sexe %}<div><span>Sexe :</span> <strong>{{ {'M': 'Masculin', 'F': 'Féminin'}.get(patient.sexe, patient.sexe) }}</strong></div>{% endif %}
         <div><span>N° dossier :</span> <strong>P{{ "%05d"|format(patient.id) }}</strong></div>
         {% block patient_plus %}{% endblock %}
     </div>
@@ -105,5 +105,6 @@
     </div>
     <div class="doc-pied">{% block pied %}Document médical confidentiel — {{ structure.nom if structure else '' }}{% endblock %}</div>
 </div>
+{% block scripts %}{% endblock %}
 </body>
 </html>

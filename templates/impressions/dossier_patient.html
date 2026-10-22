@@ -155,7 +155,7 @@
     <div class="info-grid">
         <div class="item"><span class="label">Nom :</span> {{ patient.nom }}</div>
         <div class="item"><span class="label">Prénom :</span> {{ patient.prenom }}</div>
-        <div class="item"><span class="label">Âge :</span> {{ age }} ans</div>
+        <div class="item"><span class="label">Âge :</span> {{ (age ~ ' ans') if age is not none else '-' }}</div>
         <div class="item"><span class="label">Sexe :</span> {{ patient.sexe or '-' }}</div>
         <div class="item"><span class="label">Date naissance :</span> {{ patient.date_naissance.strftime('%d/%m/%Y') if patient.date_naissance else '-' }}</div>
         <div class="item"><span class="label">Lieu naissance :</span> {{ patient.lieu_naissance or '-' }}</div>
@@ -288,7 +288,7 @@
                     {% for p in data.prescriptions %}
                     <li><strong>{{ p.medicament }}</strong> 
                         {% if p.dosage %}- {{ p.dosage }}{% endif %} 
-                        {% if p.posologie %}- {{ p.posologie }}{% endif %}
+                        {% if p.posologie or p.frequence %}- {{ p.posologie or p.frequence }}{% endif %}
                         {% if p.duree_jours %} ({{ p.duree_jours }} jours){% endif %}
                     </li>
                     {% endfor %}

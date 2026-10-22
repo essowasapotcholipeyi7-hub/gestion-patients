@@ -4,11 +4,9 @@
 
 {% block content %}
 <div class="container-fluid">
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3">
-        Détail de la consultation
-    </h1>
-    <div>
+{# ⭐ 2026-10-22 : bandeau patient (identité, assurance, allergies, hospitalisation en cours) au lieu du titre
+   et de la carte « Patient » ; les boutons de la consultation y sont repris. #}
+{% set _actions %}
         <!-- ⭐ BOUTON RÉSULTATS -->
         <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#resultatsModal">
             {% if consultation.resultats_biologie or consultation.resultats_imagerie %}
@@ -32,36 +30,22 @@
         </a>
         
         <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left me-2"></i>Retour au patient
+            <i class="fas fa-arrow-left me-2"></i>Dossier du patient
         </a>
-    </div>
-</div>
+{% endset %}
+{% with bandeau_actions=_actions, bandeau_contexte='Consultation du ' ~ (consultation.date_consultation.strftime('%d/%m/%Y à %H:%M') if consultation.date_consultation else '') %}
+{% include "patients/_bandeau_patient.html" %}
+{% endwith %}
 
     <div class="row">
         <!-- ========================================================== -->
         <!-- COLONNE GAUCHE : PATIENT                                    -->
         <!-- ========================================================== -->
-        <div class="col-md-4 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Patient</h5>
-                </div>
-                <div class="card-body">
-                    <p><strong>Nom :</strong> {{ patient.nom }} {{ patient.prenom }}</p>
-                    <p><strong>Téléphone :</strong> {{ patient.telephone or '-' }}</p>
-                    <p><strong>Email :</strong> {{ patient.email or '-' }}</p>
-                    <p><strong>Assurance :</strong> {{ patient.type_assurance or '-' }}</p>
-                    <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-folder-open me-1"></i>Voir dossier
-                    </a>
-                </div>
-            </div>
-        </div>
 
         <!-- ========================================================== -->
         <!-- COLONNE DROITE : CONSULTATION                               -->
         <!-- ========================================================== -->
-        <div class="col-md-8 mb-4">
+        <div class="col-12 mb-4">
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">Détails de la consultation</h5>
@@ -1037,9 +1021,10 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
 <!-- ============================================================ -->
-<!-- SCRIPTS                                                      -->
+<!-- SCRIPTS (hors du bloc content : sinon le script sortait deux fois — 2026-10-22) -->
 <!-- ============================================================ -->
 {% block extra_js %}
 <script>
@@ -1268,6 +1253,4 @@ function showToast(message, type = 'success') {
     setTimeout(() => toast.remove(), 4000);
 }
 </script>
-{% endblock %}
-
 {% endblock %}

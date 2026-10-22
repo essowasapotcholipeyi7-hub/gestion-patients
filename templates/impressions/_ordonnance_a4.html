@@ -1,0 +1,80 @@
+{% extends "impressions/_document_a4.html" %}
+{# ⭐ 2026-10-22 (patron : « imprimer de façon très bien les ordonnances ») — mise en page commune à toutes les
+   ordonnances (consultation, hospitalisation, version, sortie). Comme sur les ordonnances des grands logiciels :
+   médicaments numérotés, nom en gras puis posologie / durée / voie en dessous, quantité à droite ; poids et
+   allergies du patient en tête ; nombre de médicaments écrit en fin de liste et trait de clôture (rien ne peut
+   être ajouté à la main) ; vrai prescripteur en signature (pas la personne qui imprime).
+   Variables (posées par les gabarits enfants) : medicaments, ord_sous_titre, ord_numero, ord_date (date ou texte),
+   ord_prescripteur (« Prénom Nom », sans « Dr ») ; patient, structure. #}
+{% set couleur = couleur or '#14532d' %}
+{% set _allergies = patient.antecedents|selectattr('actif')|selectattr('type_antecedent', 'equalto', 'ALLERGIE')|map(attribute='description')|list if patient and patient.antecedents else [] %}
+{% set _nb = medicaments|length if medicaments else 0 %}
+{% set _lettres = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf', 'vingt'] %}
+
+{% block titre_onglet %}Ordonnance — {{ patient.nom }} {{ patient.prenom }}{% endblock %}
+
+{% block styles %}
+        .ord-liste { list-style: none; margin: 4px 0 0; padding: 0; counter-reset: med; }
+        .ord-liste li { counter-increment: med; display: grid; grid-template-columns: 30px 1fr auto; gap: 0 10px;
+                        padding: 9px 0; border-bottom: 1px dotted #b9c2cc; break-inside: avoid; page-break-inside: avoid; }
+        .ord-liste li::before { content: counter(med); grid-row: span 2; width: 24px; height: 24px; border-radius: 50%;
+                                border: 1.5px solid {{ couleur }}; color: {{ couleur }}; font-weight: 800; font-size: 12px;
+                                display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+        .ord-liste .nom { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .2px; }
+        .ord-liste .nom small { font-size: 12.5px; font-weight: 600; text-transform: none; color: #333; }
+        .ord-liste .poso { grid-column: 2; font-size: 13px; line-height: 1.45; margin-top: 2px; }
+        .ord-liste .poso .instr { display: block; font-style: italic; color: #444; font-size: 12px; }
+        .ord-liste .qte { grid-row: 1 / span 2; grid-column: 3; text-align: right; font-size: 12px; color: #333; white-space: nowrap; }
+        .ord-liste .qte b { display: block; font-size: 13.5px; color: #111; }
+        .ord-rx { font-family: Georgia, 'Times New Roman', serif; font-size: 30px; font-weight: 700; color: {{ couleur }}; line-height: 1; }
+        .ord-cloture { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; font-weight: 700; color: #333; }
+        .ord-cloture::after { content: ""; flex: 1; border-top: 2px solid #333; }
+        .ord-allergies { color: #b4232f; font-weight: 700; }
+        .ord-mentions { margin-top: 14px; font-size: 11px; color: #555; font-style: italic; }
+{% endblock %}
+
+{% block document_droite %}
+    {% if ord_numero %}<div><strong>Ordonnance n° {{ ord_numero }}</strong></div>{% endif %}
+    <div>Date : <strong>{{ ord_date.strftime('%d/%m/%Y') if ord_date and ord_date.strftime is defined else (ord_date or now.strftime('%d/%m/%Y')) }}</strong></div>
+{% endblock %}
+
+{% block titre_document %}Ordonnance médicale{% endblock %}
+{% block sous_titre %}{{ ord_sous_titre or '' }}{% endblock %}
+
+{% block patient_plus %}
+    {% if patient.poids_kg %}<div><span>Poids :</span> <strong>{{ patient.poids_kg|round(1)|string|replace('.0', '') }} kg</strong></div>{% endif %}
+    {% set _ass = patient.autre_assurance_nom if patient.type_assurance == 'AUTRE_ASSURANCE' and patient.autre_assurance_nom else patient.type_assurance %}
+    {% if _ass and 'NON' not in (_ass|upper) and _ass != 'AUTRE_ASSURANCE' %}<div><span>Assurance :</span> <strong>{{ _ass }}</strong></div>{% endif %}
+    {% if _allergies %}<div class="ord-allergies" style="flex-basis: 100%">⚠ Allergies : {{ _allergies|join(', ') }}</div>{% endif %}
+{% endblock %}
+
+{% block corps %}
+    <div class="ord-rx">℞</div>
+    {% if medicaments %}
+    <ol class="ord-liste">
+        {% for med in medicaments %}
+        {% set _nom = med.medicament or med.nom or '' %}
+        {% set _poso = med.posologie or med.frequence or '' %}
+        {% set _duree = (med.duree|string).strip() if med.duree else '' %}
+        <li>
+            <div class="nom">{{ _nom }}{% if med.dosage and med.dosage|string not in _nom %} <small>{{ med.dosage }}</small>{% endif %}{% if med.forme %} <small>— {{ med.forme }}</small>{% endif %}</div>
+            <div class="qte">{% if med.quantite %}Qté<b>{{ med.quantite }}</b>{% endif %}</div>
+            <div class="poso">
+                {{ _poso }}{% if med.voie %}{{ ' — ' if _poso }}voie {{ med.voie }}{% endif %}{% if _duree %}{{ ' — ' if _poso or med.voie }}pendant {{ (_duree ~ ' jour' ~ ('s' if _duree != '1' else '')) if _duree.isdigit() else _duree }}{% endif %}
+                {% if med.instructions %}<span class="instr">{{ med.instructions }}</span>{% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ol>
+    <div class="ord-cloture">{{ _nb }} médicament{{ 's' if _nb > 1 }} prescrit{{ 's' if _nb > 1 }}{% if _nb <= 20 %} ({{ _lettres[_nb] }}){% endif %}</div>
+    {% else %}
+    <p style="color: #999; font-style: italic; text-align: center; padding: 20px 0;">Aucun médicament prescrit</p>
+    {% endif %}
+    <div class="ord-mentions">À prendre selon la prescription. Renouvellement uniquement sur nouvelle ordonnance. Tenir hors de portée des enfants.</div>
+{% endblock %}
+
+{% block lieu_date %}{% if structure and structure.ville %}{{ structure.ville }}, l{% else %}L{% endif %}e {{ ord_date.strftime('%d/%m/%Y') if ord_date and ord_date.strftime is defined else (ord_date or now.strftime('%d/%m/%Y')) }}{% endblock %}
+{% block signature_titre %}Le médecin prescripteur{% endblock %}
+{% block signature_nom %}{% if ord_prescripteur %}Dr {{ ord_prescripteur }}{% endif %}{% endblock %}
+{# comme les anciennes ordonnances : la fenêtre d'impression s'ouvre d'elle-même #}
+{% block scripts %}<script>window.addEventListener('load', () => setTimeout(() => window.print(), 500));</script>{% endblock %}

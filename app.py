@@ -2425,6 +2425,38 @@ def patient_detail(id):
     # général (patron : pas nécessaire sur cette page) — elle reste
     # consultable sur la fiche hospitalisation elle-même (detail_hospitalisation).
 
+    # ⭐ 2026-10-22 (patron : « le dossier n'est pas bien affiché, il faut l'améliorer comme les grands
+    # logiciels ») : bandeau patient + onglets (Synthèse, Consultations, Hospitalisations, Ordonnances,
+    # Examens & résultats, Soins, Identité). Données en plus : examens/résultats du patient, hospitalisation en
+    # cours, chronologie (consultations, hospitalisations, sorties, résultats) pour la synthèse.
+    from models import AnalyseDemande
+    analyses = AnalyseDemande.query.filter_by(patient_id=patient.id).order_by(AnalyseDemande.date_demande.desc().nullslast(), AnalyseDemande.id.desc()).all()
+    hospitalisation_active = next((h for h in hospitalisations if h.statut == 'actif'), None)
+    chronologie = []
+    for c in consultations:
+        if c.date_consultation:
+            chronologie.append({'date': c.date_consultation, 'icone': 'fa-stethoscope', 'couleur': 'primary',
+                                'titre': f"Consultation{(' — ' + c.type_consultation) if c.type_consultation else ''}",
+                                'detail': (c.diagnostic or c.motif or '').partition('\n')[0][:120],
+                                'url': url_for('consultation_detail', id=c.id)})
+    for h in hospitalisations:
+        if h.date_debut:
+            chronologie.append({'date': h.date_debut, 'icone': 'fa-procedures', 'couleur': 'danger',
+                                'titre': f"Hospitalisation — {h.service or ''}".strip(' —'),
+                                'detail': (h.motif or '')[:120], 'url': url_for('detail_hospitalisation', id=h.id)})
+        if h.date_fin:
+            ns = h.note_sortie
+            chronologie.append({'date': h.date_fin, 'icone': 'fa-door-open', 'couleur': 'secondary',
+                                'titre': "Sortie d'hospitalisation" + (f" — {ns.mode_libelle}" if ns else ''),
+                                'detail': ((ns.diagnostic_sortie or '').partition('\n')[0][:120]) if ns else '',
+                                'url': url_for('detail_hospitalisation', id=h.id)})
+    for a in analyses:
+        if a.statut == 'TERMINE' and (a.date_resultats or a.date_demande):
+            chronologie.append({'date': a.date_resultats or a.date_demande, 'icone': 'fa-flask', 'couleur': 'success',
+                                'titre': f"Résultat — {a.nom_analyse}", 'detail': a.type_analyse or '',
+                                'url': url_for('imprimer_resultat_analyse', id=a.id)})
+    chronologie.sort(key=lambda e: e['date'], reverse=True)
+
     return render_template('patients/detail.html',
                          patient=patient,
                          consultations=consultations,
@@ -2433,6 +2465,9 @@ def patient_detail(id):
                          actes_soins_habituels=ACTES_SOINS_HABITUELS,
                          historique_ordonnances=historique_ordonnances,
                          hospitalisations=hospitalisations,
+                         hospitalisation_active=hospitalisation_active,
+                         analyses=analyses,
+                         chronologie=chronologie[:25],
                          now=datetime.now())
 
 @app.route('/consultation/ajouter', methods=['GET', 'POST'])
