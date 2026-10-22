@@ -1,0 +1,25 @@
+{% extends "impressions/_document_a4.html" %}
+{# ⭐ 2026-10-22 : note de sortie (exeat) imprimée — remise au patient / jointe au dossier #}
+{% set couleur = '#7a1f2b' %}
+{% block titre_onglet %}Note de sortie — {{ patient.nom }} {{ patient.prenom }}{% endblock %}
+{% block document_droite %}
+    Entrée : <strong>{{ hospitalisation.date_debut.strftime('%d/%m/%Y') if hospitalisation.date_debut else '-' }}</strong><br>
+    Sortie : <strong>{{ hospitalisation.date_fin.strftime('%d/%m/%Y') if hospitalisation.date_fin else '-' }}</strong><br>
+    {% if hospitalisation.date_debut and hospitalisation.date_fin %}Durée : <strong>{{ [1, (hospitalisation.date_fin - hospitalisation.date_debut).days + 1]|max }} jour(s)</strong>{% endif %}
+{% endblock %}
+{% block titre_document %}Note de sortie{% endblock %}
+{% block sous_titre %}{{ hospitalisation.service or '' }}{% if hospitalisation.chambre %} — chambre {{ hospitalisation.chambre }}{% endif %} · {{ note.mode_libelle }}{% if hospitalisation.statut == 'transfere' and hospitalisation.centre_transfert %} : {{ hospitalisation.centre_transfert }}{% endif %}{% endblock %}
+{% block corps %}
+    <div class="deux-colonnes">
+        <div class="rubrique"><h3>Diagnostic d'entrée</h3><div class="texte">{{ note.diagnostic_entree }}</div></div>
+        <div class="rubrique"><h3>Diagnostic de sortie</h3><div class="texte" style="font-weight:700">{{ note.diagnostic_sortie }}</div></div>
+    </div>
+    <div class="rubrique"><h3>État du patient à l'entrée</h3><div class="texte">{{ note.resume_entree }}</div></div>
+    <div class="rubrique"><h3>Évolution pendant l'hospitalisation</h3><div class="texte">{{ note.evolution_sejour }}</div></div>
+    <div class="rubrique"><h3>État du patient à la sortie</h3><div class="texte">{{ note.etat_sortie }}</div></div>
+    {% if note.traitement_sortie %}<div class="rubrique"><h3>Traitement et consignes de sortie</h3><div class="texte">{{ note.traitement_sortie }}</div></div>{% endif %}
+    {% if note.suivi %}<div class="rubrique"><h3>Suivi / rendez-vous</h3><div class="texte">{{ note.suivi }}</div></div>{% endif %}
+    {% if note.motif_sortie %}<div class="rubrique"><h3>{{ 'Circonstances' if note.mode_sortie == 'deces' else 'Observations' }}</h3><div class="texte">{{ note.motif_sortie }}</div></div>{% endif %}
+{% endblock %}
+{% block lieu_date %}Fait le {{ note.date_redaction.strftime('%d/%m/%Y') if note.date_redaction else '' }}{% endblock %}
+{% block signature_nom %}{% if note.redacteur %}Dr {{ note.redacteur.prenom }} {{ note.redacteur.nom }}{% endif %}{% endblock %}

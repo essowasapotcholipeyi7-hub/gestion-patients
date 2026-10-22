@@ -4588,7 +4588,32 @@ def _calculer_statistiques():
     lieu_label = None
     if current_user.structure:
         lieu_label = current_user.structure.ville or current_user.structure.pays
-    analyse_pathologies, noms_mois = _construire_analyse_pathologies(consultations_diag, zone_key, lieu_label)
+    # ⭐ 2026-10-22 (patron : « c'est le diagnostic de sortie qui va rentrer dans les statistiques ») : les
+    # diagnostics de sortie d'hospitalisation (NoteSortie, datés du jour de sortie) comptent avec ceux des
+    # consultations, mêmes filtres (structure, période, médecin = rédacteur de la note, assurance) ; ils ont
+    # aussi leur propre tableau.
+    from models import NoteSortie
+    from types import SimpleNamespace
+    q_sortie = db.session.query(Hospitalisation.date_fin, NoteSortie.diagnostic_sortie) \
+        .join(NoteSortie, NoteSortie.hospitalisation_id == Hospitalisation.id) \
+        .join(Patient, Hospitalisation.patient_id == Patient.id) \
+        .filter(Hospitalisation.date_fin.isnot(None), NoteSortie.diagnostic_sortie.isnot(None))
+    if current_user.role == 'medecin':
+        q_sortie = q_sortie.filter(NoteSortie.redige_par == current_user.id)
+    elif current_user.role == 'admin_structure':
+        q_sortie = q_sortie.filter(Patient.id_structure == current_user.id_structure)
+    if date_debut:
+        q_sortie = q_sortie.filter(Hospitalisation.date_fin >= datetime.strptime(date_debut, '%Y-%m-%d'))
+    if date_fin:
+        q_sortie = q_sortie.filter(Hospitalisation.date_fin <= datetime.strptime(date_fin, '%Y-%m-%d') + timedelta(days=1))
+    if medecin_id:
+        q_sortie = q_sortie.filter(NoteSortie.redige_par == int(medecin_id))
+    if type_assurance:
+        q_sortie = q_sortie.filter(Patient.type_assurance == type_assurance)
+    sorties_diag = [SimpleNamespace(date_consultation=d, diagnostic=t) for d, t in q_sortie.all() if d and t]
+    analyse_pathologies_sortie, _mois = _construire_analyse_pathologies(sorties_diag, zone_key, lieu_label)
+    analyse_pathologies, noms_mois = _construire_analyse_pathologies(list(consultations_diag) + sorties_diag,
+                                                                     zone_key, lieu_label)
 
     # ========== Répartition assurances ==========
     # ⭐ FIX : comptait Patient.id une fois PAR CONSULTATION (jointure
@@ -4770,6 +4795,8 @@ def _calculer_statistiques():
         'patients_par_periode': patients_par_periode,
         'top_pathologies': top_pathologies,
         'analyse_pathologies': analyse_pathologies,
+        'analyse_pathologies_sortie': analyse_pathologies_sortie,
+        'nb_sorties_diag': len(sorties_diag),
         'noms_mois': noms_mois,
         'zone_climatique_label': _ZONES_CLIMATIQUES[zone_key]['label'] if zone_key else None,
         'zone_climatique_lieu': lieu_label,
@@ -4871,6 +4898,15 @@ def export_statistiques_excel():
     largeurs2 = [5, 12, 40] + [8] * (2 + 12) + [16, 55]
     for idx, largeur in enumerate(largeurs2, start=1):
         ws2.column_dimensions[get_column_letter(idx)].width = largeur
+
+    # ---- ⭐ 2026-10-22 : diagnostics de sortie d'hospitalisation ----
+    ws2b = wb.create_sheet('Diagnostics de sortie')
+    _entete(ws2b, ['#', 'Code CIM-10', 'Diagnostic de sortie', 'Hospitalisations', '%'] + d['noms_mois'] + ['Pic saisonnier'])
+    for i, p in enumerate(d['analyse_pathologies_sortie'], start=1):
+        ws2b.append([i, p['code'] or '-', p['label'], p['total'], p['pourcentage'], *p['par_mois'],
+                     ', '.join(p['pic_mois']) or '-'])
+    for idx, largeur in enumerate([5, 12, 40] + [8] * (2 + 12) + [16], start=1):
+        ws2b.column_dimensions[get_column_letter(idx)].width = largeur
 
     # ---- Évolution (patients par période) ----
     ws3 = wb.create_sheet('Évolution')
@@ -6180,6 +6216,8 @@ def ajouter_note_admission(id):
         return render_template('hospitalisations/reevaluation_form.html',
                              hospitalisation=hospitalisation,
                              patient=patient,
+                             # ⭐ 2026-10-22 : 1re note = note d'admission, les suivantes = notes évolutives
+                             premiere_note=hospitalisation.notes_admission_list.count() == 0,
                              examen_sections_modifiees_json=(examen_actuel.sections_modifiees if examen_actuel else '{}') or '{}',
                              examen_sections_origine_json=(examen_actuel.sections_origine if examen_actuel else '{}') or '{}',
                              constantes_prefill=constantes_prefill)
@@ -6312,7 +6350,7 @@ def ajouter_note_admission(id):
         # Ajouter une entrée dans les notes d'admission (texte libre) pour traçabilité
         ancienne_note = hospitalisation.notes_admission or ''
         nouvelle_entree = f"""
---- RÉÉVALUATION v{ nouvelle_version} - {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} ---
+--- {"NOTE D'ADMISSION" if nouvelle_version == 1 else 'NOTE ÉVOLUTIVE'} du {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} ---
 Médecin : Dr {current_user.prenom} {current_user.nom}
 Motif : {note_motif[:100]}...
 Diagnostic : {note_diagnostic[:100]}...
@@ -6327,10 +6365,10 @@ Conclusion : {note_conclusion[:100]}...
         
         db.session.commit()
         
-        flash(f'✅ Nouvelle note de réévaluation (version {nouvelle_version}) enregistrée avec succès !', 'success')
-        
+        flash(f'✅ {note.libelle} enregistrée.', 'success')
+
         if note_precedente:
-            flash(f'📋 Cette note remplace la version {note_precedente.version} comme référence active.', 'info')
+            flash(f'📋 Elle devient la note de référence (la précédente, « {note_precedente.libelle} », reste dans l\'historique).', 'info')
         else:
             flash('📋 Cette note est désormais la référence active pour le suivi.', 'info')
         
@@ -6403,6 +6441,8 @@ def comparer_notes_admission(id):
         notes_data.append({
             'id': note.id,
             'version': note.version,
+            'libelle': note.libelle,
+            'titre_court': 'Note évolutive' if note.est_evolutive else "Note d'admission",
             'est_initial': note.est_initial,
             'est_verrouillee': note.est_verrouillee,
             'date_redaction': note.date_redaction,
@@ -6431,6 +6471,7 @@ def comparer_notes_admission(id):
         
         changements_note = {
             'version': note_act['version'],
+            'libelle': note_act['libelle'],
             'changements': []
         }
         
@@ -7428,7 +7469,17 @@ def cloturer_hospitalisation(id):
         if not assigne:
             flash('Vous n\'êtes pas assigné à cette hospitalisation', 'danger')
             return redirect(url_for('liste_hospitalisations'))
-    
+
+    # ⭐ 2026-10-22 (patron) : pas de sortie sans note de sortie complète (état à l'entrée, évolution, état à
+    # la sortie, diagnostic d'entrée et de sortie) — la page de sortie est réaffichée, rien n'est perdu
+    if hospitalisation.statut != 'actif':
+        flash('Cette hospitalisation est déjà clôturée.', 'info')
+        return redirect(url_for('detail_hospitalisation', id=id))
+    note_sortie_form, manquants = _lire_note_sortie_formulaire()
+    if manquants:
+        flash('Note de sortie incomplète — à remplir : ' + ', '.join(manquants) + '.', 'danger')
+        return _page_sortie(hospitalisation, valeurs=request.form)
+
     # Récupération des données du formulaire
     type_sortie = request.form.get('type_sortie', 'sortie')
     motif_sortie = request.form.get('motif_sortie', '')
@@ -7511,6 +7562,12 @@ def cloturer_hospitalisation(id):
     
     hospitalisation.notes_admission = (hospitalisation.notes_admission or '') + notes_completes
 
+    # ⭐ 2026-10-22 : la note de sortie (diagnostic de sortie -> statistiques)
+    from models import NoteSortie
+    db.session.add(NoteSortie(hospitalisation_id=hospitalisation.id, mode_sortie=type_sortie,
+                              motif_sortie=motif_sortie or None, modele_id=request.form.get('modele_id', type=int),
+                              redige_par=current_user.id, date_redaction=datetime.utcnow(), **note_sortie_form))
+
     db.session.commit()
 
     # ⭐ Facturation automatique vers GHP (jours × tarif par palier)
@@ -7582,6 +7639,220 @@ def cloturer_hospitalisation(id):
             )
 
     return redirect(url_for('liste_hospitalisations'))
+
+# ============================================================
+# ⭐ 2026-10-22 — NOTE DE SORTIE (EXEAT) OBLIGATOIRE
+# Patron : « pour libérer un patient, obligatoirement, le médecin doit faire une note de sortie : ce qu'il y
+# avait au départ, ce qu'il y a au moment de la sortie, le diagnostic d'entrée et le diagnostic de sortie. Ça
+# doit être obligatoire. C'est ce diagnostic de sortie qui va dans les statistiques. » La sortie se fait sur
+# une page (sortie_hospitalisation) qui remplace l'ancienne petite fenêtre « Clôturer » ; cloturer_hospitalisation
+# refuse toute sortie sans note complète. Notes préfaites : ModeleNoteSortie (bibliothèque des templates).
+# ============================================================
+CHAMPS_NOTE_SORTIE = [
+    ('resume_entree', "l'état du patient à l'entrée", True),
+    ('evolution_sejour', "l'évolution pendant l'hospitalisation", True),
+    ('etat_sortie', "l'état du patient à la sortie", True),
+    ('diagnostic_entree', "le diagnostic d'entrée", True),
+    ('diagnostic_sortie', 'le diagnostic de sortie', True),
+    ('traitement_sortie', None, False),
+    ('suivi', None, False),
+]
+
+
+def _lire_note_sortie_formulaire():
+    """(champs de la note, libellés des éléments obligatoires manquants)."""
+    valeurs = {k: (request.form.get(k) or '').strip() for k, _l, _o in CHAMPS_NOTE_SORTIE}
+    manquants = [lib for k, lib, obligatoire in CHAMPS_NOTE_SORTIE if obligatoire and not valeurs[k]]
+    type_sortie = request.form.get('type_sortie', 'sortie')
+    if type_sortie == 'transfere' and not (request.form.get('centre_transfert') or '').strip():
+        manquants.append('le centre de transfert')
+    if type_sortie == 'autres' and not (request.form.get('motif_autres') or '').strip():
+        manquants.append('le motif de sortie')
+    # le diagnostic de sortie alimente les statistiques : au moins un code CIM-10 (une ligne « CODE Libellé »)
+    if valeurs['diagnostic_sortie'] and not any(_RE_CIM10_LIGNE.match(l.strip())
+                                                for l in valeurs['diagnostic_sortie'].splitlines()):
+        manquants.append('un code CIM-10 dans le diagnostic de sortie')
+    return {k: (v or None) for k, v in valeurs.items()}, manquants
+
+
+def _note_sortie_preremplie(hospitalisation):
+    """Ce que le dossier dit déjà : l'état à l'entrée (note d'admission), les notes évolutives datées, le
+    diagnostic d'entrée (note d'admission) et le dernier diagnostic posé (proposé comme diagnostic de sortie,
+    à confirmer). Le médecin complète et corrige."""
+    from models import NoteAdmission
+    notes = hospitalisation.notes_admission_list.order_by(NoteAdmission.version).all()
+    admission, derniere = (notes[0], notes[-1]) if notes else (None, None)
+
+    def ligne(libelle, valeur):
+        valeur = (valeur or '').strip()
+        return f"{libelle} : {valeur}" if valeur and valeur != '-' else ''
+
+    if admission:
+        # l'examen physique complet (toutes les sections du modèle) est trop long pour un résumé d'entrée :
+        # repris seulement s'il est court — le médecin résume l'essentiel
+        examen = (admission.examen_clinique_admission or '').strip()
+        resume = '\n'.join(x for x in (
+            ligne('Motif', admission.motif_admission), ligne('Contexte', admission.contexte_admission),
+            ligne('Examen clinique', examen) if len(examen) <= 300 else '',
+            ligne('Constantes', admission.constantes_admission),
+            ligne('Diagnostic présumé', admission.diagnostic_admission),
+        ) if x)
+    else:
+        resume = ligne('Motif', hospitalisation.motif)
+    evolution = '\n'.join(
+        f"{n.date_redaction.strftime('%d/%m/%Y') if n.date_redaction else ''} : "
+        f"{(n.conclusion_admission or n.diagnostic_admission or '').strip()}"
+        for n in notes[1:] if (n.conclusion_admission or n.diagnostic_admission))
+    return {
+        'resume_entree': resume, 'evolution_sejour': evolution, 'etat_sortie': '',
+        'diagnostic_entree': (admission.diagnostic_admission or '') if admission else '',
+        'diagnostic_sortie': (derniere.diagnostic_admission or '') if derniere else '',
+        'traitement_sortie': '', 'suivi': '', 'type_sortie': 'sortie', 'centre_transfert': '',
+        'motif_transfert': '', 'date_transfert': '', 'motif_autres': '', 'motif_sortie': '', 'modele_id': '',
+    }
+
+
+def _page_sortie(hospitalisation, valeurs=None):
+    from datetime import datetime
+    from models import ModeleNoteSortie
+    v = _note_sortie_preremplie(hospitalisation)
+    if valeurs is not None:   # formulaire renvoyé (élément manquant) : rien de ce qui a été tapé n'est perdu
+        v.update({k: valeurs.get(k, '') for k in v})
+    modeles = ModeleNoteSortie.query.filter_by(structure_id=hospitalisation.patient.id_structure, actif=True) \
+        .order_by(ModeleNoteSortie.nom).all()
+    jours = max(1, (datetime.utcnow() - hospitalisation.date_debut).days + 1) if hospitalisation.date_debut else None
+    return render_template('hospitalisations/sortie.html', hospitalisation=hospitalisation,
+                           patient=hospitalisation.patient, v=v, modeles=modeles,
+                           modeles_json=[m.en_dict() for m in modeles], duree_jours=jours)
+
+
+def _refus_sortie(hospitalisation):
+    """Message de refus, ou None si l'utilisateur peut faire sortir ce patient (mêmes règles que la clôture)."""
+    from models import HospitalisationMedecin
+    if current_user.role not in ['super_admin', 'admin_structure', 'medecin']:
+        return 'Seul un médecin peut faire sortir un patient.'
+    if current_user.id_structure and hospitalisation.patient.id_structure != current_user.id_structure:
+        return 'Accès non autorisé.'
+    if current_user.role == 'medecin' and not HospitalisationMedecin.query.filter_by(
+            hospitalisation_id=hospitalisation.id, medecin_id=current_user.id, actif=True).first():
+        return "Vous n'êtes pas assigné à cette hospitalisation."
+    return None
+
+
+@app.route('/hospitalisation/<int:id>/sortie')
+@login_required
+def sortie_hospitalisation(id):
+    """Page de sortie : note de sortie (obligatoire) + mode de sortie + facturation, puis confirmation."""
+    from models import Hospitalisation
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    refus = _refus_sortie(hospitalisation)
+    if refus:
+        flash(refus, 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+    if hospitalisation.statut != 'actif':
+        flash('Cette hospitalisation est déjà clôturée.', 'info')
+        return redirect(url_for('detail_hospitalisation', id=id))
+    return _page_sortie(hospitalisation)
+
+
+@app.route('/hospitalisation/<int:id>/note-sortie/imprimer')
+@login_required
+def imprimer_note_sortie(id):
+    """Note de sortie imprimable (A4) — remise au patient ou jointe au dossier."""
+    from models import Hospitalisation, Structure, NoteAdmission
+    hospitalisation = Hospitalisation.query.get_or_404(id)
+    if hospitalisation.patient.id_structure != current_user.id_structure:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('liste_hospitalisations'))
+    if not hospitalisation.note_sortie:
+        flash("Pas de note de sortie pour cette hospitalisation.", 'warning')
+        return redirect(url_for('detail_hospitalisation', id=id))
+    return render_template('impressions/note_sortie.html', hospitalisation=hospitalisation,
+                           patient=hospitalisation.patient, note=hospitalisation.note_sortie,
+                           structure=Structure.query.get(current_user.id_structure))
+
+
+# ---------- Notes de sortie préfaites (bibliothèque des templates) ----------
+def _modele_note_sortie_ou_404(mid):
+    from flask import abort
+    from models import ModeleNoteSortie
+    m = ModeleNoteSortie.query.get_or_404(mid)
+    if m.structure_id != current_user.id_structure:
+        abort(404)
+    return m
+
+
+def _enregistrer_modele_note_sortie(m):
+    """Champs du formulaire -> modèle ; le fichier importé (Word/PDF) est gardé tel quel."""
+    m.nom = (request.form.get('nom') or '').strip()
+    for champ in ('diagnostic_sortie', 'evolution_sejour', 'etat_sortie', 'traitement_sortie', 'suivi'):
+        setattr(m, champ, (request.form.get(champ) or '').strip() or None)
+    m.actif = request.form.get('actif', '1') == '1'
+    nom, mime, data = _lire_fichier_source()
+    if data:
+        m.fichier_nom, m.fichier_mime, m.fichier_data = nom, mime, data
+
+
+@app.route('/templates/notes-sortie')
+@login_required
+def liste_modeles_note_sortie():
+    from models import ModeleNoteSortie
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    modeles = ModeleNoteSortie.query.filter_by(structure_id=current_user.id_structure) \
+        .order_by(ModeleNoteSortie.actif.desc(), ModeleNoteSortie.nom).all()
+    return render_template('templates/notes_sortie/liste.html', modeles=modeles)
+
+
+@app.route('/templates/notes-sortie/ajouter', methods=['GET', 'POST'])
+@app.route('/templates/notes-sortie/<int:mid>/modifier', methods=['GET', 'POST'])
+@login_required
+def editer_modele_note_sortie(mid=None):
+    from models import ModeleNoteSortie
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    m = _modele_note_sortie_ou_404(mid) if mid else None
+    if request.method == 'POST':
+        if not (request.form.get('nom') or '').strip():
+            flash('Donnez un nom à la note de sortie préfaite.', 'danger')
+            return render_template('templates/notes_sortie/form.html', m=m, f=request.form)
+        if m is None:
+            m = ModeleNoteSortie(structure_id=current_user.id_structure, created_by=current_user.id)
+            db.session.add(m)
+        _enregistrer_modele_note_sortie(m)
+        db.session.commit()
+        flash(f'Note de sortie préfaite « {m.nom} » enregistrée.', 'success')
+        return redirect(url_for('liste_modeles_note_sortie'))
+    return render_template('templates/notes_sortie/form.html', m=m, f=None)
+
+
+@app.route('/templates/notes-sortie/<int:mid>/supprimer', methods=['POST'])
+@login_required
+def supprimer_modele_note_sortie(mid):
+    if current_user.role not in ['admin_structure', 'medecin']:
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('dashboard'))
+    m = _modele_note_sortie_ou_404(mid)
+    nom = m.nom
+    db.session.delete(m)
+    db.session.commit()
+    flash(f'Note de sortie préfaite « {nom} » supprimée.', 'success')
+    return redirect(url_for('liste_modeles_note_sortie'))
+
+
+@app.route('/templates/notes-sortie/<int:mid>/fichier')
+@login_required
+def fichier_modele_note_sortie(mid):
+    import io
+    from flask import abort, send_file
+    m = _modele_note_sortie_ou_404(mid)
+    if not m.fichier_data:
+        abort(404)
+    return send_file(io.BytesIO(m.fichier_data), mimetype=m.fichier_mime or 'application/octet-stream',
+                     as_attachment=not request.args.get('voir'), download_name=m.fichier_nom or 'note_sortie')
+
 
 @app.route('/patient/<int:patient_id>/hospitalisations')
 @login_required

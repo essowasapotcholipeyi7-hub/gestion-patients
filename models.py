@@ -1457,13 +1457,93 @@ class NoteAdmission(db.Model):
     
     # ⭐ PAS DE RELATION DIRECTE VERS HOSPITALISATION ICI
     # La relation est définie DANS Hospitalisation avec backref='hospitalisation_ref'
-    
+
+    # ⭐ 2026-10-22 (patron : « la note d'admission, c'est à l'admission ; au cours de l'hospitalisation, c'est
+    # une note évolutive, datée, pour suivre l'évolution ») — la 1re note reste la « Note d'admission », les
+    # suivantes sont des « Note évolutive du jj/mm/aaaa à hh:mm » (avant : « Note d'admission v2, v3… »).
+    @property
+    def est_evolutive(self):
+        return not self.est_initial and (self.version or 1) > 1
+
+    @property
+    def libelle(self):
+        if not self.est_evolutive:
+            return "Note d'admission"
+        quand = self.date_redaction.strftime('%d/%m/%Y à %H:%M') if self.date_redaction else ''
+        return f"Note évolutive du {quand}".strip()
+
     # Contraintes
     __table_args__ = (
         db.UniqueConstraint('hospitalisation_id', 'version', name='uq_hospitalisation_version'),
         db.Index('idx_note_admission_hospitalisation', 'hospitalisation_id'),
         db.Index('idx_note_admission_active', 'est_verrouillee'),
     )
+
+
+# ==================== NOTE DE SORTIE (EXEAT) ====================
+# ⭐ 2026-10-22 (patron : « pour libérer un patient, le médecin doit obligatoirement faire une note de sortie :
+# ce qu'il y avait au départ, ce qu'il y a au moment de la sortie, le diagnostic d'entrée et le diagnostic de
+# sortie — c'est ce diagnostic de sortie qui va dans les statistiques »). Une par hospitalisation, rédigée à
+# la clôture (cloturer_hospitalisation) ; diagnostics en lignes « CODE Libellé » (sélecteur CIM-10), comme
+# Consultation.diagnostic, pour que _extraire_pathologies les compte de la même façon.
+class NoteSortie(db.Model):
+    __tablename__ = 'notes_sortie'
+
+    id = db.Column(db.Integer, primary_key=True)
+    hospitalisation_id = db.Column(db.Integer, db.ForeignKey('hospitalisations.id', ondelete='CASCADE'),
+                                   nullable=False, unique=True)
+    mode_sortie = db.Column(db.String(20), nullable=False, default='sortie')   # sortie | transfere | deces | autres
+    motif_sortie = db.Column(db.Text, nullable=True)            # observations / motif (transfert, autre, décès)
+    resume_entree = db.Column(db.Text, nullable=False)          # état du patient à l'admission
+    evolution_sejour = db.Column(db.Text, nullable=False)       # déroulement de l'hospitalisation
+    etat_sortie = db.Column(db.Text, nullable=False)            # état du patient à la sortie
+    diagnostic_entree = db.Column(db.Text, nullable=False)
+    diagnostic_sortie = db.Column(db.Text, nullable=False)      # ⭐ celui des statistiques
+    traitement_sortie = db.Column(db.Text, nullable=True)       # traitement et consignes de sortie
+    suivi = db.Column(db.Text, nullable=True)                   # rendez-vous, surveillance
+    modele_id = db.Column(db.Integer, db.ForeignKey('modeles_note_sortie.id', ondelete='SET NULL'), nullable=True)
+    redige_par = db.Column(db.Integer, db.ForeignKey('utilisateurs.id', ondelete='SET NULL'), nullable=True)
+    date_redaction = db.Column(db.DateTime, default=datetime.utcnow)
+
+    hospitalisation = db.relationship('Hospitalisation',
+                                      backref=db.backref('note_sortie', uselist=False, cascade='all, delete-orphan'))
+    redacteur = db.relationship('Utilisateur', foreign_keys=[redige_par])
+
+    MODES = {'sortie': 'Sortie (retour à domicile)', 'transfere': 'Transfert vers un autre centre',
+             'deces': 'Décès', 'autres': 'Autre motif'}
+
+    @property
+    def mode_libelle(self):
+        return self.MODES.get(self.mode_sortie, self.mode_sortie or '')
+
+
+# ⭐ 2026-10-22 (patron : « des notes de sortie préfaites qu'on va importer dans le logiciel ») — modèles
+# propres à la structure (un par pathologie, ex. « Paludisme grave ») : choisis à la sortie, ils pré-remplissent
+# la note, toujours modifiable. Fichier Word/PDF importé gardé (fichier_*), son texte repris dans les champs.
+class ModeleNoteSortie(db.Model):
+    __tablename__ = 'modeles_note_sortie'
+
+    id = db.Column(db.Integer, primary_key=True)
+    structure_id = db.Column(db.Integer, db.ForeignKey('structures.id', ondelete='CASCADE'), nullable=False)
+    nom = db.Column(db.String(200), nullable=False)
+    diagnostic_sortie = db.Column(db.Text, nullable=True)
+    evolution_sejour = db.Column(db.Text, nullable=True)
+    etat_sortie = db.Column(db.Text, nullable=True)
+    traitement_sortie = db.Column(db.Text, nullable=True)
+    suivi = db.Column(db.Text, nullable=True)
+    fichier_nom = db.Column(db.String(255), nullable=True)
+    fichier_mime = db.Column(db.String(100), nullable=True)
+    fichier_data = db.Column(db.LargeBinary, nullable=True)
+    actif = db.Column(db.Boolean, nullable=False, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('utilisateurs.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def en_dict(self):
+        return {'id': self.id, 'nom': self.nom, 'diagnostic_sortie': self.diagnostic_sortie or '',
+                'evolution_sejour': self.evolution_sejour or '', 'etat_sortie': self.etat_sortie or '',
+                'traitement_sortie': self.traitement_sortie or '', 'suivi': self.suivi or ''}
+
 
 # ==================== PROTOCOLES DE SOINS ====================
 class ProtocoleSoins(db.Model):

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Modifier' if m else 'Nouvelle' }} note de sortie préfaite{% endblock %}
+
+{# ⭐ 2026-10-22 : note de sortie préfaite — saisie, ou import d'un fichier Word/PDF déjà rédigé (texte réparti
+   dans les rubriques quand les titres sont reconnus : Diagnostic, Évolution, État à la sortie, Traitement, Suivi) #}
+{% block content %}
+{% macro valeur(k) %}{{ (f.get(k) if f else (m|attr(k) if m else '')) or '' }}{% endmacro %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-xl-9">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="h4 mb-0"><i class="fas fa-door-open me-2 text-danger"></i>{{ 'Modifier la' if m else 'Nouvelle' }} note de sortie préfaite</h1>
+                <a href="{{ url_for('liste_modeles_note_sortie') }}" class="btn btn-secondary"><i class="fas fa-arrow-left me-1"></i>Retour</a>
+            </div>
+
+            <div class="card mb-3 border-secondary">
+                <div class="card-body py-2">
+                    <label class="form-label fw-bold mb-1"><i class="fas fa-file-import me-1"></i>Importer une note déjà rédigée (Word ou PDF)</label>
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-8"><input type="file" id="fichierNote" name="fichier_source" form="formModele" class="form-control" accept=".docx,.pdf"></div>
+                        <div class="col-md-4"><button type="button" class="btn btn-outline-secondary w-100" onclick="importerNote()"><i class="fas fa-upload me-1"></i>Lire le fichier</button></div>
+                    </div>
+                    <small class="text-muted d-block mt-1">Le texte est réparti dans les rubriques ci-dessous quand ses titres sont reconnus — vérifiez avant d'enregistrer. Le fichier est gardé.</small>
+                    {% if m and m.fichier_data %}<small class="d-block mt-1"><i class="fas fa-paperclip me-1"></i>Fichier actuel : <a href="{{ url_for('fichier_modele_note_sortie', mid=m.id, voir=1) }}" target="_blank">{{ m.fichier_nom }}</a></small>{% endif %}
+                </div>
+            </div>
+
+            <form method="POST" id="formModele" enctype="multipart/form-data">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold">Nom <span class="text-danger">*</span></label>
+                                <input type="text" name="nom" id="nom" class="form-control" required value="{{ valeur('nom') }}" placeholder="Ex. : Paludisme grave de l'enfant">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">État</label>
+                                <select name="actif" class="form-select">
+                                    <option value="1" {% if not m or m.actif %}selected{% endif %}>Active (proposée à la sortie)</option>
+                                    <option value="0" {% if m and not m.actif %}selected{% endif %}>Inactive</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold">Diagnostic de sortie</label>
+                                {% with target_field_id = 'diagnostic_sortie' %}{% include "hospitalisations/_cim10_picker.html" %}{% endwith %}
+                                <textarea name="diagnostic_sortie" id="diagnostic_sortie" class="form-control" rows="2">{{ valeur('diagnostic_sortie') }}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Évolution type pendant l'hospitalisation</label>
+                                <textarea name="evolution_sejour" id="evolution_sejour" class="form-control" rows="6">{{ valeur('evolution_sejour') }}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">État à la sortie</label>
+                                <textarea name="etat_sortie" id="etat_sortie" class="form-control" rows="6">{{ valeur('etat_sortie') }}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Traitement et consignes de sortie</label>
+                                <textarea name="traitement_sortie" id="traitement_sortie" class="form-control" rows="5">{{ valeur('traitement_sortie') }}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Suivi / rendez-vous</label>
+                                <textarea name="suivi" id="suivi" class="form-control" rows="5">{{ valeur('suivi') }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('liste_modeles_note_sortie') }}" class="btn btn-secondary">Annuler</a>
+                        <button type="submit" class="btn btn-danger"><i class="fas fa-save me-1"></i>Enregistrer</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Rubriques reconnues dans le texte importé (titres en début de ligne)
+const RUBRIQUES = [
+    ['diagnostic_sortie', /^\s*(diagnostics?(\s+de\s+sortie|\s+retenus?|\s+final)?)\s*[:\-]?\s*/i],
+    ['evolution_sejour', /^\s*([ée]volution|d[ée]roulement|histoire\s+de\s+l.hospitalisation)[^:\n]*[:\-]?\s*/i],
+    ['etat_sortie', /^\s*([ée]tat\s+(du\s+patient\s+)?[àa]\s+la\s+sortie|[ée]tat\s+de\s+sortie)\s*[:\-]?\s*/i],
+    ['traitement_sortie', /^\s*(traitement|ordonnance|consignes|conseils|recommandations)[^:\n]*[:\-]?\s*/i],
+    ['suivi', /^\s*(suivi|rendez[- ]vous|rdv|contr[ôo]le)[^:\n]*[:\-]?\s*/i],
+];
+function repartir(texte) {
+    const res = {}; let courant = 'evolution_sejour';
+    texte.split(/\r?\n/).forEach(ligne => {
+        const r = RUBRIQUES.find(([, re]) => re.test(ligne) && ligne.trim().length < 140);
+        if (r) { courant = r[0]; ligne = ligne.replace(r[1], ''); }
+        if (ligne.trim()) res[courant] = (res[courant] ? res[courant] + '\n' : '') + ligne.trim();
+    });
+    return res;
+}
+function importerNote() {
+    const f = document.getElementById('fichierNote').files[0];
+    if (!f) { alert('Choisissez un fichier .docx ou .pdf'); return; }
+    const fd = new FormData(); fd.append('fichier', f);
+    fetch('/api/import-fichier-texte', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+        if (!d.success) { alert(d.error || "Le fichier n'a pas pu être lu."); return; }
+        const parts = repartir(d.texte || '');
+        Object.entries(parts).forEach(([k, v]) => { document.getElementById(k).value = v; });
+        const nom = document.getElementById('nom');
+        if (!nom.value.trim()) nom.value = d.nom_suggere || f.name.replace(/\.[^.]+$/, '');
+        alert('Fichier lu : vérifiez les rubriques avant d\'enregistrer.');
+    }).catch(() => alert('Erreur réseau pendant la lecture du fichier.'));
+}
+</script>
+{% endblock %}

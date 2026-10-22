@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Réévaluation - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+{% block title %}{{ "Note d'admission" if premiere_note else 'Note évolutive' }} - {{ patient.prenom }} {{ patient.nom }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3">
             <i class="fas fa-file-medical-alt me-2 text-warning"></i>
-            Note d'admission - {{ patient.prenom }} {{ patient.nom }}
+            {{ "Note d'admission" if premiere_note else 'Nouvelle note évolutive' }} - {{ patient.prenom }} {{ patient.nom }}
         </h1>
         <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
             <i class="fas fa-arrow-left me-2"></i>Retour
@@ -16,8 +16,13 @@
 
     <div class="alert alert-warning">
         <i class="fas fa-info-circle me-2"></i>
-        Vous créez une <strong>nouvelle version</strong> de la note d'admission — la version précédente
-        reste consultable dans l'historique. L'examen physique se remplit directement ci-dessous.
+        {% if premiere_note %}
+        Vous rédigez la <strong>note d'admission</strong> du patient (son état à l'entrée).
+        {% else %}
+        Vous rédigez une <strong>note évolutive</strong>, datée d'aujourd'hui : l'état du patient au cours de
+        l'hospitalisation. La note d'admission et les notes évolutives précédentes restent dans l'historique.
+        {% endif %}
+        L'examen physique se remplit directement ci-dessous.
     </div>
 
     <form method="POST" action="{{ url_for('ajouter_note_admission', id=hospitalisation.id) }}" id="reevaluationForm">
@@ -36,7 +41,7 @@
                     </div>
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <label class="form-label fw-bold"><span class="text-danger">*</span> Diagnostic présumé</label>
+                            <label class="form-label fw-bold"><span class="text-danger">*</span> {{ 'Diagnostic présumé' if premiere_note else 'Diagnostic actuel' }}</label>
                             {% with target_field_id = 'note_diagnostic' %}
                                 {% include "hospitalisations/_cim10_picker.html" %}
                             {% endwith %}
@@ -51,7 +56,7 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <label class="form-label fw-bold"><span class="text-danger">*</span> Traitement initial</label>
+                            <label class="form-label fw-bold"><span class="text-danger">*</span> {{ 'Traitement initial' if premiere_note else 'Traitement en cours / modifié' }}</label>
                             <textarea name="note_traitement" class="form-control" rows="2" required placeholder="Médicaments prescrits..."></textarea>
                         </div>
                         <div class="mb-3">

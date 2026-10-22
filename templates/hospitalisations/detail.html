@@ -23,9 +23,10 @@
         </div>
         <div>
             {% if hospitalisation.statut == 'actif' %}
-                <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cloturerModal">
-                    <i class="fas fa-check-circle me-2"></i>Clôturer
-                </button>
+                {# ⭐ 2026-10-22 : sortie sur une page, avec note de sortie obligatoire #}
+                <a href="{{ url_for('sortie_hospitalisation', id=hospitalisation.id) }}" class="btn btn-danger">
+                    <i class="fas fa-door-open me-2"></i>Faire sortir le patient
+                </a>
             {% endif %}
 
             <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-secondary">
@@ -228,6 +229,41 @@
 </div>
 {% endif %}
 
+{% if hospitalisation.statut != 'actif' %}
+{# ⭐ 2026-10-22 : note de sortie (exeat) #}
+{% set ns = hospitalisation.note_sortie %}
+<div class="card mb-4 border-danger" id="noteSortieCard">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="fas fa-door-open me-2 text-danger"></i><strong>Note de sortie</strong>
+            {% if ns %}<span class="badge bg-secondary ms-2">{{ ns.mode_libelle }}</span>{% endif %}</span>
+        {% if ns %}
+        <a href="{{ url_for('imprimer_note_sortie', id=hospitalisation.id) }}" target="_blank" class="btn btn-outline-danger btn-sm">
+            <i class="fas fa-print me-1"></i>Imprimer la note de sortie</a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if ns %}
+        <div class="small text-muted mb-3">
+            Sortie le {{ hospitalisation.date_fin.strftime('%d/%m/%Y à %H:%M') if hospitalisation.date_fin else '-' }}
+            {% if ns.redacteur %} — rédigée par Dr {{ ns.redacteur.prenom }} {{ ns.redacteur.nom }}{% endif %}
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">Diagnostic d'entrée</div><div style="white-space:pre-line">{{ ns.diagnostic_entree }}</div></div>
+            <div class="col-md-6"><div class="fw-bold text-danger small text-uppercase">Diagnostic de sortie</div><div class="fw-bold" style="white-space:pre-line">{{ ns.diagnostic_sortie }}</div></div>
+            <div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">État à l'entrée</div><div style="white-space:pre-line">{{ ns.resume_entree }}</div></div>
+            <div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">État à la sortie</div><div style="white-space:pre-line">{{ ns.etat_sortie }}</div></div>
+            <div class="col-12"><div class="fw-bold text-muted small text-uppercase">Évolution pendant l'hospitalisation</div><div style="white-space:pre-line">{{ ns.evolution_sejour }}</div></div>
+            {% if ns.traitement_sortie %}<div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">Traitement et consignes de sortie</div><div style="white-space:pre-line">{{ ns.traitement_sortie }}</div></div>{% endif %}
+            {% if ns.suivi %}<div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">Suivi / rendez-vous</div><div style="white-space:pre-line">{{ ns.suivi }}</div></div>{% endif %}
+            {% if ns.motif_sortie %}<div class="col-12"><div class="fw-bold text-muted small text-uppercase">Observations</div><div style="white-space:pre-line">{{ ns.motif_sortie }}</div></div>{% endif %}
+        </div>
+        {% else %}
+        <p class="text-muted mb-0"><i class="fas fa-info-circle me-1"></i>Patient sorti avant la mise en place de la note de sortie obligatoire.</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 
             <!-- ========================================================== -->
             <!-- ⭐ CARTE NOTE D'ADMISSION (lecture seule + réévaluations)   -->
@@ -236,23 +272,24 @@
                 <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
                     <div>
                         <i class="fas fa-file-medical-alt me-2"></i>
-                        <strong>Note d'admission</strong>
+                        {# ⭐ 2026-10-22 : note d'admission (à l'entrée) puis notes évolutives datées #}
+                        <strong>Note d'admission et notes évolutives</strong>
                         {% if note_active %}
-                            <span class="badge bg-dark ms-2">v{{ note_active.version }}</span>
+                            <span class="badge bg-dark ms-2">{{ note_active.libelle }}</span>
                         {% elif hospitalisation.note_admission_a_completer %}
                             <span class="badge bg-danger ms-2"><i class="fas fa-triangle-exclamation me-1"></i>À compléter</span>
                         {% endif %}
                     </div>
                     {% if hospitalisation.statut == 'actif' and current_user.role in ['admin_structure', 'medecin'] %}
                     <a href="{{ url_for('ajouter_note_admission', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
-                        <i class="fas fa-plus me-1"></i>{% if note_active %}Nouvelle réévaluation{% else %}Compléter la note d'admission{% endif %}
+                        <i class="fas fa-plus me-1"></i>{% if note_active %}Nouvelle note évolutive{% else %}Compléter la note d'admission{% endif %}
                     </a>
                     {% endif %}
                 </div>
                 <div class="card-body">
                     {% if note_active %}
                         <div class="alert alert-secondary py-2 small mb-3">
-                            <i class="fas fa-lock me-1"></i>Verrouillée — lecture seule.
+                            <i class="fas fa-lock me-1"></i><strong>{{ note_active.libelle }}</strong> — verrouillée, lecture seule.
                             Rédigée par {% if note_active.redacteur %}Dr {{ note_active.redacteur.prenom }} {{ note_active.redacteur.nom }}{% else %}-{% endif %}
                             le {{ note_active.date_redaction.strftime('%d/%m/%Y %H:%M') if note_active.date_redaction else '-' }}.
                         </div>
@@ -261,7 +298,7 @@
                                 <p><strong>Motif d'hospitalisation</strong><br>{{ note_active.motif_admission or '-' }}</p>
                                 <p><strong>Contexte et antécédents</strong><br>{{ note_active.contexte_admission or '-' }}</p>
                                 <p>
-                                    <strong>Examen clinique initial</strong><br>
+                                    <strong>{{ 'Examen clinique' if note_active.est_evolutive else 'Examen clinique initial' }}</strong><br>
                                     {{ note_active.examen_clinique_admission|truncate(150) if note_active.examen_clinique_admission else '-' }}
                                     {% if note_active.examen_clinique_admission %}
                                     <br><a href="#examenPhysiqueCard" class="small"><i class="fas fa-arrow-down me-1"></i>Voir l'examen physique détaillé ci-dessous</a>
@@ -272,11 +309,11 @@
                                 {% endif %}
                             </div>
                             <div class="col-md-6">
-                                <p><strong>Diagnostic présumé</strong><br>{{ note_active.diagnostic_admission or '-' }}</p>
+                                <p><strong>{{ 'Diagnostic actuel' if note_active.est_evolutive else 'Diagnostic présumé' }}</strong><br>{{ note_active.diagnostic_admission or '-' }}</p>
                                 {% if note_active.examens_admission %}
                                 <p><strong>Examens complémentaires</strong><br>{{ note_active.examens_admission }}</p>
                                 {% endif %}
-                                <p><strong>Traitement initial</strong><br>{{ note_active.traitement_admission or '-' }}</p>
+                                <p><strong>{{ 'Traitement en cours' if note_active.est_evolutive else 'Traitement initial' }}</strong><br>{{ note_active.traitement_admission or '-' }}</p>
                                 {% if note_active.evolution_prevue %}
                                 <p><strong>Évolution prévue</strong><br>{{ note_active.evolution_prevue }}</p>
                                 {% endif %}
@@ -285,13 +322,12 @@
                         </div>
                         {% if a_plusieurs_versions %}
                         <hr>
-                        <p class="small text-muted mb-2"><i class="fas fa-history me-1"></i>{{ nb_versions }} version(s) — historique des réévaluations :</p>
+                        <p class="small text-muted mb-2"><i class="fas fa-history me-1"></i>Historique — {{ nb_versions }} note(s), pour suivre l'évolution :</p>
                         <ul class="list-group list-group-flush">
                             {% for n in notes %}
                             <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1">
                                 <span class="small">
-                                    v{{ n.version }}{% if n.est_initial %} (initiale){% endif %}
-                                    — {{ n.date_redaction.strftime('%d/%m/%Y %H:%M') if n.date_redaction else '-' }}
+                                    <strong>{{ n.libelle }}</strong>{% if not n.est_evolutive %} — {{ n.date_redaction.strftime('%d/%m/%Y %H:%M') if n.date_redaction else '-' }}{% endif %}
                                     {% if n.redacteur %}par Dr {{ n.redacteur.prenom }} {{ n.redacteur.nom }}{% endif %}
                                     {% if note_active and n.id == note_active.id %}<span class="badge bg-success ms-1">Active</span>{% endif %}
                                 </span>
@@ -327,7 +363,7 @@
                 <div class="modal-dialog modal-lg">
                     <div class="modal-content">
                         <div class="modal-header bg-warning text-dark">
-                            <h5 class="modal-title"><i class="fas fa-file-medical-alt me-2"></i>Note d'admission — version {{ n.version }}{% if n.est_initial %} (initiale){% endif %}</h5>
+                            <h5 class="modal-title"><i class="fas fa-file-medical-alt me-2"></i>{{ n.libelle }}</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
@@ -340,17 +376,17 @@
                                 <div class="col-md-6">
                                     <p><strong>Motif d'hospitalisation</strong><br>{{ n.motif_admission or '-' }}</p>
                                     <p><strong>Contexte et antécédents</strong><br>{{ n.contexte_admission or '-' }}</p>
-                                    <p><strong>Examen clinique initial</strong><br>{{ n.examen_clinique_admission or '-' }}</p>
+                                    <p><strong>{{ 'Examen clinique' if n.est_evolutive else 'Examen clinique initial' }}</strong><br>{{ n.examen_clinique_admission or '-' }}</p>
                                     {% if n.constantes_admission %}
                                     <p><strong>Constantes</strong><br>{{ n.constantes_admission }}</p>
                                     {% endif %}
                                 </div>
                                 <div class="col-md-6">
-                                    <p><strong>Diagnostic présumé</strong><br>{{ n.diagnostic_admission or '-' }}</p>
+                                    <p><strong>{{ 'Diagnostic actuel' if n.est_evolutive else 'Diagnostic présumé' }}</strong><br>{{ n.diagnostic_admission or '-' }}</p>
                                     {% if n.examens_admission %}
                                     <p><strong>Examens complémentaires</strong><br>{{ n.examens_admission }}</p>
                                     {% endif %}
-                                    <p><strong>Traitement initial</strong><br>{{ n.traitement_admission or '-' }}</p>
+                                    <p><strong>{{ 'Traitement en cours' if n.est_evolutive else 'Traitement initial' }}</strong><br>{{ n.traitement_admission or '-' }}</p>
                                     {% if n.evolution_prevue %}
                                     <p><strong>Évolution prévue</strong><br>{{ n.evolution_prevue }}</p>
                                     {% endif %}
@@ -1429,215 +1465,7 @@
 
 
 <!-- ========== MODAL CLÔTURER ========== -->
-<div class="modal fade" id="cloturerModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <form method="POST" action="{{ url_for('cloturer_hospitalisation', id=hospitalisation.id) }}">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-check-circle me-2 text-danger"></i>Clôturer l'hospitalisation</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        Êtes-vous sûr de vouloir clôturer cette hospitalisation ?
-                    </div>
-                    
-                    <!-- Type de sortie -->
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Type de sortie *</label>
-                        <select name="type_sortie" class="form-select" id="typeSortie" required>
-                            <option value="sortie">Sortie normale (guérison/retour à domicile)</option>
-                            <option value="transfere">Transfert vers un autre centre</option>
-                            <option value="deces">Décès</option>
-                            <option value="autres">Autres motifs</option>
-                        </select>
-                    </div>
-                    
-                    <!-- Zone Transfert -->
-                    <div id="zoneTransfert" style="display: none;" class="border p-3 rounded mb-3 bg-light">
-                        <h6 class="text-primary"><i class="fas fa-ambulance me-2"></i>Informations de transfert</h6>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Centre de transfert *</label>
-                            <input type="text" name="centre_transfert" class="form-control" placeholder="Ex: CHU Lomé, Clinique Saint-Jean...">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Motif du transfert</label>
-                            <textarea name="motif_transfert" class="form-control" rows="2" placeholder="Raison du transfert..."></textarea>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Date du transfert</label>
-                            <input type="datetime-local" name="date_transfert" class="form-control">
-                        </div>
-                    </div>
-                    
-                    <!-- Zone Autres motifs -->
-                    <div id="zoneAutres" style="display: none;" class="border p-3 rounded mb-3 bg-light">
-                        <h6 class="text-warning"><i class="fas fa-pen me-2"></i>Précisez le motif</h6>
-                        <div class="mb-3">
-                            <label class="form-label">Motif de sortie *</label>
-                            <textarea name="motif_autres" class="form-control" rows="3" placeholder="Décrivez le motif de sortie..."></textarea>
-                        </div>
-                    </div>
-                    
-                    <!-- Motif de sortie général -->
-                    <div class="mb-3">
-                        <label class="form-label">Observations finales</label>
-                        <textarea name="motif_sortie" class="form-control" rows="3" placeholder="Observations complémentaires..."></textarea>
-                    </div>
-
-                    <!-- ⭐ Récapitulatif de facturation (jours × tarif par palier) -->
-                    <div class="mb-3" id="zoneFacturationCloture">
-                        <h6 class="text-primary"><i class="fas fa-file-invoice-dollar me-2"></i>Facturation</h6>
-                        <div id="facturationApercuLoading" class="text-muted small">
-                            <i class="fas fa-spinner fa-spin me-1"></i>Calcul en cours...
-                        </div>
-                        <div id="facturationApercuContenu" style="display:none;"></div>
-                    </div>
-                    <input type="hidden" name="salle_id_facturation" id="salleIdFacturation" value="">
-
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="confirmCloture" required>
-                        <label class="form-check-label" for="confirmCloture">
-                            Je confirme que le patient est sorti et que toutes les informations ont été enregistrées
-                        </label>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-check me-2"></i>Confirmer la sortie
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<script>
-// Récapitulatif de facturation (jours × tarif par palier + estimation
-// AMU/complémentaire) — chargé à l'ouverture de la modale de clôture, pour
-// que l'utilisateur voie AVANT de confirmer (jamais silencieux).
-(function() {
-    const modalCloture = document.getElementById('cloturerModal');
-    if (!modalCloture) return;
-
-    const urlApercuBase = '{{ url_for("apercu_facturation_hospitalisation", id=hospitalisation.id) }}';
-
-    function chargerApercuFacturation(salleId) {
-        const loading = document.getElementById('facturationApercuLoading');
-        const contenu = document.getElementById('facturationApercuContenu');
-        loading.style.display = 'block';
-        contenu.style.display = 'none';
-        contenu.innerHTML = '';
-
-        const url = salleId ? `${urlApercuBase}?salle_id=${salleId}` : urlApercuBase;
-
-        fetch(url)
-            .then(r => r.json())
-            .then(data => {
-                loading.style.display = 'none';
-                contenu.style.display = 'block';
-
-                if (!data.success) {
-                    if (data.salles_disponibles && data.salles_disponibles.length > 0) {
-                        // ⭐ Pas de salle résolue automatiquement (ni lit
-                        // assigné, ni nom de chambre correspondant à une
-                        // salle) : on laisse choisir manuellement au lieu
-                        // d'abandonner la facturation.
-                        const options = data.salles_disponibles
-                            .map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
-                        contenu.innerHTML = `
-                            <div class="alert alert-warning py-2 small mb-2">
-                                <i class="fas fa-exclamation-triangle me-1"></i>${data.error}
-                            </div>
-                            <div class="input-group input-group-sm">
-                                <select class="form-select" id="selectSalleFacturationManuelle">
-                                    <option value="">-- Choisir la salle facturée --</option>
-                                    ${options}
-                                </select>
-                                <button type="button" class="btn btn-outline-primary" id="btnRecalculerFacturation">
-                                    Recalculer
-                                </button>
-                            </div>
-                        `;
-                        document.getElementById('btnRecalculerFacturation').addEventListener('click', function() {
-                            const salleChoisie = document.getElementById('selectSalleFacturationManuelle').value;
-                            if (!salleChoisie) return;
-                            document.getElementById('salleIdFacturation').value = salleChoisie;
-                            chargerApercuFacturation(salleChoisie);
-                        });
-                    } else {
-                        contenu.innerHTML = `<div class="alert alert-secondary mb-0 py-2 small">
-                            <i class="fas fa-info-circle me-1"></i>${data.error}
-                        </div>`;
-                    }
-                    return;
-                }
-
-                // Salle résolue (auto ou manuelle) : on la mémorise pour
-                // que la clôture facture bien la même salle que celle
-                // affichée ici.
-                document.getElementById('salleIdFacturation').value = data.salle_id;
-
-                const fmt = n => Number(n).toLocaleString('fr-FR', {maximumFractionDigits: 0}) + ' FCFA';
-                // ⭐ FIX : le taux AMU affiché est maintenant celui réellement
-                // appliqué ligne par ligne (P160 = 90%, reste = taux du
-                // patient) — voir _taux_amu_pour_acte() côté serveur.
-                let lignesHtml = data.lignes.map(l => `
-                    <tr>
-                        <td>${l.label}</td>
-                        <td>${l.jours} j.</td>
-                        <td>${l.acte_nom} ${l.trouve_dans_catalogue ? '' : '<span class="badge bg-danger ms-1">non trouvé</span>'}</td>
-                        <td class="text-end">${l.taux_amu ? l.taux_amu + '%' : '-'}</td>
-                        <td class="text-end">${fmt(l.sous_total)}</td>
-                    </tr>
-                `).join('');
-
-                let alerteMapping = data.mapping_manquant ? `
-                    <div class="alert alert-warning py-2 small mb-2">
-                        <i class="fas fa-exclamation-triangle me-1"></i>
-                        Un ou plusieurs paliers n'ont pas d'acte GHP configuré pour la salle
-                        "${data.salle_nom}" — configurez-les dans <strong>Paramétrage AMU</strong>
-                        pour que la facturation parte automatiquement vers GHP.
-                    </div>` : '';
-
-                contenu.innerHTML = `
-                    ${alerteMapping}
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead><tr><th>Palier</th><th>Jours</th><th>Acte GHP</th><th class="text-end">Taux AMU</th><th class="text-end">Sous-total</th></tr></thead>
-                            <tbody>${lignesHtml}</tbody>
-                        </table>
-                    </div>
-                    <table class="table table-sm mb-0">
-                        <tr><td>Total brut (${data.jours_total} jour(s))</td><td class="text-end">${fmt(data.total_brut)}</td></tr>
-                        ${data.est_assure ? `<tr><td>Estimation prise en charge AMU</td><td class="text-end text-success">- ${fmt(data.prise_en_charge_amu)}</td></tr>` : ''}
-                        ${data.taux_cac > 0 ? `<tr><td>Estimation ${data.assurance2_nom} (${data.taux_cac}%)</td><td class="text-end text-success">- ${fmt(data.prise_en_charge_cac)}</td></tr>` : ''}
-                        <tr class="fw-bold"><td>Estimation reste à charge patient</td><td class="text-end">${fmt(data.net_estime)}</td></tr>
-                    </table>
-                    <div class="small text-muted mt-1">
-                        <i class="fas fa-info-circle me-1"></i>Estimation — le montant définitif est
-                        calculé par GHP à la vente (onglet Prescriptions reçues).
-                    </div>
-                `;
-            })
-            .catch(() => {
-                loading.style.display = 'none';
-                contenu.style.display = 'block';
-                contenu.innerHTML = `<div class="alert alert-secondary mb-0 py-2 small">Aperçu indisponible.</div>`;
-            });
-    }
-
-    modalCloture.addEventListener('show.bs.modal', function() {
-        document.getElementById('salleIdFacturation').value = '';
-        chargerApercuFacturation(null);
-    });
-})();
-</script>
+{# ⭐ 2026-10-22 : l'ancienne fenêtre « Clôturer » est remplacée par la page de sortie (hospitalisations/sortie.html) #}
 
 <!-- ========== MODAL AJOUTER AVIS EXTERNE ========== -->
 <div class="modal fade" id="avisExternesModal" tabindex="-1">

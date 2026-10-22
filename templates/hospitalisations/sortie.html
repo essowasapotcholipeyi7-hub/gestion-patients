@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Sortie — {{ patient.prenom }} {{ patient.nom }}{% endblock %}
+
+{# ⭐ 2026-10-22 (patron) : sortie du patient sur une page (remplace la petite fenêtre « Clôturer ») — note de
+   sortie obligatoire : état à l'entrée, évolution, état à la sortie, diagnostic d'entrée et de sortie (CIM-10,
+   compté dans les statistiques). Notes préfaites (ModeleNoteSortie) pour pré-remplir. #}
+{% block extra_css %}
+<style>
+    .sortie-bandeau { background: var(--hp-primary-light, #eef0fd); border-radius: 12px; padding: 12px 16px; }
+    .sortie-bandeau .info { font-size: .9rem; }
+    .sortie-bandeau .info strong { font-size: 1.05rem; }
+    .carte-etape .card-header { font-weight: 600; }
+    .carte-etape .numero { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; align-items: center;
+                           justify-content: center; background: #4f46e5; color: #fff; font-size: .85rem; margin-right: 8px; }
+    .champ-requis::after { content: " *"; color: #dc3545; }
+    .aide-stats { font-size: .8rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h1 class="h3 mb-0"><i class="fas fa-door-open me-2 text-danger"></i>Sortie du patient</h1>
+        <a href="{{ url_for('detail_hospitalisation', id=hospitalisation.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Retour à l'hospitalisation
+        </a>
+    </div>
+
+    <div class="sortie-bandeau mb-3 d-flex flex-wrap gap-4 info">
+        <div><span class="text-muted">Patient</span><br><strong class="notranslate">{{ patient.nom }} {{ patient.prenom }}</strong></div>
+        {% if patient.date_naissance %}<div><span class="text-muted">Âge</span><br><strong>{{ ((hospitalisation.date_debut.date() if hospitalisation.date_debut else patient.date_naissance) - patient.date_naissance).days // 365 }} ans</strong></div>{% endif %}
+        {% if patient.sexe %}<div><span class="text-muted">Sexe</span><br><strong>{{ patient.sexe }}</strong></div>{% endif %}
+        <div><span class="text-muted">Service</span><br><strong>{{ hospitalisation.service or '-' }}</strong>{% if hospitalisation.chambre %} — ch. {{ hospitalisation.chambre }}{% endif %}</div>
+        <div><span class="text-muted">Entrée</span><br><strong>{{ hospitalisation.date_debut.strftime('%d/%m/%Y %H:%M') if hospitalisation.date_debut else '-' }}</strong></div>
+        {% if duree_jours %}<div><span class="text-muted">Durée</span><br><strong>{{ duree_jours }} jour(s)</strong></div>{% endif %}
+    </div>
+
+    <form method="POST" action="{{ url_for('cloturer_hospitalisation', id=hospitalisation.id) }}" id="formSortie">
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <!-- ===== 1. NOTE DE SORTIE ===== -->
+                <div class="card carte-etape border-danger">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span><span class="numero">1</span>Note de sortie <span class="badge bg-danger ms-1">obligatoire</span></span>
+                        {% if modeles %}
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="small text-muted mb-0" for="choixModele">Partir d'une note préfaite</label>
+                            <select class="form-select form-select-sm" id="choixModele" style="min-width:220px">
+                                <option value="">— choisir —</option>
+                                {% for m in modeles %}<option value="{{ m.id }}" {% if v.modele_id|string == m.id|string %}selected{% endif %}>{{ m.nom }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        {% else %}
+                        <a class="small" href="{{ url_for('liste_modeles_note_sortie') }}" target="_blank"><i class="fas fa-file-import me-1"></i>Ajouter des notes de sortie préfaites</a>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <input type="hidden" name="modele_id" id="modeleId" value="{{ v.modele_id or '' }}">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold champ-requis" for="resume_entree">État du patient à l'entrée</label>
+                                <textarea class="form-control" name="resume_entree" id="resume_entree" rows="5" required
+                                          placeholder="Motif, plaintes, examen clinique et constantes à l'admission...">{{ v.resume_entree }}</textarea>
+                                <small class="text-muted">Repris de la note d'admission — à résumer si besoin.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold champ-requis" for="evolution_sejour">Évolution pendant l'hospitalisation</label>
+                                <textarea class="form-control" name="evolution_sejour" id="evolution_sejour" rows="5" required
+                                          placeholder="Traitements reçus, examens, complications, réponse au traitement...">{{ v.evolution_sejour }}</textarea>
+                                <small class="text-muted">Les notes évolutives datées sont reprises ici.</small>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold champ-requis" for="etat_sortie">État du patient à la sortie</label>
+                                <textarea class="form-control" name="etat_sortie" id="etat_sortie" rows="3" required
+                                          placeholder="Ex. : apyrétique, conscient, constantes normales, s'alimente bien...">{{ v.etat_sortie }}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold champ-requis" for="diagnostic_entree">Diagnostic d'entrée</label>
+                                {% with target_field_id = 'diagnostic_entree' %}{% include "hospitalisations/_cim10_picker.html" %}{% endwith %}
+                                <textarea class="form-control" name="diagnostic_entree" id="diagnostic_entree" rows="3" required>{{ v.diagnostic_entree }}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold champ-requis" for="diagnostic_sortie">Diagnostic de sortie</label>
+                                {% with target_field_id = 'diagnostic_sortie' %}{% include "hospitalisations/_cim10_picker.html" %}{% endwith %}
+                                <textarea class="form-control" name="diagnostic_sortie" id="diagnostic_sortie" rows="3" required>{{ v.diagnostic_sortie }}</textarea>
+                                <div class="aide-stats text-primary mt-1"><i class="fas fa-chart-bar me-1"></i>C'est ce diagnostic qui est compté dans les
+                                    statistiques des maladies : choisissez au moins un code CIM-10.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold" for="traitement_sortie">Traitement et consignes de sortie</label>
+                                <textarea class="form-control" name="traitement_sortie" id="traitement_sortie" rows="4"
+                                          placeholder="Traitement à poursuivre, régime, repos, signes devant faire revenir...">{{ v.traitement_sortie }}</textarea>
+                                <small class="text-muted">L'ordonnance de sortie se fait ensuite, depuis l'hospitalisation.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold" for="suivi">Suivi / rendez-vous</label>
+                                <textarea class="form-control" name="suivi" id="suivi" rows="4"
+                                          placeholder="Ex. : contrôle dans 7 jours en consultation, NFS de contrôle...">{{ v.suivi }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <!-- ===== 2. MODE DE SORTIE ===== -->
+                <div class="card carte-etape mb-3">
+                    <div class="card-header bg-white"><span class="numero">2</span>Mode de sortie</div>
+                    <div class="card-body">
+                        <select name="type_sortie" class="form-select mb-3" id="typeSortie" required>
+                            <option value="sortie" {% if v.type_sortie == 'sortie' %}selected{% endif %}>Sortie (retour à domicile)</option>
+                            <option value="transfere" {% if v.type_sortie == 'transfere' %}selected{% endif %}>Transfert vers un autre centre</option>
+                            <option value="deces" {% if v.type_sortie == 'deces' %}selected{% endif %}>Décès</option>
+                            <option value="autres" {% if v.type_sortie == 'autres' %}selected{% endif %}>Autre motif</option>
+                        </select>
+                        <div id="zoneTransfert" class="border rounded p-2 mb-3 bg-light" style="display:none">
+                            <label class="form-label small fw-bold champ-requis">Centre de transfert</label>
+                            <input type="text" name="centre_transfert" class="form-control form-control-sm mb-2" value="{{ v.centre_transfert }}" placeholder="Ex. : CHU Sylvanus Olympio">
+                            <label class="form-label small fw-bold">Motif du transfert</label>
+                            <textarea name="motif_transfert" class="form-control form-control-sm mb-2" rows="2">{{ v.motif_transfert }}</textarea>
+                            <label class="form-label small fw-bold">Date du transfert</label>
+                            <input type="datetime-local" name="date_transfert" class="form-control form-control-sm" value="{{ v.date_transfert }}">
+                        </div>
+                        <div id="zoneAutres" class="border rounded p-2 mb-3 bg-light" style="display:none">
+                            <label class="form-label small fw-bold champ-requis">Motif de sortie</label>
+                            <textarea name="motif_autres" class="form-control form-control-sm" rows="2" placeholder="Ex. : sortie contre avis médical">{{ v.motif_autres }}</textarea>
+                        </div>
+                        <label class="form-label small fw-bold" id="libelleMotif">Observations</label>
+                        <textarea name="motif_sortie" class="form-control form-control-sm" rows="2" placeholder="Observations complémentaires...">{{ v.motif_sortie }}</textarea>
+                    </div>
+                </div>
+
+                <!-- ===== 3. FACTURATION ===== -->
+                <div class="card carte-etape mb-3">
+                    <div class="card-header bg-white"><span class="numero">3</span>Facturation</div>
+                    <div class="card-body">
+                        <div id="facturationApercuLoading" class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Calcul en cours...</div>
+                        <div id="facturationApercuContenu" style="display:none;"></div>
+                        <input type="hidden" name="salle_id_facturation" id="salleIdFacturation" value="">
+                    </div>
+                </div>
+
+                <!-- ===== 4. CONFIRMATION ===== -->
+                <div class="card carte-etape border-danger">
+                    <div class="card-body">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="confirmCloture" required>
+                            <label class="form-check-label" for="confirmCloture">
+                                Je confirme la sortie du patient et le contenu de la note de sortie
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-danger w-100">
+                            <i class="fas fa-check me-2"></i>Enregistrer la note et faire sortir le patient
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ---------- mode de sortie : transfert / autre motif ----------
+(function () {
+    const choix = document.getElementById('typeSortie');
+    const zoneT = document.getElementById('zoneTransfert'), zoneA = document.getElementById('zoneAutres');
+    const libelle = document.getElementById('libelleMotif');
+    function maj() {
+        zoneT.style.display = choix.value === 'transfere' ? '' : 'none';
+        zoneA.style.display = choix.value === 'autres' ? '' : 'none';
+        zoneT.querySelector('[name=centre_transfert]').required = choix.value === 'transfere';
+        zoneA.querySelector('[name=motif_autres]').required = choix.value === 'autres';
+        libelle.textContent = choix.value === 'deces' ? 'Circonstances du décès' : 'Observations';
+    }
+    choix.addEventListener('change', maj);
+    maj();
+})();
+
+// ---------- notes de sortie préfaites ----------
+(function () {
+    const MODELES = {{ modeles_json|tojson }};
+    const choix = document.getElementById('choixModele');
+    if (!choix) return;
+    const CHAMPS = ['evolution_sejour', 'etat_sortie', 'diagnostic_sortie', 'traitement_sortie', 'suivi'];
+    choix.addEventListener('change', function () {
+        const m = MODELES.find(x => String(x.id) === this.value);
+        document.getElementById('modeleId').value = m ? m.id : '';
+        if (!m) return;
+        const ecrases = CHAMPS.filter(c => m[c] && document.getElementById(c).value.trim() && document.getElementById(c).value.trim() !== m[c].trim());
+        if (ecrases.length && !confirm('Remplacer le texte déjà saisi par celui de la note « ' + m.nom + ' » ?\n(Évolution, état à la sortie, diagnostic, traitement, suivi)')) {
+            CHAMPS.forEach(c => { const el = document.getElementById(c); if (m[c] && !el.value.trim()) el.value = m[c]; });
+            return;
+        }
+        CHAMPS.forEach(c => { if (m[c]) document.getElementById(c).value = m[c]; });
+    });
+})();
+
+// ---------- au moins un code CIM-10 dans le diagnostic de sortie (statistiques) ----------
+document.getElementById('formSortie').addEventListener('submit', function (e) {
+    const diag = document.getElementById('diagnostic_sortie');
+    if (!/^\s*[A-Z]\d{2}/m.test(diag.value)) {
+        e.preventDefault();
+        alert('Diagnostic de sortie : choisissez au moins un code CIM-10 (recherche au-dessus du champ). C\'est lui qui est compté dans les statistiques.');
+        diag.focus();
+    }
+});
+
+// ---------- aperçu de la facturation (repris de l'ancienne fenêtre « Clôturer ») ----------
+(function () {
+    const urlApercuBase = '{{ url_for("apercu_facturation_hospitalisation", id=hospitalisation.id) }}';
+    function charger(salleId) {
+        const loading = document.getElementById('facturationApercuLoading');
+        const contenu = document.getElementById('facturationApercuContenu');
+        loading.style.display = 'block';
+        contenu.style.display = 'none';
+        contenu.innerHTML = '';
+        fetch(salleId ? `${urlApercuBase}?salle_id=${salleId}` : urlApercuBase)
+            .then(r => r.json())
+            .then(data => {
+                loading.style.display = 'none';
+                contenu.style.display = 'block';
+                if (!data.success) {
+                    if (data.salles_disponibles && data.salles_disponibles.length) {
+                        const options = data.salles_disponibles.map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
+                        contenu.innerHTML = `<div class="alert alert-warning py-2 small mb-2"><i class="fas fa-exclamation-triangle me-1"></i>${data.error}</div>
+                            <div class="input-group input-group-sm"><select class="form-select" id="selectSalleFacturationManuelle">
+                            <option value="">-- Choisir la salle facturée --</option>${options}</select>
+                            <button type="button" class="btn btn-outline-primary" id="btnRecalculerFacturation">Recalculer</button></div>`;
+                        document.getElementById('btnRecalculerFacturation').addEventListener('click', function () {
+                            const salle = document.getElementById('selectSalleFacturationManuelle').value;
+                            if (!salle) return;
+                            document.getElementById('salleIdFacturation').value = salle;
+                            charger(salle);
+                        });
+                    } else {
+                        contenu.innerHTML = `<div class="alert alert-secondary mb-0 py-2 small"><i class="fas fa-info-circle me-1"></i>${data.error}</div>`;
+                    }
+                    return;
+                }
+                document.getElementById('salleIdFacturation').value = data.salle_id;
+                const fmt = n => Number(n).toLocaleString('fr-FR', {maximumFractionDigits: 0}) + ' F';
+                const lignes = data.lignes.map(l => `<tr><td>${l.label}<div class="text-muted">${l.acte_nom}${l.trouve_dans_catalogue ? '' : ' <span class="badge bg-danger">non trouvé</span>'}</div></td>
+                    <td class="text-end">${l.jours} j</td><td class="text-end">${fmt(l.sous_total)}</td></tr>`).join('');
+                const alerte = data.mapping_manquant ? `<div class="alert alert-warning py-2 small mb-2"><i class="fas fa-exclamation-triangle me-1"></i>
+                    Un palier n'a pas d'acte GHP pour la salle « ${data.salle_nom} » (Paramétrage AMU).</div>` : '';
+                contenu.innerHTML = `${alerte}<table class="table table-sm small mb-2"><tbody>${lignes}</tbody></table>
+                    <table class="table table-sm small mb-0">
+                    <tr><td>Total (${data.jours_total} j)</td><td class="text-end">${fmt(data.total_brut)}</td></tr>
+                    ${data.est_assure ? `<tr><td>Prise en charge AMU (estim.)</td><td class="text-end text-success">- ${fmt(data.prise_en_charge_amu)}</td></tr>` : ''}
+                    ${data.taux_cac > 0 ? `<tr><td>${data.assurance2_nom} (${data.taux_cac}%)</td><td class="text-end text-success">- ${fmt(data.prise_en_charge_cac)}</td></tr>` : ''}
+                    <tr class="fw-bold"><td>Reste à charge (estim.)</td><td class="text-end">${fmt(data.net_estime)}</td></tr></table>
+                    <div class="small text-muted mt-1">Estimation — montant définitif calculé par GHP à la vente.</div>`;
+            })
+            .catch(() => {
+                loading.style.display = 'none';
+                contenu.style.display = 'block';
+                contenu.innerHTML = '<div class="alert alert-secondary mb-0 py-2 small">Aperçu indisponible.</div>';
+            });
+    }
+    charger(null);
+})();
+</script>
+{% endblock %}

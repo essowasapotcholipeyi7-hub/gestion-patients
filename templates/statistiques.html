@@ -146,7 +146,8 @@
         <div class="col-md-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-notes-medical me-2"></i>Pathologies les plus fréquentes</span>
+                    <span><i class="fas fa-notes-medical me-2"></i>Pathologies les plus fréquentes
+                        <small class="text-muted d-block" style="font-size:.75rem">Consultations et diagnostics de sortie d'hospitalisation</small></span>
                     <span class="badge bg-primary">{{ analyse_pathologies|length }}</span>
                 </div>
                 <div class="card-body">
@@ -424,6 +425,40 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- ⭐ 2026-10-22 : diagnostics de sortie d'hospitalisation (note de sortie obligatoire) -->
+    <div class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-door-open me-2 text-danger"></i>Diagnostics de sortie d'hospitalisation</span>
+                    <span class="badge bg-danger">{{ nb_sorties_diag }} sortie(s)</span>
+                </div>
+                <div class="card-body">
+                    {% if analyse_pathologies_sortie %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead><tr><th>#</th><th>Diagnostic de sortie</th><th class="text-center">Hospitalisations</th><th class="text-center">%</th><th>Pic saisonnier</th></tr></thead>
+                            <tbody>
+                                {% for p in analyse_pathologies_sortie[:15] %}
+                                <tr>
+                                    <td><span class="badge bg-light text-dark border">{{ loop.index }}</span></td>
+                                    <td>{% if p.code %}<span class="badge bg-light text-dark border me-1">{{ p.code }}</span>{% endif %}<strong>{{ p.label|truncate(60) }}</strong></td>
+                                    <td class="text-center"><span class="badge bg-danger">{{ p.total }}</span></td>
+                                    <td class="text-center"><span class="badge bg-success">{{ p.pourcentage }}%</span></td>
+                                    <td>{% if p.pic_mois %}<span class="badge bg-warning text-dark">{{ p.pic_mois|join(', ') }}</span>{% else %}<span class="text-muted small">Régulier</span>{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info text-center py-3 mb-0"><i class="fas fa-info-circle me-2"></i>Aucune sortie avec note de sortie sur la période.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Statistiques hospitalisations / analyses -->
     {% if stats_hospitalisations %}

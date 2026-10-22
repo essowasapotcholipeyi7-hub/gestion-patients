@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Notes de sortie préfaites{% endblock %}
+
+{# ⭐ 2026-10-22 (patron : « des notes de sortie préfaites qu'on va uploader dans le logiciel ») #}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h1 class="h3 mb-0"><i class="fas fa-door-open me-2 text-danger"></i>Notes de sortie préfaites</h1>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('templates_dashboard') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Templates</a>
+            <a href="{{ url_for('editer_modele_note_sortie') }}" class="btn btn-danger"><i class="fas fa-plus me-1"></i>Nouvelle note préfaite</a>
+        </div>
+    </div>
+    <div class="alert alert-light border small">
+        <i class="fas fa-info-circle me-1"></i>
+        Une note préfaite par situation (ex. « Paludisme grave de l'enfant ») : à la sortie d'un patient, le médecin la
+        choisit et la note de sortie se remplit (évolution type, état à la sortie, diagnostic, traitement, suivi). Tout
+        reste modifiable avant d'enregistrer. Vous pouvez importer une note déjà rédigée (Word ou PDF).
+    </div>
+    <div class="card">
+        <div class="card-body p-0">
+            {% if modeles %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light"><tr><th>Nom</th><th>Diagnostic de sortie</th><th>Fichier</th><th>État</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                        {% for m in modeles %}
+                        <tr class="{{ '' if m.actif else 'text-muted' }}">
+                            <td class="fw-bold">{{ m.nom }}</td>
+                            <td class="small" style="white-space:pre-line">{{ (m.diagnostic_sortie or '-')|truncate(90) }}</td>
+                            <td>{% if m.fichier_data %}<a href="{{ url_for('fichier_modele_note_sortie', mid=m.id, voir=1) }}" target="_blank" class="small"><i class="fas fa-paperclip me-1"></i>{{ m.fichier_nom }}</a>{% else %}<span class="text-muted small">—</span>{% endif %}</td>
+                            <td>{% if m.actif %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
+                            <td class="text-end">
+                                <a href="{{ url_for('editer_modele_note_sortie', mid=m.id) }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-pen"></i></a>
+                                <form method="POST" action="{{ url_for('supprimer_modele_note_sortie', mid=m.id) }}" class="d-inline"
+                                      onsubmit="return confirm('Supprimer la note préfaite « {{ m.nom|e }} » ?');">
+                                    <button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-file-medical fa-2x mb-2 d-block"></i>
+                Aucune note de sortie préfaite pour le moment.<br>
+                <a href="{{ url_for('editer_modele_note_sortie') }}" class="btn btn-danger btn-sm mt-2"><i class="fas fa-plus me-1"></i>Créer la première</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
