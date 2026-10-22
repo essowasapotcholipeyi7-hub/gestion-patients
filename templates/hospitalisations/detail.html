@@ -25,11 +25,120 @@
     {% include "patients/_bandeau_patient.html" %}
     {% endwith %}
 
-    <div class="row">
-        <!-- ============================================================ -->
-        <!-- COLONNE GAUCHE                                               -->
-        <!-- ============================================================ -->
-        <div class="col-md-4">
+    {# ⭐ 2026-10-22 (patron : « tout est mélangé… des boutons bien rangés en haut ; on clique, ça s'affiche ») :
+       la page est rangée en onglets ; on arrive sur l'Accueil (résumé du séjour). L'onglet ouvert est gardé
+       dans l'adresse (#ordonnances…) et retrouvé au retour d'une action sur cette hospitalisation. #}
+    <style>
+        .hospi-onglets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 18px; }
+        .hospi-onglets .nav-link { display: flex; align-items: center; gap: 8px; border: 1px solid #dfe3ec; border-radius: 10px;
+                                   background: #fff; color: #374151; font-weight: 600; font-size: .88rem; padding: 10px 12px; text-align: left; }
+        .hospi-onglets .nav-link i { font-size: 1.05rem; width: 20px; text-align: center; color: var(--hp-primary, #667eea); }
+        .hospi-onglets .nav-link .badge { margin-left: auto; }
+        .hospi-onglets .nav-link:hover { border-color: var(--hp-primary, #667eea); }
+        .hospi-onglets .nav-link.active { background: var(--hp-primary, #667eea); border-color: var(--hp-primary, #667eea); color: #fff; }
+        .hospi-onglets .nav-link.active i { color: #fff; }
+        [data-bs-theme="dark"] .hospi-onglets .nav-link { background: #1f2430; border-color: #343a46; color: #d6dbe6; }
+        .tuile-hospi { border: 1px solid #e8ebf2; border-radius: 12px; padding: 12px 14px; height: 100%; cursor: pointer; transition: border-color .15s; }
+        .tuile-hospi:hover { border-color: var(--hp-primary, #667eea); }
+        .tuile-hospi .titre { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #8a93a6; font-weight: 700; margin-bottom: 4px; }
+        .tuile-hospi .valeur { font-size: 1.05rem; font-weight: 700; }
+        [data-bs-theme="dark"] .tuile-hospi { border-color: #343a46; }
+    </style>
+    {% set _jours = ((hospitalisation.date_fin or now) - hospitalisation.date_debut).days + 1 if hospitalisation.date_debut else 0 %}
+    <ul class="nav hospi-onglets" role="tablist">
+        <li><a class="nav-link active" data-bs-toggle="tab" data-bs-target="#onglet-accueil" href="#accueil"><i class="fas fa-home"></i>Accueil</a></li>
+        <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-notes" href="#notes"><i class="fas fa-file-medical-alt"></i>Admission &amp; notes évolutives <span class="badge bg-secondary">{{ notes|length }}</span></a></li>
+        <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-examen-physique" href="#examen-physique"><i class="fas fa-stethoscope"></i>Examen physique</a></li>
+        <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-ordonnances" href="#ordonnances"><i class="fas fa-prescription"></i>Ordonnances &amp; protocole <span class="badge bg-secondary">{{ ordonnance_medicaments|length }}</span></a></li>
+        <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-examens" href="#examens"><i class="fas fa-flask"></i>Examens <span class="badge bg-secondary">{{ nb_examens_prescrits }}</span></a></li>
+        <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-suivi" href="#suivi"><i class="fas fa-heartbeat"></i>Constantes &amp; évolution <span class="badge bg-secondary">{{ evolutions|length }}</span></a></li>
+        <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-soins" href="#soins"><i class="fas fa-syringe"></i>Soins infirmiers <span class="badge bg-secondary">{{ soins_poses|length }}</span></a></li>
+        <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-avis" href="#avis"><i class="fas fa-user-friends"></i>Avis externes</a></li>
+        <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-equipe" href="#equipe"><i class="fas fa-users"></i>Équipe soignante <span class="badge bg-secondary">{{ medecins|length + infirmiers|length }}</span></a></li>
+        {% if hospitalisation.statut != 'actif' %}
+        <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-sortie" href="#sortie"><i class="fas fa-door-open"></i>Note de sortie</a></li>
+        {% endif %}
+    </ul>
+
+    <div class="tab-content">
+    <!-- ==================================================== ACCUEIL -->
+    <div class="tab-pane show active" id="onglet-accueil" role="tabpanel">
+
+    {% set _cst = constantes[0] if constantes else None %}
+    {% set _evo = evolutions[0] if evolutions else None %}
+    <div class="row g-3 mb-4">
+        <div class="col-md-6 col-xl-3"><div class="tuile-hospi" data-onglet="equipe">
+            <div class="titre"><i class="fas fa-bed me-1"></i>Séjour</div>
+            <div class="valeur">{{ hospitalisation.service or '—' }}</div>
+            <div class="small text-muted">{% if hospitalisation.chambre %}Chambre {{ hospitalisation.chambre }}{% endif %}{% if hospitalisation.lit and hospitalisation.lit.numero %} · lit {{ hospitalisation.lit.numero }}{% endif %}</div>
+            <div class="small">Admis le {{ hospitalisation.date_debut.strftime('%d/%m/%Y') }} — <strong>J{{ _jours }}</strong>{% if hospitalisation.date_fin %} · sorti le {{ hospitalisation.date_fin.strftime('%d/%m/%Y') }}{% endif %}</div>
+            <div class="small text-muted mt-1">{% for m in medecins %}Dr {{ m.medecin.prenom }} {{ m.medecin.nom }}{{ ', ' if not loop.last }}{% endfor %}</div>
+        </div></div>
+        <div class="col-md-6 col-xl-3"><div class="tuile-hospi" data-onglet="notes">
+            <div class="titre"><i class="fas fa-notes-medical me-1"></i>Diagnostic{{ " de sortie" if hospitalisation.note_sortie else "" }}</div>
+            <div class="fw-bold" style="white-space: pre-line">{{ ((hospitalisation.note_sortie.diagnostic_sortie if hospitalisation.note_sortie else (note_active.diagnostic_admission if note_active else '')) or '—')|truncate(160) }}</div>
+            <div class="small text-muted mt-1">Motif : {{ (hospitalisation.motif or '—')|truncate(80) }}</div>
+        </div></div>
+        <div class="col-md-6 col-xl-3"><div class="tuile-hospi" data-onglet="suivi">
+            <div class="titre"><i class="fas fa-heartbeat me-1"></i>Dernières constantes</div>
+            {% if _cst %}
+            <div class="small">{% if _cst.temperature %}T° <strong>{{ _cst.temperature }} °C</strong> · {% endif %}{% if _cst.pression_arterielle %}TA <strong>{{ _cst.pression_arterielle }}</strong> · {% endif %}{% if _cst.frequence_cardiaque %}FC <strong>{{ _cst.frequence_cardiaque }}</strong> · {% endif %}{% if _cst.saturation_oxygene %}SpO₂ <strong>{{ _cst.saturation_oxygene }} %</strong>{% endif %}</div>
+            <div class="small text-muted mt-1">{{ _cst.date_prise.strftime('%d/%m/%Y %H:%M') if _cst.date_prise else '' }}</div>
+            {% else %}<div class="text-muted small">Aucune constante prise</div>{% endif %}
+            {% if _evo %}<div class="small mt-2">État : <strong>{{ _evo.etat_echelle }}/10</strong> <span class="text-muted">({{ _evo.date_evolution.strftime('%d/%m') if _evo.date_evolution else '' }})</span></div>{% endif %}
+        </div></div>
+        <div class="col-md-6 col-xl-3"><div class="tuile-hospi" data-onglet="ordonnances">
+            <div class="titre"><i class="fas fa-prescription me-1"></i>Traitement en cours</div>
+            {% if ordonnance_medicaments %}
+            <ol class="small mb-0 ps-3">{% for m in ordonnance_medicaments[:4] %}<li>{{ (m.medicament or m.nom or '')|truncate(38) }}</li>{% endfor %}</ol>
+            {% if ordonnance_medicaments|length > 4 %}<div class="small text-muted">+ {{ ordonnance_medicaments|length - 4 }} autre(s)</div>{% endif %}
+            {% else %}<div class="text-muted small">Aucune ordonnance</div>{% endif %}
+            <div class="small mt-1"><i class="fas fa-flask me-1 text-info"></i>{{ nb_examens_prescrits }} demande(s) d'examens{% set _att = examens_prescrits|selectattr('statut', 'ne', 'TERMINE')|list %}{% if _att %} — <span class="text-warning fw-bold">{{ _att|length }} en attente</span>{% endif %}</div>
+        </div></div>
+    </div>
+<!-- ========================================================== -->
+<!-- ACTIONS RAPIDES                                             -->
+<!-- ========================================================== -->
+{% if hospitalisation.statut == 'actif' %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <a href="{{ url_for('ajouter_constante', id=hospitalisation.id) }}" class="btn btn-success w-100">
+            <i class="fas fa-heartbeat me-2"></i>Constantes
+            <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé aux infirmiers</small>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('ajouter_evolution', id=hospitalisation.id) }}" class="btn btn-primary w-100">
+            <i class="fas fa-notes-medical me-2"></i>Évolution
+            <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé au médecin</small>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <button class="btn btn-info w-100" data-bs-toggle="modal" data-bs-target="#avisExternesModal">
+            <i class="fas fa-user-md me-2"></i>Avis externes
+            <small class="d-block" style="font-size: 0.65rem;">Médecins externes</small>
+        </button>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('ajouter_reference_hospitalisation', id=hospitalisation.id) }}" class="btn btn-warning w-100 text-dark">
+            <i class="fas fa-ambulance me-2"></i>Référencer
+            <small class="d-block text-dark-50" style="font-size: 0.65rem;">Référer le patient</small>
+        </a>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-secondary mb-4">
+    <i class="fas fa-info-circle me-2"></i>
+    <strong>Hospitalisation clôturée</strong> - Aucune modification n'est possible.
+    {% if hospitalisation.statut == 'transfere' %}
+        Patient transféré vers <strong>{{ hospitalisation.centre_transfert or 'un autre centre' }}</strong>
+    {% endif %}
+</div>
+{% endif %}
+
+
+    <div class="row g-3">
+        <div class="col-lg-6">
             <!-- Carte Hospitalisation -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -47,91 +156,8 @@
                 </div>
             </div>
 
-            <!-- Carte Équipe soignante -->
-            {% set peut_gerer_equipe = hospitalisation.statut == 'actif' and (
-                current_user.role in ['admin_structure', 'secretaire'] or
-                (current_user.role == 'medecin' and current_user.id in medecins|map(attribute='medecin_id')|list)
-            ) %}
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Équipe soignante</h5>
-                </div>
-                <div class="card-body">
-                    <h6 class="text-primary">Médecins</h6>
-                    <ul class="list-unstyled">
-                        {% for m in medecins %}
-                        <li class="mb-2 d-flex justify-content-between align-items-center">
-                            <span>
-                                <i class="fas fa-user-md text-info me-2"></i>
-                                {{ m.medecin.nom }} {{ m.medecin.prenom }}
-                                <span class="badge bg-light text-dark ms-2">{{ m.role }}</span>
-                            </span>
-                            {% if peut_gerer_equipe %}
-                            <form method="POST" action="{{ url_for('equipe_soignante_retirer', id=hospitalisation.id) }}" class="d-inline" onsubmit="return confirm('Retirer {{ m.medecin.prenom }} {{ m.medecin.nom }} de l\'équipe ?');">
-                                <input type="hidden" name="type" value="medecin">
-                                <input type="hidden" name="user_id" value="{{ m.medecin_id }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Retirer">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </form>
-                            {% endif %}
-                        </li>
-                        {% else %}
-                        <li class="text-muted">Aucun médecin assigné</li>
-                        {% endfor %}
-                    </ul>
-                    {% if peut_gerer_equipe and medecins_disponibles %}
-                    <form method="POST" action="{{ url_for('equipe_soignante_ajouter', id=hospitalisation.id) }}" class="d-flex gap-2 mt-2">
-                        <input type="hidden" name="type" value="medecin">
-                        <select name="user_id" class="form-select form-select-sm" required>
-                            <option value="">— Ajouter un médecin —</option>
-                            {% for med in medecins_disponibles %}
-                            <option value="{{ med.id }}">Dr {{ med.prenom }} {{ med.nom }}</option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit" class="btn btn-sm btn-primary text-nowrap"><i class="fas fa-plus"></i></button>
-                    </form>
-                    {% endif %}
-
-                    <hr>
-
-                    <h6 class="text-success">Infirmiers</h6>
-                    <ul class="list-unstyled">
-                        {% for i in infirmiers %}
-                        <li class="mb-2 d-flex justify-content-between align-items-center">
-                            <span>
-                                <i class="fas fa-user-nurse text-success me-2"></i>
-                                {{ i.infirmier.nom }} {{ i.infirmier.prenom }}
-                            </span>
-                            {% if peut_gerer_equipe %}
-                            <form method="POST" action="{{ url_for('equipe_soignante_retirer', id=hospitalisation.id) }}" class="d-inline" onsubmit="return confirm('Retirer {{ i.infirmier.prenom }} {{ i.infirmier.nom }} de l\'équipe ?');">
-                                <input type="hidden" name="type" value="infirmier">
-                                <input type="hidden" name="user_id" value="{{ i.infirmier_id }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Retirer">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </form>
-                            {% endif %}
-                        </li>
-                        {% else %}
-                        <li class="text-muted">Aucun infirmier assigné</li>
-                        {% endfor %}
-                    </ul>
-                    {% if peut_gerer_equipe and infirmiers_disponibles %}
-                    <form method="POST" action="{{ url_for('equipe_soignante_ajouter', id=hospitalisation.id) }}" class="d-flex gap-2 mt-2">
-                        <input type="hidden" name="type" value="infirmier">
-                        <select name="user_id" class="form-select form-select-sm" required>
-                            <option value="">— Ajouter un infirmier —</option>
-                            {% for inf in infirmiers_disponibles %}
-                            <option value="{{ inf.id }}">{{ inf.prenom }} {{ inf.nom }}</option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit" class="btn btn-sm btn-success text-nowrap"><i class="fas fa-plus"></i></button>
-                    </form>
-                    {% endif %}
-                </div>
-            </div>
-
+        </div>
+        <div class="col-lg-6">
             <!-- Patient transféré -->
             {% if hospitalisation.statut == 'transfere' %}
             <div class="alert alert-warning mt-3">
@@ -156,88 +182,11 @@
             </div>
             {% endif %}
         </div>
+    </div>
 
-        <!-- ============================================================ -->
-        <!-- COLONNE DROITE                                               -->
-        <!-- ============================================================ -->
-        <div class="col-md-8">
-
-<!-- ========================================================== -->
-<!-- ACTIONS RAPIDES                                             -->
-<!-- ========================================================== -->
-{% if hospitalisation.statut == 'actif' %}
-<div class="row mb-4">
-    <div class="col-md-3">
-        <a href="{{ url_for('ajouter_constante', id=hospitalisation.id) }}" class="btn btn-success w-100">
-            <i class="fas fa-heartbeat me-2"></i>Constantes
-            <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé aux infirmiers</small>
-        </a>
     </div>
-    <div class="col-md-3">
-        <a href="{{ url_for('ajouter_evolution', id=hospitalisation.id) }}" class="btn btn-primary w-100">
-            <i class="fas fa-notes-medical me-2"></i>Évolution
-            <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé au médecin</small>
-        </a>
-    </div>
-    <div class="col-md-3">
-        <button class="btn btn-info w-100 text-white" data-bs-toggle="modal" data-bs-target="#avisExternesModal">
-            <i class="fas fa-user-md me-2"></i>Avis externes
-            <small class="d-block text-white-50" style="font-size: 0.65rem;">Médecins externes</small>
-        </button>
-    </div>
-    <div class="col-md-3">
-        <a href="{{ url_for('ajouter_reference_hospitalisation', id=hospitalisation.id) }}" class="btn btn-warning w-100 text-dark">
-            <i class="fas fa-ambulance me-2"></i>Référencer
-            <small class="d-block text-dark-50" style="font-size: 0.65rem;">Référer le patient</small>
-        </a>
-    </div>
-</div>
-{% else %}
-<div class="alert alert-secondary mb-4">
-    <i class="fas fa-info-circle me-2"></i>
-    <strong>Hospitalisation clôturée</strong> - Aucune modification n'est possible.
-    {% if hospitalisation.statut == 'transfere' %}
-        Patient transféré vers <strong>{{ hospitalisation.centre_transfert or 'un autre centre' }}</strong>
-    {% endif %}
-</div>
-{% endif %}
-
-{% if hospitalisation.statut != 'actif' %}
-{# ⭐ 2026-10-22 : note de sortie (exeat) #}
-{% set ns = hospitalisation.note_sortie %}
-<div class="card mb-4 border-danger" id="noteSortieCard">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span><i class="fas fa-door-open me-2 text-danger"></i><strong>Note de sortie</strong>
-            {% if ns %}<span class="badge bg-secondary ms-2">{{ ns.mode_libelle }}</span>{% endif %}</span>
-        {% if ns %}
-        <a href="{{ url_for('imprimer_note_sortie', id=hospitalisation.id) }}" target="_blank" class="btn btn-outline-danger btn-sm">
-            <i class="fas fa-print me-1"></i>Imprimer la note de sortie</a>
-        {% endif %}
-    </div>
-    <div class="card-body">
-        {% if ns %}
-        <div class="small text-muted mb-3">
-            Sortie le {{ hospitalisation.date_fin.strftime('%d/%m/%Y à %H:%M') if hospitalisation.date_fin else '-' }}
-            {% if ns.redacteur %} — rédigée par Dr {{ ns.redacteur.prenom }} {{ ns.redacteur.nom }}{% endif %}
-        </div>
-        <div class="row g-3">
-            <div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">Diagnostic d'entrée</div><div style="white-space:pre-line">{{ ns.diagnostic_entree }}</div></div>
-            <div class="col-md-6"><div class="fw-bold text-danger small text-uppercase">Diagnostic de sortie</div><div class="fw-bold" style="white-space:pre-line">{{ ns.diagnostic_sortie }}</div></div>
-            <div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">État à l'entrée</div><div style="white-space:pre-line">{{ ns.resume_entree }}</div></div>
-            <div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">État à la sortie</div><div style="white-space:pre-line">{{ ns.etat_sortie }}</div></div>
-            <div class="col-12"><div class="fw-bold text-muted small text-uppercase">Évolution pendant l'hospitalisation</div><div style="white-space:pre-line">{{ ns.evolution_sejour }}</div></div>
-            {% if ns.traitement_sortie %}<div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">Traitement et consignes de sortie</div><div style="white-space:pre-line">{{ ns.traitement_sortie }}</div></div>{% endif %}
-            {% if ns.suivi %}<div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">Suivi / rendez-vous</div><div style="white-space:pre-line">{{ ns.suivi }}</div></div>{% endif %}
-            {% if ns.motif_sortie %}<div class="col-12"><div class="fw-bold text-muted small text-uppercase">Observations</div><div style="white-space:pre-line">{{ ns.motif_sortie }}</div></div>{% endif %}
-        </div>
-        {% else %}
-        <p class="text-muted mb-0"><i class="fas fa-info-circle me-1"></i>Patient sorti avant la mise en place de la note de sortie obligatoire.</p>
-        {% endif %}
-    </div>
-</div>
-{% endif %}
-
-
+    <!-- ==================================================== NOTES -->
+    <div class="tab-pane" id="onglet-notes" role="tabpanel">
             <!-- ========================================================== -->
             <!-- ⭐ CARTE NOTE D'ADMISSION (lecture seule + réévaluations)   -->
             <!-- ========================================================== -->
@@ -376,72 +325,35 @@
             {% endfor %}
             {% endif %}
 
-            <!-- ========================================================== -->
-            <!-- ⭐ CARTE PROTOCOLE DE SOINS                                 -->
-            <!-- ========================================================== -->
-            <div class="card mb-4 border-primary">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <div>
-                        <i class="fas fa-notes-medical me-2"></i>
-                        <strong>Protocole de soins</strong>
-                        {% if hospitalisation.protocole %}
-                            <span class="badge bg-light text-primary ms-2">{{ hospitalisation.protocole.nom }}</span>
-                        {% else %}
-                            <span class="badge bg-warning ms-2">Aucun</span>
-                        {% endif %}
-                    </div>
-                    <div>
-                        {% if hospitalisation.statut == 'actif' %}
-                            <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#protocoleModal">
-                                <i class="fas fa-{% if hospitalisation.protocole %}exchange-alt{% else %}plus{% endif %} me-1"></i>
-                                {% if hospitalisation.protocole %}Changer{% else %}Appliquer{% endif %}
-                            </button>
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="card-body">
-                    {% if hospitalisation.protocole %}
-                        <div class="alert alert-info">
-                            <strong>{{ hospitalisation.protocole.nom }}</strong>
-                            <hr>
-                            <div style="white-space: pre-line;">{{ hospitalisation.protocole.description }}</div>
-                        </div>
-                        {% if hospitalisation.protocole.ordonnance_type %}
-                        <div class="mt-2">
-                            <span class="badge bg-success">
-                                <i class="fas fa-prescription me-1"></i>
-                                Ordonnance : {{ hospitalisation.protocole.ordonnance_type.nom }}
-                            </span>
-                        </div>
-                        {% endif %}
-                        {% if hospitalisation.protocole.examen_type %}
-                        <div class="mt-1">
-                            <span class="badge bg-info">
-                                <i class="fas fa-flask me-1"></i>
-                                Examens : {{ hospitalisation.protocole.examen_type.nom }}
-                            </span>
-                        </div>
-                        {% endif %}
-                        {% if hospitalisation.protocole.fichier_nom %}
-                        <div class="mt-2">
-                            <a href="{{ url_for('api_telecharger_fichier_protocole', id=hospitalisation.protocole.id) }}" target="_blank">
-                                <i class="fas fa-paperclip me-1"></i>{{ hospitalisation.protocole.fichier_nom }}
-                            </a>
-                        </div>
-                        {% endif %}
-                    {% else %}
-                        <p class="text-muted text-center my-3">
-                            <i class="fas fa-info-circle me-2"></i>
-                            Aucun protocole de soins appliqué.
-                            <br>
-                            <button class="btn btn-sm btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#protocoleModal">
-                                <i class="fas fa-plus me-1"></i>Appliquer un protocole
-                            </button>
-                        </p>
-                    {% endif %}
-                </div>
-            </div>
+    </div>
+    <!-- ==================================================== EXAMEN-PHYSIQUE -->
+    <div class="tab-pane" id="onglet-examen-physique" role="tabpanel">
+<!-- ========================================================== -->
+<!-- ⭐ CARTE EXAMEN PHYSIQUE (pré-rempli depuis la consultation, -->
+<!-- sections modifiées depuis l'admission grisées)              -->
+<!-- ========================================================== -->
+<div class="card mb-4 border-primary" id="examenPhysiqueCard">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-stethoscope me-2"></i>
+            <strong>Examen physique</strong>
+        </div>
+        {% if current_user.role in ['admin_structure', 'medecin'] %}
+        <a href="{{ url_for('hospitalisation_examen_physique', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
+            <i class="fas fa-edit me-1"></i>{% if examen_physique_sections %}Modifier{% else %}Renseigner{% endif %}
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% with sections = examen_physique_sections, toggle_id = 'examenPhysiqueHospitalisation' %}
+            {% include "hospitalisations/_examen_physique_sections.html" %}
+        {% endwith %}
+    </div>
+</div>
 
+    </div>
+    <!-- ==================================================== ORDONNANCES -->
+    <div class="tab-pane" id="onglet-ordonnances" role="tabpanel">
 <!-- ========================================================== -->
 <!-- ⭐ CARTE ORDONNANCE                                         -->
 <!-- ========================================================== -->
@@ -633,115 +545,75 @@
 </div>
 <input type="hidden" id="ordonnanceSortieJsonInitial" value="{{ hospitalisation.ordonnance_sortie or '[]' }}">
 
-<!-- ========================================================== -->
-<!-- ⭐ CARTE EXAMEN PHYSIQUE (pré-rempli depuis la consultation, -->
-<!-- sections modifiées depuis l'admission grisées)              -->
-<!-- ========================================================== -->
-<div class="card mb-4 border-primary" id="examenPhysiqueCard">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <div>
-            <i class="fas fa-stethoscope me-2"></i>
-            <strong>Examen physique</strong>
-        </div>
-        {% if current_user.role in ['admin_structure', 'medecin'] %}
-        <a href="{{ url_for('hospitalisation_examen_physique', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
-            <i class="fas fa-edit me-1"></i>{% if examen_physique_sections %}Modifier{% else %}Renseigner{% endif %}
-        </a>
-        {% endif %}
-    </div>
-    <div class="card-body">
-        {% with sections = examen_physique_sections, toggle_id = 'examenPhysiqueHospitalisation' %}
-            {% include "hospitalisations/_examen_physique_sections.html" %}
-        {% endwith %}
-    </div>
-</div>
-
-<!-- ========================================================== -->
-<!-- ⭐ CONSIGNES MÉDICALES — la seule chose que l'infirmier doit  -->
-<!-- réellement appliquer (par opposition à la proposition        -->
-<!-- indicative de la visite infirmière, ci-dessous).              -->
-<!-- ========================================================== -->
-<div class="card mb-4 border-success">
-    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-        <div><i class="fas fa-clipboard-check me-2"></i><strong>Consignes médicales</strong></div>
-        {% if current_user.role in ['admin_structure', 'medecin'] %}
-        <a href="{{ url_for('ajouter_consigne', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
-            <i class="fas fa-plus me-1"></i>Nouvelle consigne
-        </a>
-        {% endif %}
-    </div>
-    <div class="card-body">
-        {% if consigne_active %}
-            <p class="mb-1">
-                <span class="badge bg-success me-2">
-                    {% if consigne_active.type_decision == 'continuer_traitement' %}Continuer le traitement
-                    {% elif consigne_active.type_decision == 'modifier_traitement' %}Modifier le traitement
-                    {% else %}Autre{% endif %}
-                </span>
-                <small class="text-muted">
-                    par Dr {{ consigne_active.medecin.prenom }} {{ consigne_active.medecin.nom }} —
-                    {{ consigne_active.date_consigne.strftime('%d/%m/%Y %H:%M') if consigne_active.date_consigne else '-' }}
-                </small>
-            </p>
-            <p class="mb-0 fw-bold">{{ consigne_active.instructions }}</p>
-        {% else %}
-            <p class="text-muted text-center my-3">
-                <i class="fas fa-info-circle me-2"></i>Aucune consigne enregistrée pour l'instant.
-            </p>
-        {% endif %}
-    </div>
-</div>
-
-<!-- ========================================================== -->
-<!-- ⭐ VISITE INFIRMIÈRE DU JOUR                                 -->
-<!-- ========================================================== -->
-<div class="card mb-4 border-info">
-    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-        <div>
-            <i class="fas fa-user-nurse me-2"></i><strong>Visite infirmière du jour</strong>
-            <span class="badge bg-light text-info ms-2">{{ hospitalisation.visites_infirmieres.count() }}</span>
-        </div>
-        <div>
-            {% if visites_infirmieres_recentes %}
-            <a href="{{ url_for('visites_infirmieres_liste', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
-                <i class="fas fa-history me-1"></i>Historique
-            </a>
-            {% endif %}
-            {% if current_user.role in ['admin_structure', 'infirmier'] %}
-            <a href="{{ url_for('nouvelle_visite_infirmiere', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
-                <i class="fas fa-plus me-1"></i>Nouvelle visite
-            </a>
-            {% endif %}
-        </div>
-    </div>
-    <div class="card-body">
-        {% if visites_infirmieres_recentes %}
-            {% for v in visites_infirmieres_recentes %}
-            <div class="mb-3 pb-3 {% if not loop.last %}border-bottom{% endif %}">
-                <p class="mb-1">
-                    <strong>{{ v.date_visite.strftime('%d/%m/%Y %H:%M') if v.date_visite else '-' }}</strong>
-                    <span class="text-muted">— {{ v.infirmier.prenom }} {{ v.infirmier.nom }}</span>
-                    {% if v.appareil_dysfonctionnel %}
-                    <span class="badge bg-danger ms-1"><i class="fas fa-triangle-exclamation me-1"></i>Appareil signalé</span>
+            <!-- ========================================================== -->
+            <!-- ⭐ CARTE PROTOCOLE DE SOINS                                 -->
+            <!-- ========================================================== -->
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-notes-medical me-2"></i>
+                        <strong>Protocole de soins</strong>
+                        {% if hospitalisation.protocole %}
+                            <span class="badge bg-light text-primary ms-2">{{ hospitalisation.protocole.nom }}</span>
+                        {% else %}
+                            <span class="badge bg-warning ms-2">Aucun</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if hospitalisation.statut == 'actif' %}
+                            <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#protocoleModal">
+                                <i class="fas fa-{% if hospitalisation.protocole %}exchange-alt{% else %}plus{% endif %} me-1"></i>
+                                {% if hospitalisation.protocole %}Changer{% else %}Appliquer{% endif %}
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if hospitalisation.protocole %}
+                        <div class="alert alert-info">
+                            <strong>{{ hospitalisation.protocole.nom }}</strong>
+                            <hr>
+                            <div style="white-space: pre-line;">{{ hospitalisation.protocole.description }}</div>
+                        </div>
+                        {% if hospitalisation.protocole.ordonnance_type %}
+                        <div class="mt-2">
+                            <span class="badge bg-success">
+                                <i class="fas fa-prescription me-1"></i>
+                                Ordonnance : {{ hospitalisation.protocole.ordonnance_type.nom }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% if hospitalisation.protocole.examen_type %}
+                        <div class="mt-1">
+                            <span class="badge bg-info">
+                                <i class="fas fa-flask me-1"></i>
+                                Examens : {{ hospitalisation.protocole.examen_type.nom }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% if hospitalisation.protocole.fichier_nom %}
+                        <div class="mt-2">
+                            <a href="{{ url_for('api_telecharger_fichier_protocole', id=hospitalisation.protocole.id) }}" target="_blank">
+                                <i class="fas fa-paperclip me-1"></i>{{ hospitalisation.protocole.fichier_nom }}
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <p class="text-muted text-center my-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Aucun protocole de soins appliqué.
+                            <br>
+                            <button class="btn btn-sm btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#protocoleModal">
+                                <i class="fas fa-plus me-1"></i>Appliquer un protocole
+                            </button>
+                        </p>
                     {% endif %}
-                </p>
-                {% if v.plaintes_patient %}<p class="mb-1 small">{{ v.plaintes_patient|truncate(120) }}</p>{% endif %}
-                {% if v.decision_suggeree %}
-                <p class="mb-0 small">
-                    <span class="badge bg-warning text-dark">Proposition indicative</span>
-                    {{ v.decision_suggeree|truncate(100) }}
-                </p>
-                {% endif %}
+                </div>
             </div>
-            {% endfor %}
-        {% else %}
-            <p class="text-muted text-center my-3">
-                <i class="fas fa-info-circle me-2"></i>Aucune visite infirmière enregistrée pour cette hospitalisation.
-            </p>
-        {% endif %}
-    </div>
-</div>
 
+    </div>
+    <!-- ==================================================== EXAMENS -->
+    <div class="tab-pane" id="onglet-examens" role="tabpanel">
 <!-- ========================================================== -->
 <!-- ⭐ CARTE EXAMENS AVEC HISTORIQUE                            -->
 <!-- ========================================================== -->
@@ -841,53 +713,9 @@
     </div>
 </div>
 
-{% include "soins/_widget.html" %}
-
-            <!-- ========================================================== -->
-            <!-- GRAPHIQUE ÉVOLUTION                                         -->
-            <!-- ========================================================== -->
-            {% if evolutions %}
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Évolution de l'état</h5>
-                    <div>
-                        <span class="badge bg-success me-1">Bon</span>
-                        <span class="badge bg-warning me-1">Moyen</span>
-                        <span class="badge bg-danger">Critique</span>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div style="position: relative; height: 250px;">
-                        <canvas id="evolutionChart"></canvas>
-                    </div>
-                    
-                    <!-- Statistiques rapides -->
-                    <div class="row mt-3">
-                        <div class="col-4 text-center">
-                            <small class="text-muted">État actuel</small>
-                            <h4 class="mb-0 {% if evolutions[0].etat_echelle >= 7 %}text-success{% elif evolutions[0].etat_echelle >= 4 %}text-warning{% else %}text-danger{% endif %}">
-                                {{ evolutions[0].etat_echelle }}/10
-                            </h4>
-                        </div>
-                        <div class="col-4 text-center">
-                            <small class="text-muted">Meilleur état</small>
-                            <h4 class="mb-0 text-success">
-                                {% set meilleur = evolutions|map(attribute='etat_echelle')|max %}
-                                {{ meilleur }}/10
-                            </h4>
-                        </div>
-                        <div class="col-4 text-center">
-                            <small class="text-muted">Pire état</small>
-                            <h4 class="mb-0 text-danger">
-                                {% set pire = evolutions|map(attribute='etat_echelle')|min %}
-                                {{ pire }}/10
-                            </h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-
+    </div>
+    <!-- ==================================================== SUIVI -->
+    <div class="tab-pane" id="onglet-suivi" role="tabpanel">
             <!-- ⭐ Constantes avant évolution — patron : "logique normale" -->
             <!-- (on prend les constantes avant d'évaluer l'évolution).      -->
             <!-- ========================================================== -->
@@ -1033,6 +861,51 @@
             </div>
 
             <!-- ========================================================== -->
+            <!-- GRAPHIQUE ÉVOLUTION                                         -->
+            <!-- ========================================================== -->
+            {% if evolutions %}
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Évolution de l'état</h5>
+                    <div>
+                        <span class="badge bg-success me-1">Bon</span>
+                        <span class="badge bg-warning me-1">Moyen</span>
+                        <span class="badge bg-danger">Critique</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div style="position: relative; height: 250px;">
+                        <canvas id="evolutionChart"></canvas>
+                    </div>
+                    
+                    <!-- Statistiques rapides -->
+                    <div class="row mt-3">
+                        <div class="col-4 text-center">
+                            <small class="text-muted">État actuel</small>
+                            <h4 class="mb-0 {% if evolutions[0].etat_echelle >= 7 %}text-success{% elif evolutions[0].etat_echelle >= 4 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ evolutions[0].etat_echelle }}/10
+                            </h4>
+                        </div>
+                        <div class="col-4 text-center">
+                            <small class="text-muted">Meilleur état</small>
+                            <h4 class="mb-0 text-success">
+                                {% set meilleur = evolutions|map(attribute='etat_echelle')|max %}
+                                {{ meilleur }}/10
+                            </h4>
+                        </div>
+                        <div class="col-4 text-center">
+                            <small class="text-muted">Pire état</small>
+                            <h4 class="mb-0 text-danger">
+                                {% set pire = evolutions|map(attribute='etat_echelle')|min %}
+                                {{ pire }}/10
+                            </h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ========================================================== -->
             <!-- ÉVOLUTIONS                                                  -->
             <!-- ========================================================== -->
             <div class="card">
@@ -1097,10 +970,99 @@
                     {% endif %}
                 </div>
             </div>
-        </div>
+    </div>
+    <!-- ==================================================== SOINS -->
+    <div class="tab-pane" id="onglet-soins" role="tabpanel">
+<!-- ========================================================== -->
+<!-- ⭐ CONSIGNES MÉDICALES — la seule chose que l'infirmier doit  -->
+<!-- réellement appliquer (par opposition à la proposition        -->
+<!-- indicative de la visite infirmière, ci-dessous).              -->
+<!-- ========================================================== -->
+<div class="card mb-4 border-success">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <div><i class="fas fa-clipboard-check me-2"></i><strong>Consignes médicales</strong></div>
+        {% if current_user.role in ['admin_structure', 'medecin'] %}
+        <a href="{{ url_for('ajouter_consigne', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
+            <i class="fas fa-plus me-1"></i>Nouvelle consigne
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if consigne_active %}
+            <p class="mb-1">
+                <span class="badge bg-success me-2">
+                    {% if consigne_active.type_decision == 'continuer_traitement' %}Continuer le traitement
+                    {% elif consigne_active.type_decision == 'modifier_traitement' %}Modifier le traitement
+                    {% else %}Autre{% endif %}
+                </span>
+                <small class="text-muted">
+                    par Dr {{ consigne_active.medecin.prenom }} {{ consigne_active.medecin.nom }} —
+                    {{ consigne_active.date_consigne.strftime('%d/%m/%Y %H:%M') if consigne_active.date_consigne else '-' }}
+                </small>
+            </p>
+            <p class="mb-0 fw-bold">{{ consigne_active.instructions }}</p>
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>Aucune consigne enregistrée pour l'instant.
+            </p>
+        {% endif %}
     </div>
 </div>
 
+<!-- ========================================================== -->
+<!-- ⭐ VISITE INFIRMIÈRE DU JOUR                                 -->
+<!-- ========================================================== -->
+<div class="card mb-4 border-info">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-user-nurse me-2"></i><strong>Visite infirmière du jour</strong>
+            <span class="badge bg-light text-info ms-2">{{ hospitalisation.visites_infirmieres.count() }}</span>
+        </div>
+        <div>
+            {% if visites_infirmieres_recentes %}
+            <a href="{{ url_for('visites_infirmieres_liste', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
+                <i class="fas fa-history me-1"></i>Historique
+            </a>
+            {% endif %}
+            {% if current_user.role in ['admin_structure', 'infirmier'] %}
+            <a href="{{ url_for('nouvelle_visite_infirmiere', id=hospitalisation.id) }}" class="btn btn-light btn-sm">
+                <i class="fas fa-plus me-1"></i>Nouvelle visite
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        {% if visites_infirmieres_recentes %}
+            {% for v in visites_infirmieres_recentes %}
+            <div class="mb-3 pb-3 {% if not loop.last %}border-bottom{% endif %}">
+                <p class="mb-1">
+                    <strong>{{ v.date_visite.strftime('%d/%m/%Y %H:%M') if v.date_visite else '-' }}</strong>
+                    <span class="text-muted">— {{ v.infirmier.prenom }} {{ v.infirmier.nom }}</span>
+                    {% if v.appareil_dysfonctionnel %}
+                    <span class="badge bg-danger ms-1"><i class="fas fa-triangle-exclamation me-1"></i>Appareil signalé</span>
+                    {% endif %}
+                </p>
+                {% if v.plaintes_patient %}<p class="mb-1 small">{{ v.plaintes_patient|truncate(120) }}</p>{% endif %}
+                {% if v.decision_suggeree %}
+                <p class="mb-0 small">
+                    <span class="badge bg-warning text-dark">Proposition indicative</span>
+                    {{ v.decision_suggeree|truncate(100) }}
+                </p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted text-center my-3">
+                <i class="fas fa-info-circle me-2"></i>Aucune visite infirmière enregistrée pour cette hospitalisation.
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+{% include "soins/_widget.html" %}
+    </div>
+    <!-- ==================================================== AVIS -->
+    <div class="tab-pane" id="onglet-avis" role="tabpanel">
 <!-- ========================================================== -->
 <!-- AVIS DES MÉDECINS EXTERNES                                 -->
 <!-- ========================================================== -->
@@ -1165,6 +1127,173 @@
         {% endif %}
     </div>
 </div>
+
+    </div>
+    <!-- ==================================================== EQUIPE -->
+    <div class="tab-pane" id="onglet-equipe" role="tabpanel">
+            <!-- Carte Équipe soignante -->
+            {% set peut_gerer_equipe = hospitalisation.statut == 'actif' and (
+                current_user.role in ['admin_structure', 'secretaire'] or
+                (current_user.role == 'medecin' and current_user.id in medecins|map(attribute='medecin_id')|list)
+            ) %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Équipe soignante</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="text-primary">Médecins</h6>
+                    <ul class="list-unstyled">
+                        {% for m in medecins %}
+                        <li class="mb-2 d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="fas fa-user-md text-info me-2"></i>
+                                {{ m.medecin.nom }} {{ m.medecin.prenom }}
+                                <span class="badge bg-light text-dark ms-2">{{ m.role }}</span>
+                            </span>
+                            {% if peut_gerer_equipe %}
+                            <form method="POST" action="{{ url_for('equipe_soignante_retirer', id=hospitalisation.id) }}" class="d-inline" onsubmit="return confirm('Retirer {{ m.medecin.prenom }} {{ m.medecin.nom }} de l\'équipe ?');">
+                                <input type="hidden" name="type" value="medecin">
+                                <input type="hidden" name="user_id" value="{{ m.medecin_id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Retirer">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </li>
+                        {% else %}
+                        <li class="text-muted">Aucun médecin assigné</li>
+                        {% endfor %}
+                    </ul>
+                    {% if peut_gerer_equipe and medecins_disponibles %}
+                    <form method="POST" action="{{ url_for('equipe_soignante_ajouter', id=hospitalisation.id) }}" class="d-flex gap-2 mt-2">
+                        <input type="hidden" name="type" value="medecin">
+                        <select name="user_id" class="form-select form-select-sm" required>
+                            <option value="">— Ajouter un médecin —</option>
+                            {% for med in medecins_disponibles %}
+                            <option value="{{ med.id }}">Dr {{ med.prenom }} {{ med.nom }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-primary text-nowrap"><i class="fas fa-plus"></i></button>
+                    </form>
+                    {% endif %}
+
+                    <hr>
+
+                    <h6 class="text-success">Infirmiers</h6>
+                    <ul class="list-unstyled">
+                        {% for i in infirmiers %}
+                        <li class="mb-2 d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="fas fa-user-nurse text-success me-2"></i>
+                                {{ i.infirmier.nom }} {{ i.infirmier.prenom }}
+                            </span>
+                            {% if peut_gerer_equipe %}
+                            <form method="POST" action="{{ url_for('equipe_soignante_retirer', id=hospitalisation.id) }}" class="d-inline" onsubmit="return confirm('Retirer {{ i.infirmier.prenom }} {{ i.infirmier.nom }} de l\'équipe ?');">
+                                <input type="hidden" name="type" value="infirmier">
+                                <input type="hidden" name="user_id" value="{{ i.infirmier_id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Retirer">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </li>
+                        {% else %}
+                        <li class="text-muted">Aucun infirmier assigné</li>
+                        {% endfor %}
+                    </ul>
+                    {% if peut_gerer_equipe and infirmiers_disponibles %}
+                    <form method="POST" action="{{ url_for('equipe_soignante_ajouter', id=hospitalisation.id) }}" class="d-flex gap-2 mt-2">
+                        <input type="hidden" name="type" value="infirmier">
+                        <select name="user_id" class="form-select form-select-sm" required>
+                            <option value="">— Ajouter un infirmier —</option>
+                            {% for inf in infirmiers_disponibles %}
+                            <option value="{{ inf.id }}">{{ inf.prenom }} {{ inf.nom }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-success text-nowrap"><i class="fas fa-plus"></i></button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+    </div>
+    {% if hospitalisation.statut != 'actif' %}
+    <!-- ==================================================== SORTIE -->
+    <div class="tab-pane" id="onglet-sortie" role="tabpanel">
+{% if hospitalisation.statut != 'actif' %}
+{# ⭐ 2026-10-22 : note de sortie (exeat) #}
+{% set ns = hospitalisation.note_sortie %}
+<div class="card mb-4 border-danger" id="noteSortieCard">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="fas fa-door-open me-2 text-danger"></i><strong>Note de sortie</strong>
+            {% if ns %}<span class="badge bg-secondary ms-2">{{ ns.mode_libelle }}</span>{% endif %}</span>
+        {% if ns %}
+        <a href="{{ url_for('imprimer_note_sortie', id=hospitalisation.id) }}" target="_blank" class="btn btn-outline-danger btn-sm">
+            <i class="fas fa-print me-1"></i>Imprimer la note de sortie</a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if ns %}
+        <div class="small text-muted mb-3">
+            Sortie le {{ hospitalisation.date_fin.strftime('%d/%m/%Y à %H:%M') if hospitalisation.date_fin else '-' }}
+            {% if ns.redacteur %} — rédigée par Dr {{ ns.redacteur.prenom }} {{ ns.redacteur.nom }}{% endif %}
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">Diagnostic d'entrée</div><div style="white-space:pre-line">{{ ns.diagnostic_entree }}</div></div>
+            <div class="col-md-6"><div class="fw-bold text-danger small text-uppercase">Diagnostic de sortie</div><div class="fw-bold" style="white-space:pre-line">{{ ns.diagnostic_sortie }}</div></div>
+            <div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">État à l'entrée</div><div style="white-space:pre-line">{{ ns.resume_entree }}</div></div>
+            <div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">État à la sortie</div><div style="white-space:pre-line">{{ ns.etat_sortie }}</div></div>
+            <div class="col-12"><div class="fw-bold text-muted small text-uppercase">Évolution pendant l'hospitalisation</div><div style="white-space:pre-line">{{ ns.evolution_sejour }}</div></div>
+            {% if ns.traitement_sortie %}<div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">Traitement et consignes de sortie</div><div style="white-space:pre-line">{{ ns.traitement_sortie }}</div></div>{% endif %}
+            {% if ns.suivi %}<div class="col-md-6"><div class="fw-bold text-muted small text-uppercase">Suivi / rendez-vous</div><div style="white-space:pre-line">{{ ns.suivi }}</div></div>{% endif %}
+            {% if ns.motif_sortie %}<div class="col-12"><div class="fw-bold text-muted small text-uppercase">Observations</div><div style="white-space:pre-line">{{ ns.motif_sortie }}</div></div>{% endif %}
+        </div>
+        {% else %}
+        <p class="text-muted mb-0"><i class="fas fa-info-circle me-1"></i>Patient sorti avant la mise en place de la note de sortie obligatoire.</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+
+    </div>
+    {% endif %}
+    </div>
+</div>
+
+<script>
+// onglets de l'hospitalisation : #ordonnances… dans l'adresse ; au retour d'une action faite depuis cette
+// hospitalisation (ajout de constante, ordonnance…), on rouvre le dernier onglet utilisé.
+document.addEventListener('DOMContentLoaded', function () {
+    const cle = 'hospi-onglet-{{ hospitalisation.id }}';
+    function ouvrir(nom) {
+        const lien = document.querySelector(`.hospi-onglets a[href="#${nom}"]`);
+        if (lien) { bootstrap.Tab.getOrCreateInstance(lien).show(); return true; }
+        return false;
+    }
+    let voulu = location.hash.slice(1);
+    if (!voulu) {
+        try {
+            const memo = JSON.parse(sessionStorage.getItem(cle) || 'null');
+            const depuisIci = document.referrer && new URL(document.referrer).pathname.startsWith('/hospitalisation/{{ hospitalisation.id }}');
+            if (memo && depuisIci && Date.now() - memo.t < 30 * 60 * 1000) voulu = memo.nom;
+        } catch (e) {}
+    }
+    if (voulu && !ouvrir(voulu)) {
+        const cible = document.getElementById(voulu);       // ancre vers un bloc : on ouvre son onglet
+        const panneau = cible && cible.closest('.tab-pane');
+        if (panneau) { ouvrir(panneau.id.replace('onglet-', '')); setTimeout(() => cible.scrollIntoView(), 50); }
+    }
+    document.querySelectorAll('.hospi-onglets a[data-bs-toggle="tab"]').forEach(a => a.addEventListener('shown.bs.tab', e => {
+        const nom = e.target.getAttribute('href').slice(1);
+        history.replaceState(null, '', nom === 'accueil' ? location.pathname + location.search : '#' + nom);
+        try { sessionStorage.setItem(cle, JSON.stringify({ nom: nom, t: Date.now() })); } catch (err) {}
+    }));
+    document.querySelectorAll('.tuile-hospi[data-onglet]').forEach(t => t.addEventListener('click', () => {
+        ouvrir(t.dataset.onglet); window.scrollTo({ top: 0, behavior: 'smooth' });
+    }));
+});
+</script>
 
 <!-- ============================================================ -->
 <!-- ⭐ MODAL PROTOCOLE                                             -->

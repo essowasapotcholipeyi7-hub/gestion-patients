@@ -37,58 +37,139 @@
 {% include "patients/_bandeau_patient.html" %}
 {% endwith %}
 
-    <div class="row">
-        <!-- ========================================================== -->
-        <!-- COLONNE GAUCHE : PATIENT                                    -->
-        <!-- ========================================================== -->
+{# ⭐ 2026-10-22 (patron : « tout est mélangé… des boutons bien rangés en haut ; on clique, ça s'affiche ») :
+   la consultation est rangée en onglets ; on arrive sur l'Accueil (résumé). L'onglet ouvert est gardé dans
+   l'adresse (#ordonnance…) et retrouvé au retour d'une action faite depuis cette consultation. #}
+<style>
+    .consult-onglets { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin-bottom: 18px; }
+    .consult-onglets .nav-link { display: flex; align-items: center; gap: 8px; border: 1px solid #dfe3ec; border-radius: 10px;
+                                 background: #fff; color: #374151; font-weight: 600; font-size: .88rem; padding: 10px 12px; }
+    .consult-onglets .nav-link i { font-size: 1.05rem; width: 20px; text-align: center; color: var(--hp-primary, #667eea); }
+    .consult-onglets .nav-link .badge { margin-left: auto; }
+    .consult-onglets .nav-link:hover { border-color: var(--hp-primary, #667eea); }
+    .consult-onglets .nav-link.active { background: var(--hp-primary, #667eea); border-color: var(--hp-primary, #667eea); color: #fff; }
+    .consult-onglets .nav-link.active i { color: #fff; }
+    [data-bs-theme="dark"] .consult-onglets .nav-link { background: #1f2430; border-color: #343a46; color: #d6dbe6; }
+    .tuile-consult { border: 1px solid #e8ebf2; border-radius: 12px; padding: 12px 14px; height: 100%; }
+    .tuile-consult[data-onglet] { cursor: pointer; }
+    .tuile-consult[data-onglet]:hover { border-color: var(--hp-primary, #667eea); }
+    .tuile-consult .titre { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #8a93a6; font-weight: 700; margin-bottom: 4px; }
+    [data-bs-theme="dark"] .tuile-consult { border-color: #343a46; }
+</style>
+{% set _ord = consultation.ordonnance_active %}
+{% set _meds = _ord.get_medicaments_list() if _ord else [] %}
+<ul class="nav consult-onglets" role="tablist">
+    <li><a class="nav-link active" data-bs-toggle="tab" data-bs-target="#onglet-accueil" href="#accueil"><i class="fas fa-home"></i>Accueil</a></li>
+    <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-observation" href="#observation"><i class="fas fa-stethoscope"></i>Observation clinique</a></li>
+    <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-antecedents" href="#antecedents"><i class="fas fa-history"></i>Antécédents &amp; habitudes</a></li>
+    <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-ordonnance" href="#ordonnance"><i class="fas fa-prescription"></i>Ordonnance <span class="badge bg-secondary">{{ _meds|length }}</span></a></li>
+    <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-examens" href="#examens"><i class="fas fa-flask"></i>Examens &amp; résultats <span class="badge bg-secondary">{{ examens_prescrits|length }}</span></a></li>
+    <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-soins" href="#soins"><i class="fas fa-syringe"></i>Soins <span class="badge bg-secondary">{{ soins_poses|length }}</span></a></li>
+</ul>
 
-        <!-- ========================================================== -->
-        <!-- COLONNE DROITE : CONSULTATION                               -->
-        <!-- ========================================================== -->
-        <div class="col-12 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Détails de la consultation</h5>
-                </div>
-                <div class="card-body">
-                    <!-- En-tête -->
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Date :</strong> {{ consultation.date_consultation.strftime('%d/%m/%Y %H:%M') if consultation.date_consultation else '-' }}</p>
-                            <p><strong>Médecin :</strong> 
-                                {% if consultation.id_medecin %}
-                                    {% for user in patient.structure.utilisateurs if user.id == consultation.id_medecin %}
-                                        Dr {{ user.prenom }} {{ user.nom }}
-                                    {% endfor %}
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Statut :</strong> 
-                                <span class="badge {% if consultation.statut == 'en_cours' %}bg-primary{% else %}bg-success{% endif %}">
-                                    {{ consultation.statut or 'en_cours' }}
-                                </span>
-                            </p>
-                            <p><strong>Arrêt de travail :</strong> 
-                                {% if consultation.arret_travail %}
-                                    <span class="badge bg-danger">Oui ({{ consultation.arret_jours or '?' }} jours)</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">Non</span>
-                                {% endif %}
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <hr>
-                    
+<div class="tab-content">
+<!-- ==================================================== ACCUEIL -->
+<div class="tab-pane show active" id="onglet-accueil" role="tabpanel">
+    <div class="row g-3 mb-3">
+        <div class="col-md-6 col-xl-3"><div class="tuile-consult">
+            <div class="titre"><i class="fas fa-calendar-check me-1"></i>Consultation</div>
+            <div class="fw-bold">{{ consultation.date_consultation.strftime('%d/%m/%Y à %H:%M') if consultation.date_consultation else '—' }}</div>
+            <div class="small">{% if consultation.medecin %}Dr {{ consultation.medecin.prenom }} {{ consultation.medecin.nom }}{% endif %}{% if consultation.type_consultation %} · {{ consultation.type_consultation }}{% endif %}</div>
+            <div class="small mt-1"><span class="badge {{ 'bg-primary' if consultation.statut == 'en_cours' else 'bg-success' }}">{{ consultation.statut or 'en_cours' }}</span>
+                {% if consultation.arret_travail %}<span class="badge bg-danger">Arrêt de travail {{ consultation.arret_jours or '?' }} j</span>{% endif %}</div>
+        </div></div>
+        <div class="col-md-6 col-xl-3"><div class="tuile-consult" data-onglet="observation">
+            <div class="titre"><i class="fas fa-heartbeat me-1"></i>Signes vitaux</div>
+            <div class="small">
+                {% set _sv = [] %}{% if consultation.tension_arterielle %}{% set _ = _sv.append(('TA', consultation.tension_arterielle)) %}{% endif %}{% if consultation.temperature_c %}{% set _ = _sv.append(('T°', consultation.temperature_c ~ ' °C')) %}{% endif %}{% if consultation.pulse_bpm %}{% set _ = _sv.append(('Pouls', consultation.pulse_bpm)) %}{% endif %}{% if consultation.oxygene_saturation %}{% set _ = _sv.append(('SpO₂', consultation.oxygene_saturation ~ ' %')) %}{% endif %}{% for l, v in _sv %}{{ l }} <strong>{{ v }}</strong>{{ ' · ' if not loop.last }}{% endfor %}
+                {% if not (consultation.tension_arterielle or consultation.temperature_c or consultation.pulse_bpm or consultation.oxygene_saturation) %}<span class="text-muted">Non pris</span>{% endif %}
+            </div>
+            {% if consultation.poids_kg %}<div class="small mt-1">Poids <strong>{{ consultation.poids_kg }} kg</strong>{% if consultation.imc %} · IMC <strong>{{ consultation.imc }}</strong>{% endif %}</div>{% endif %}
+        </div></div>
+        <div class="col-md-6 col-xl-3"><div class="tuile-consult" data-onglet="ordonnance">
+            <div class="titre"><i class="fas fa-prescription me-1"></i>Ordonnance</div>
+            {% if _meds %}<ol class="small mb-0 ps-3">{% for m in _meds[:4] %}<li>{{ (m.medicament or m.nom or '')|truncate(38) }}</li>{% endfor %}</ol>
+            {% if _meds|length > 4 %}<div class="small text-muted">+ {{ _meds|length - 4 }} autre(s)</div>{% endif %}
+            {% else %}<div class="small text-muted">Aucune ordonnance</div>{% endif %}
+        </div></div>
+        <div class="col-md-6 col-xl-3"><div class="tuile-consult" data-onglet="examens">
+            <div class="titre"><i class="fas fa-flask me-1"></i>Examens</div>
+            {% set _att = examens_prescrits|selectattr('statut', 'ne', 'TERMINE')|list %}
+            <div class="small">{{ examens_prescrits|length }} demande(s){% if _att %} — <span class="text-warning fw-bold">{{ _att|length }} en attente</span>{% endif %}</div>
+            <div class="small mt-1">Prochain RDV : <strong>{{ consultation.prochain_rdv.strftime('%d/%m/%Y') if consultation.prochain_rdv else 'non programmé' }}</strong></div>
+        </div></div>
+    </div>
+    <div class="card"><div class="card-body">
                     <!-- Motif -->
                     <div class="mb-3">
                         <strong>Motif :</strong>
                         <p class="border rounded p-2 bg-light">{{ consultation.motif or '-' }}</p>
                     </div>
 
+                    <!-- Diagnostic -->
+                    <div class="mb-3">
+                        <strong>Diagnostic :</strong>
+                        <p class="border rounded p-2 bg-light">{{ consultation.diagnostic or '-' }}</p>
+                    </div>
+
+                    <!-- CIM-10 -->
+                    {% if consultation.cim10 %}
+                    <div class="mb-3">
+                        <strong>CIM-10 :</strong>
+                        <div class="border rounded p-2 bg-light">
+                            {% if ',' in consultation.cim10 %}
+                                {% set codes = consultation.cim10.split(',') %}
+                            {% else %}
+                                {% set codes = consultation.cim10.split() %}
+                            {% endif %}
+                            {% for code in codes %}
+                                {% if code.strip() %}
+                                    <span class="badge bg-primary mb-1">{{ code.strip() }}</span><br>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+
+                    
+                    <div class="mb-3">
+                        <strong>Notes cliniques :</strong>
+                        <p class="border rounded p-2 bg-light">{{ consultation.notes_cliniques or '-' }}</p>
+                    </div>
+                    
+                    <!-- Suivi -->
+                    <h5 class="mt-3 mb-3">Suivi</h5>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Prochain rendez-vous :</strong> 
+                                {% if consultation.prochain_rdv %}
+                                    <span class="badge bg-primary">{{ consultation.prochain_rdv.strftime('%d/%m/%Y') }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Non programmé</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Statut médical du patient :</strong> 
+                                <span class="badge 
+                                    {% if patient.statut_medical == 'GUERI' %}bg-success
+                                    {% elif patient.statut_medical == 'EN_TRAITEMENT' %}bg-warning
+                                    {% elif patient.statut_medical == 'TRANSFERE' %}bg-info
+                                    {% elif patient.statut_medical == 'DECEDE' %}bg-dark
+                                    {% elif patient.statut_medical == 'PERDU_VUE' %}bg-secondary
+                                    {% else %}bg-primary{% endif %}">
+                                    {{ patient.statut_medical or 'PREMIERE_VISITE' }}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+    </div></div>
+</div>
+<!-- ==================================================== OBSERVATION -->
+<div class="tab-pane" id="onglet-observation" role="tabpanel">
+<div class="card"><div class="card-body">
 <!-- ========================================================== -->
 <!-- HISTOIRE DE LA MALADIE (DÉTAILLÉE)                         -->
 <!-- ========================================================== -->
@@ -249,6 +330,11 @@
                     {% endwith %}
 
 
+</div></div>
+</div>
+<!-- ==================================================== ANTECEDENTS -->
+<div class="tab-pane" id="onglet-antecedents" role="tabpanel">
+<div class="card"><div class="card-body">
 <!-- ========================================================== -->
 <!-- ANTÉCÉDENTS DU PATIENT                                     -->
 <!-- ========================================================== -->
@@ -413,33 +499,10 @@
     </div>
 </div>
 
-                    <!-- Diagnostic -->
-                    <div class="mb-3">
-                        <strong>Diagnostic :</strong>
-                        <p class="border rounded p-2 bg-light">{{ consultation.diagnostic or '-' }}</p>
-                    </div>
-
-                    <!-- CIM-10 -->
-                    {% if consultation.cim10 %}
-                    <div class="mb-3">
-                        <strong>CIM-10 :</strong>
-                        <div class="border rounded p-2 bg-light">
-                            {% if ',' in consultation.cim10 %}
-                                {% set codes = consultation.cim10.split(',') %}
-                            {% else %}
-                                {% set codes = consultation.cim10.split() %}
-                            {% endif %}
-                            {% for code in codes %}
-                                {% if code.strip() %}
-                                    <span class="badge bg-primary mb-1">{{ code.strip() }}</span><br>
-                                {% endif %}
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endif %}
-
-
-                    
+</div></div>
+</div>
+<!-- ==================================================== ORDONNANCE -->
+<div class="tab-pane" id="onglet-ordonnance" role="tabpanel">
 <!-- ⭐ CARTE ORDONNANCE AVEC HISTORIQUE -->
 <h5 class="mt-4 mb-3">Ordonnance medicale</h5>
 <hr>
@@ -536,6 +599,9 @@
     </a>
 </div>
 
+</div>
+<!-- ==================================================== EXAMENS -->
+<div class="tab-pane" id="onglet-examens" role="tabpanel">
 <!-- ⭐ CARTE EXAMENS AVEC HISTORIQUE -->
 <h5 class="mt-4 mb-3">Examens prescrits</h5>
 <hr>
@@ -638,8 +704,6 @@
     </div>
 </div>
 
-{% include "soins/_widget.html" %}
-
                     <!-- Liste des analyses demandées -->
                     {% if consultation.analyses_demandees %}
                     <div class="card mb-3">
@@ -694,6 +758,12 @@
                     </div>
                     {% endif %}
 
+</div>
+<!-- ==================================================== SOINS -->
+<div class="tab-pane" id="onglet-soins" role="tabpanel">
+{% include "soins/_widget.html" %}
+</div>
+</div>
                     <!-- ⭐ MODALS RÉSULTATS DES ANALYSES DE CETTE CONSULTATION —
                          même contenu que templates/analyses/patient_analyses.html
                          (contenu_html / fichier joint / texte libre + interprète
@@ -748,43 +818,39 @@
                     {% endfor %}
 
 
-                    <div class="mb-3">
-                        <strong>Notes cliniques :</strong>
-                        <p class="border rounded p-2 bg-light">{{ consultation.notes_cliniques or '-' }}</p>
-                    </div>
-                    
-                    <!-- Suivi -->
-                    <h5 class="mt-3 mb-3">Suivi</h5>
-                    <hr>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Prochain rendez-vous :</strong> 
-                                {% if consultation.prochain_rdv %}
-                                    <span class="badge bg-primary">{{ consultation.prochain_rdv.strftime('%d/%m/%Y') }}</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">Non programmé</span>
-                                {% endif %}
-                            </p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Statut médical du patient :</strong> 
-                                <span class="badge 
-                                    {% if patient.statut_medical == 'GUERI' %}bg-success
-                                    {% elif patient.statut_medical == 'EN_TRAITEMENT' %}bg-warning
-                                    {% elif patient.statut_medical == 'TRANSFERE' %}bg-info
-                                    {% elif patient.statut_medical == 'DECEDE' %}bg-dark
-                                    {% elif patient.statut_medical == 'PERDU_VUE' %}bg-secondary
-                                    {% else %}bg-primary{% endif %}">
-                                    {{ patient.statut_medical or 'PREMIERE_VISITE' }}
-                                </span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const cle = 'consult-onglet-{{ consultation.id }}';
+    function ouvrir(nom) {
+        const lien = document.querySelector(`.consult-onglets a[href="#${nom}"]`);
+        if (lien) { bootstrap.Tab.getOrCreateInstance(lien).show(); return true; }
+        return false;
+    }
+    let voulu = location.hash.slice(1);
+    if (!voulu) {
+        try {
+            const memo = JSON.parse(sessionStorage.getItem(cle) || 'null');
+            const depuisIci = document.referrer && new URL(document.referrer).pathname.startsWith('/consultation/{{ consultation.id }}');
+            if (memo && depuisIci && Date.now() - memo.t < 30 * 60 * 1000) voulu = memo.nom;
+        } catch (e) {}
+    }
+    if (voulu && !ouvrir(voulu)) {
+        const cible = document.getElementById(voulu);
+        const panneau = cible && cible.closest('.tab-pane');
+        if (panneau) { ouvrir(panneau.id.replace('onglet-', '')); setTimeout(() => cible.scrollIntoView(), 50); }
+    }
+    document.querySelectorAll('.consult-onglets a[data-bs-toggle="tab"]').forEach(a => a.addEventListener('shown.bs.tab', e => {
+        const nom = e.target.getAttribute('href').slice(1);
+        history.replaceState(null, '', nom === 'accueil' ? location.pathname + location.search : '#' + nom);
+        try { sessionStorage.setItem(cle, JSON.stringify({ nom: nom, t: Date.now() })); } catch (err) {}
+    }));
+    document.querySelectorAll('.tuile-consult[data-onglet]').forEach(t => t.addEventListener('click', () => {
+        ouvrir(t.dataset.onglet); window.scrollTo({ top: 0, behavior: 'smooth' });
+    }));
+});
+</script>
 
 <!-- ============================================================ -->
 <!-- ⭐ MODAL ORDONNANCE                                            -->

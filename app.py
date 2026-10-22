@@ -13300,9 +13300,14 @@ def imprimer_dossier_patient(patient_id):
         # hospitalisations/_examen_physique_sections.html.
         examen_physique_sections = _rendre_sections_examen_physique(examen_physique)
 
+        # ⭐ 2026-10-22 : l'ordonnance réelle de la consultation (version active) — « prescriptions » n'est que
+        # la copie envoyée à la pharmacie, parfois vide ou incomplète
+        _ord = consultation.ordonnance_active
         consultations_data.append({
             'consultation': consultation,
             'medecin': medecin,
+            'ordonnance_meds': _ord.get_medicaments_list() if _ord else [],
+            'ordonnance': _ord,
             'prescriptions': prescriptions,
             'examens_prescrits': examens_prescrits,
             'examen_physique_sections': examen_physique_sections,
@@ -13381,8 +13386,17 @@ def imprimer_dossier_patient(patient_id):
             hospitalisation_id=hosp.id
         ).order_by(ConsigneMedicale.date_consigne.desc()).all()
 
+        # ⭐ 2026-10-22 : notes évolutives, note de sortie et ordonnance de sortie dans le dossier imprimé
+        try:
+            ordonnance_sortie_meds = json.loads(hosp.ordonnance_sortie) if hosp.ordonnance_sortie else []
+        except Exception:
+            ordonnance_sortie_meds = []
+        notes_evolutives = [n for n in hosp.notes_admission_list.order_by(NoteAdmission.version).all() if n.est_evolutive]
         hospitalisations_data.append({
             'hospitalisation': hosp,
+            'notes_evolutives': notes_evolutives,
+            'note_sortie': hosp.note_sortie,
+            'ordonnance_sortie': ordonnance_sortie_meds,
             'medecins': medecins,
             'infirmiers': infirmiers,
             'constantes': constantes,
@@ -13426,8 +13440,14 @@ def imprimer_dossier_patient(patient_id):
         patient_id=patient.id, statut='actif'
     ).order_by(ActePose.date_pose.desc()).all()
 
+    # ⭐ 2026-10-22 : tous les résultats d'examens disponibles, et l'en-tête de la structure
+    resultats = AnalyseDemande.query.filter_by(patient_id=patient.id, statut='TERMINE') \
+        .order_by(AnalyseDemande.date_demande.desc().nullslast()).all()
+    from models import Structure
     return render_template('impressions/dossier_patient.html',
                          patient=patient,
+                         structure=Structure.query.get(patient.id_structure),
+                         resultats=resultats,
                          age=age,
                          consultations_data=consultations_data,
                          hospitalisations_data=hospitalisations_data,
