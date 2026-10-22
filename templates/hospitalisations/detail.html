@@ -1285,11 +1285,12 @@
                     <!-- Liste des médicaments -->
                     <div id="medicaments-container">
                         <div class="row mb-2 fw-bold text-muted">
-                            <div class="col-4">Medicament</div>
+                            <div class="col-4">Médicament</div>
                             <div class="col-2">Dosage</div>
                             <div class="col-3">Posologie</div>
-                            <div class="col-2">Duree</div>
-                            <div class="col-1">Action</div>
+                            <div class="col-1">Jours</div>
+                            <div class="col-1">Boîtes</div>
+                            <div class="col-1"></div>
                         </div>
                         <div id="medicaments-list">
                             <!-- Les medicaments seront charges ici -->
@@ -1704,7 +1705,7 @@ function rechercherMedicamentsOrdonnance(term) {
 function selectionnerMedicamentOrdonnance(nom) {
     document.getElementById('medicamentSearchOrdonnance').value = '';
     document.getElementById('medicamentResultsOrdonnance').style.display = 'none';
-    ajouterMedicamentOrdonnance({ medicament: nom, dosage: '', posologie: '', duree: '7' });
+    ajouterMedicamentOrdonnance({ medicament: nom, dosage: extraireDosage(nom), posologie: '', duree: '7', quantite: '1' });
     showToast('"' + nom + '" ajoute', 'success');
 }
 
@@ -1943,8 +1944,11 @@ function ajouterMedicamentOrdonnance(medicament = null) {
             <div class="col-3">
                 <input type="text" class="form-control form-control-sm med-posologie" value="${medicament.posologie || ''}" placeholder="Posologie">
             </div>
-            <div class="col-2">
-                <input type="text" class="form-control form-control-sm med-duree" value="${medicament.duree || ''}" placeholder="Durée">
+            <div class="col-1">
+                <input type="text" class="form-control form-control-sm med-duree" value="${medicament.duree || ''}" placeholder="Jours">
+            </div>
+            <div class="col-1">
+                <input type="text" class="form-control form-control-sm med-quantite" value="${medicament.quantite || ''}" placeholder="Boîtes">
             </div>
             <div class="col-1">
                 <button type="button" class="btn btn-danger btn-sm" onclick="supprimerMedicamentOrdonnance(this)">
@@ -1963,8 +1967,11 @@ function ajouterMedicamentOrdonnance(medicament = null) {
             <div class="col-3">
                 <input type="text" class="form-control form-control-sm med-posologie" placeholder="Posologie">
             </div>
-            <div class="col-2">
-                <input type="text" class="form-control form-control-sm med-duree" placeholder="Durée">
+            <div class="col-1">
+                <input type="text" class="form-control form-control-sm med-duree" placeholder="Jours">
+            </div>
+            <div class="col-1">
+                <input type="text" class="form-control form-control-sm med-quantite" placeholder="Boîtes">
             </div>
             <div class="col-1">
                 <button type="button" class="btn btn-danger btn-sm" onclick="supprimerMedicamentOrdonnance(this)">
@@ -1992,7 +1999,8 @@ function updateOrdonnanceJson() {
             'medicament': row.querySelector('.med-nom').value,
             'dosage': row.querySelector('.med-dosage').value,
             'posologie': row.querySelector('.med-posologie').value,
-            'duree': row.querySelector('.med-duree').value
+            'duree': row.querySelector('.med-duree').value,
+            'quantite': (row.querySelector('.med-quantite') || {}).value || ''
         });
     });
     document.getElementById('medicaments_json_ordonnance').value = JSON.stringify(data);

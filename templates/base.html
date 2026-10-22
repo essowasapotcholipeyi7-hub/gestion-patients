@@ -1368,6 +1368,54 @@
     }
     </script>
 
+    <script>
+    // ⭐ 2026-10-22 (patron : « chaque médicament est suivi d'un dosage… le dosage rentre en même temps dans la
+    // cellule de dosage ») : le catalogue GHP n'a pas de champ dosage, il est écrit dans le nom
+    // (« Paracetamol Tm Comp 500mg B/20 ») — on le reprend dès que le médicament est choisi ou tapé, si la case
+    // dosage est vide (ou avait été remplie automatiquement). Valable pour tous les éditeurs d'ordonnance.
+    window.extraireDosage = function (nom) {
+        const m = String(nom || '').match(/(\d+(?:[.,]\d+)?\s*(?:mg|g|µg|mcg|ui|ml|%)(?:\s*\/\s*\d*(?:[.,]\d+)?\s*(?:mg|g|µg|mcg|ui|ml|dose|cp))?)(?![a-zà-ÿ])/i);
+        return m ? m[1].replace(/\s+/g, '') : '';
+    };
+    (function () {
+        const PAIRES = [['.med-nom', '.med-dosage', '.row'], ['.medicament-nom', '.medicament-dosage', '.row']];
+        function remplir(champNom, champDosage) {
+            if (!champNom || !champDosage) return;
+            if (champDosage.value.trim() && !champDosage.dataset.dosageAuto) return;
+            const d = extraireDosage(champNom.value);
+            if (!d || d === champDosage.value) return;
+            champDosage.value = d;
+            champDosage.dataset.dosageAuto = '1';
+            champDosage.dispatchEvent(new Event('input', { bubbles: true }));
+            champDosage.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        function parcourir(zone) {
+            PAIRES.forEach(([n, d, ligne]) => (zone.querySelectorAll ? zone.querySelectorAll(n) : []).forEach(champ => {
+                const l = champ.closest(ligne); if (l) remplir(champ, l.querySelector(d));
+            }));
+        }
+        // saisie à la main dans la case médicament
+        document.addEventListener('change', e => {
+            for (const [n, d, ligne] of PAIRES) {
+                if (e.target.matches && e.target.matches(n)) { const l = e.target.closest(ligne); if (l) remplir(e.target, l.querySelector(d)); }
+            }
+            if (e.target.id === 'medicamentSearch') remplir(e.target, document.getElementById('medicamentDosage'));
+        });
+        document.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.dosageAuto && e.isTrusted) delete e.target.dataset.dosageAuto; });
+        // médicament choisi dans la liste de recherche (la case est remplie par le script de la page)
+        document.addEventListener('click', e => {
+            if (e.target.closest && e.target.closest('#medicamentResults, #medicamentResultsOrdonnance'))
+                setTimeout(() => remplir(document.getElementById('medicamentSearch'), document.getElementById('medicamentDosage')), 0);
+        });
+        // lignes ajoutées par le script de la page (choix dans la liste, protocole, ordonnance existante)
+        document.addEventListener('DOMContentLoaded', () => {
+            parcourir(document);
+            new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) parcourir(n.parentElement || n); })))
+                .observe(document.body, { childList: true, subtree: true });
+        });
+    })();
+    </script>
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

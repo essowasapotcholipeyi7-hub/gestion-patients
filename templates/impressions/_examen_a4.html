@@ -1,0 +1,83 @@
+{% extends "impressions/_document_a4.html" %}
+{# ⭐ 2026-10-22 (patron : « le bulletin d'examen… ça doit être bien nickel ») — bulletin de demande d'examens commun
+   (consultation et hospitalisation) : renseignements cliniques, examens numérotés à cocher (sur deux colonnes
+   quand la liste est longue), éléments utiles au labo / à l'imagerie (poids, grossesse, allergies), cadre réservé
+   au laboratoire ou au service d'imagerie, vrai prescripteur en signature (pas la personne qui imprime).
+   Variables : examen (ExamenPrescrit), examens_list, ex_sous_titre ; patient, structure. #}
+{% set couleur = '#1e3a8a' %}
+{% set _nature = {'BIOLOGIE': 'Biologie', 'IMAGERIE': 'Imagerie'}.get(examen.nature, examen.nature or '') %}
+{% set _allergies = patient.antecedents|selectattr('actif')|selectattr('type_antecedent', 'equalto', 'ALLERGIE')|map(attribute='description')|list if patient and patient.antecedents else [] %}
+{% set _date = examen.date_prescription or examen.created_at or now %}
+
+{% block titre_onglet %}Bulletin d'examens — {{ patient.nom }} {{ patient.prenom }}{% endblock %}
+
+{% block styles %}
+        .ex-liste { list-style: none; margin: 4px 0 0; padding: 0; }
+        .ex-liste.deux { columns: 2; column-gap: 28px; }
+        .ex-liste li { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px dotted #c3cad3;
+                       break-inside: avoid; page-break-inside: avoid; font-size: 13.5px; }
+        .ex-liste .case { width: 13px; height: 13px; border: 1.5px solid #333; border-radius: 2px; flex-shrink: 0; transform: translateY(2px); }
+        .ex-liste .num { font-weight: 800; min-width: 20px; }
+        .ex-liste .nom { font-weight: 700; }
+        .ex-total { margin-top: 6px; font-size: 12px; font-weight: 700; color: #333; }
+        .ex-alerte { color: #b4232f; font-weight: 700; }
+        .ex-reserve { margin-top: 16px; border: 1.5px solid #9aa5b1; border-radius: 6px; padding: 8px 12px; break-inside: avoid; }
+        .ex-reserve h3 { margin: 0 0 8px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .4px; color: #555; }
+        .ex-reserve .champs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; font-size: 12px; }
+        .ex-reserve .champs div { border-bottom: 1px solid #9aa5b1; padding-bottom: 2px; min-height: 18px; }
+{% endblock %}
+
+{% block document_droite %}
+    <div><strong>Demande n° E{{ examen.id }}</strong></div>
+    <div>Date : <strong>{{ _date.strftime('%d/%m/%Y') }}</strong></div>
+    <div>{{ _nature }}</div>
+{% endblock %}
+
+{% block titre_document %}Bulletin d'examens{% if _nature %} — {{ _nature }}{% endif %}{% endblock %}
+{% block sous_titre %}{{ ex_sous_titre or '' }}{% endblock %}
+
+{% block patient_plus %}
+    {% if patient.poids_kg %}<div><span>Poids :</span> <strong>{{ patient.poids_kg|round(1)|string|replace('.0', '') }} kg</strong></div>{% endif %}
+    {% if patient.telephone %}<div><span>Tél :</span> <strong>{{ patient.telephone }}</strong></div>{% endif %}
+    {% set _ass = patient.autre_assurance_nom if patient.type_assurance == 'AUTRE_ASSURANCE' and patient.autre_assurance_nom else patient.type_assurance %}
+    {% if _ass and 'NON' not in (_ass|upper) and _ass != 'AUTRE_ASSURANCE' %}<div><span>Assurance :</span> <strong>{{ _ass }}</strong></div>{% endif %}
+    {% if patient.sexe == 'F' and patient.grossesse %}<div class="ex-alerte">Grossesse en cours</div>{% endif %}
+    {% if _allergies %}<div class="ex-alerte" style="flex-basis: 100%">⚠ Allergies : {{ _allergies|join(', ') }}</div>{% endif %}
+{% endblock %}
+
+{% block corps %}
+    <div class="rubrique">
+        <h3>Renseignements cliniques</h3>
+        <div class="texte">{{ examen.motif or '—' }}{% if examen.description %}
+{{ examen.description }}{% endif %}</div>
+    </div>
+
+    <div class="rubrique">
+        <h3>Examens demandés</h3>
+        {% if examens_list %}
+        <ol class="ex-liste {{ 'deux' if examens_list|length > 8 }}">
+            {% for e in examens_list %}
+            <li><span class="case"></span><span class="num">{{ loop.index }}.</span><span class="nom">{{ e }}</span></li>
+            {% endfor %}
+        </ol>
+        <div class="ex-total">{{ examens_list|length }} examen{{ 's' if examens_list|length > 1 }} demandé{{ 's' if examens_list|length > 1 }}</div>
+        {% else %}
+        <p style="color: #999; font-style: italic;">Aucun examen précisé</p>
+        {% endif %}
+    </div>
+
+    <div class="ex-reserve">
+        {% if examen.nature == 'IMAGERIE' %}
+        <h3>Réservé au service d'imagerie</h3>
+        <div class="champs"><div>Réalisé le :</div><div>Par :</div><div>N° d'examen :</div><div>Observations :</div></div>
+        {% else %}
+        <h3>Réservé au laboratoire</h3>
+        <div class="champs"><div>Prélevé le :</div><div>à (heure) :</div><div>Par :</div><div>N° d'échantillon :</div></div>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block lieu_date %}{% if structure and structure.ville %}{{ structure.ville }}, l{% else %}L{% endif %}e {{ _date.strftime('%d/%m/%Y') }}{% endblock %}
+{% block signature_titre %}Le médecin prescripteur{% endblock %}
+{% block signature_nom %}{% if examen.medecin %}Dr {{ examen.medecin.prenom }} {{ examen.medecin.nom }}{% endif %}{% endblock %}
+{% block scripts %}<script>window.addEventListener('load', () => setTimeout(() => window.print(), 500));</script>{% endblock %}
