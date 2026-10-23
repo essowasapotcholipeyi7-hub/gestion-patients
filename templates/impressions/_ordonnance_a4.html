@@ -4,9 +4,12 @@
    médicaments numérotés, nom en gras puis posologie / durée / voie en dessous, quantité à droite ; poids et
    allergies du patient en tête ; nombre de médicaments écrit en fin de liste et trait de clôture (rien ne peut
    être ajouté à la main) ; vrai prescripteur en signature (pas la personne qui imprime).
-   Variables (posées par les gabarits enfants) : medicaments, ord_sous_titre, ord_numero, ord_date (date ou texte),
+   Variables (posées par les gabarits enfants) : medicaments, ord_date (date ou texte),
    ord_prescripteur (« Prénom Nom », sans « Dr ») ; patient, structure. #}
 {% set couleur = couleur or '#14532d' %}
+{# ⭐ 2026-10-23 (patron : « l'ordonnance ne doit pas comporter les informations confidentielles du patient ») :
+   ni n° de dossier, ni contexte de soin (hospitalisation, service, chambre), ni n° d'ordonnance qui le révèle #}
+{% set cacher_n_dossier = True %}
 {% set _allergies = patient.antecedents|selectattr('actif')|selectattr('type_antecedent', 'equalto', 'ALLERGIE')|map(attribute='description')|list if patient and patient.antecedents else [] %}
 {% set _nb = medicaments|length if medicaments else 0 %}
 {% set _lettres = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf', 'vingt'] %}
@@ -15,16 +18,17 @@
 
 {% block styles %}
         /* présentation classique d'ordonnance : « 1. NOM DU MÉDICAMENT ———— 2 boîtes », posologie sous le trait */
+        /* « 1. NOM DU MÉDICAMENT ——————— 2 boîtes » ; la posologie s'écrit SOUS LE TRAIT (pas sous le nom) */
         .ord-liste { list-style: none; margin: 6px 0 0; padding: 0; }
-        .ord-med { margin: 0 0 14px; break-inside: avoid; page-break-inside: avoid; }
-        .ord-ligne { display: flex; align-items: baseline; gap: 8px; }
-        .ord-ligne .num { font-size: 15px; font-weight: 800; min-width: 22px; }
-        .ord-ligne .nom { font-size: 14.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .2px; }
-        .ord-ligne .nom small { font-size: 13px; font-weight: 700; }
-        .ord-ligne .trait { flex: 1; min-width: 30px; border-bottom: 1.5px solid #222; transform: translateY(-4px); }
-        .ord-ligne .qte { font-size: 14px; font-weight: 800; white-space: nowrap; }
-        .ord-poso { margin: 3px 0 0 30px; font-size: 13.5px; line-height: 1.5; }
-        .ord-poso .instr { display: block; font-style: italic; color: #444; font-size: 12.5px; }
+        .ord-med { display: grid; grid-template-columns: 24px fit-content(52%) 1fr auto; column-gap: 8px;
+                   align-items: end; margin: 0 0 16px; break-inside: avoid; page-break-inside: avoid; }
+        .ord-med .num { font-size: 15px; font-weight: 800; align-self: start; line-height: 1.3; }
+        .ord-med .nom { font-size: 14.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .2px; line-height: 1.3; }
+        .ord-med .nom small { font-size: 13px; font-weight: 700; }
+        .ord-med .trait { border-bottom: 1.5px solid #222; min-width: 40px; margin-bottom: 5px; }
+        .ord-med .qte { font-size: 14px; font-weight: 800; white-space: nowrap; }
+        .ord-med .poso { grid-column: 3 / 5; grid-row: 2; padding-top: 4px; font-size: 14px; line-height: 1.45; }
+        .ord-med .poso .instr { display: block; font-style: italic; color: #444; font-size: 12.5px; }
         .ord-rx { font-family: Georgia, 'Times New Roman', serif; font-size: 30px; font-weight: 700; color: {{ couleur }}; line-height: 1; margin-bottom: 6px; }
         .ord-cloture { display: flex; align-items: center; gap: 10px; margin-top: 4px; font-size: 12px; font-weight: 700; color: #333; }
         .ord-cloture::after { content: ""; flex: 1; border-top: 2px solid #333; }
@@ -33,12 +37,11 @@
 {% endblock %}
 
 {% block document_droite %}
-    {% if ord_numero %}<div><strong>Ordonnance n° {{ ord_numero }}</strong></div>{% endif %}
     <div>Date : <strong>{{ ord_date.strftime('%d/%m/%Y') if ord_date and ord_date.strftime is defined else (ord_date or now.strftime('%d/%m/%Y')) }}</strong></div>
 {% endblock %}
 
 {% block titre_document %}Ordonnance médicale{% endblock %}
-{% block sous_titre %}{{ ord_sous_titre or '' }}{% endblock %}
+{% block sous_titre %}{% endblock %}
 
 {% block patient_plus %}
     {% if patient.poids_kg %}<div><span>Poids :</span> <strong>{{ patient.poids_kg|round(1)|string|replace('.0', '') }} kg</strong></div>{% endif %}
@@ -58,13 +61,11 @@
         {% set _duree = (med.duree|string).strip() if med.duree else '' %}
         {% set _q = ((med.quantite|string).strip() if med.quantite else '1')|replace('boite', 'boîte')|replace('Boite', 'Boîte') %}
         <li class="ord-med">
-            <div class="ord-ligne">
-                <span class="num">{{ loop.index }}.</span>
-                <span class="nom">{{ _nom }}{% if _dosage and (_dosage|lower) not in (_nom|lower) %} <small>{{ _dosage }}</small>{% endif %}{% if med.forme and (med.forme|lower) not in (_nom|lower) %} <small>({{ med.forme }})</small>{% endif %}</span>
-                <span class="trait"></span>
-                <span class="qte">{{ (_q ~ ' boîte' ~ ('s' if _q != '1' else '')) if _q.isdigit() else _q }}</span>
-            </div>
-            <div class="ord-poso">
+            <span class="num">{{ loop.index }}.</span>
+            <span class="nom">{{ _nom }}{% if _dosage and (_dosage|lower) not in (_nom|lower) %} <small>{{ _dosage }}</small>{% endif %}{% if med.forme and (med.forme|lower) not in (_nom|lower) %} <small>({{ med.forme }})</small>{% endif %}</span>
+            <span class="trait"></span>
+            <span class="qte">{{ (_q ~ ' boîte' ~ ('s' if _q != '1' else '')) if _q.isdigit() else _q }}</span>
+            <div class="poso">
                 {{ _poso }}{% if med.voie %}{{ ', ' if _poso }}voie {{ med.voie }}{% endif %}{% if _duree %} pendant {{ (_duree ~ ' jour' ~ ('s' if _duree != '1' else '')) if _duree.isdigit() else _duree }}{% endif %}
                 {% if med.instructions %}<span class="instr">{{ med.instructions }}</span>{% endif %}
             </div>

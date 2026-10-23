@@ -88,7 +88,7 @@
         <div><span>Patient :</span> <strong class="notranslate">{{ (patient.nom or '')|upper }} {{ patient.prenom or '' }}</strong></div>
         {% if age is not none %}<div><span>Âge :</span> <strong>{% if age >= 2 %}{{ age }} ans{% else %}{{ ((now.date() - patient.date_naissance).days // 30) }} mois{% endif %}</strong></div>{% endif %}
         {% if patient.sexe %}<div><span>Sexe :</span> <strong>{{ {'M': 'Masculin', 'F': 'Féminin'}.get(patient.sexe, patient.sexe) }}</strong></div>{% endif %}
-        <div><span>N° dossier :</span> <strong>P{{ "%05d"|format(patient.id) }}</strong></div>
+        {% if not cacher_n_dossier %}<div><span>N° dossier :</span> <strong>P{{ "%05d"|format(patient.id) }}</strong></div>{% endif %}
         {% block patient_plus %}{% endblock %}
     </div>
     {% endif %}

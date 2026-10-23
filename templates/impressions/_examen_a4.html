@@ -5,6 +5,8 @@
    au laboratoire ou au service d'imagerie, vrai prescripteur en signature (pas la personne qui imprime).
    Variables : examen (ExamenPrescrit), examens_list, ex_sous_titre ; patient, structure. #}
 {% set couleur = '#1e3a8a' %}
+{# ⭐ 2026-10-23 (patron) : comme l'ordonnance — ni n° de dossier, ni téléphone, ni contexte de soin #}
+{% set cacher_n_dossier = True %}
 {% set _nature = {'BIOLOGIE': 'Biologie', 'IMAGERIE': 'Imagerie'}.get(examen.nature, examen.nature or '') %}
 {% set _allergies = patient.antecedents|selectattr('actif')|selectattr('type_antecedent', 'equalto', 'ALLERGIE')|map(attribute='description')|list if patient and patient.antecedents else [] %}
 {% set _date = examen.date_prescription or examen.created_at or now %}
@@ -28,17 +30,15 @@
 {% endblock %}
 
 {% block document_droite %}
-    <div><strong>Demande n° E{{ examen.id }}</strong></div>
     <div>Date : <strong>{{ _date.strftime('%d/%m/%Y') }}</strong></div>
     <div>{{ _nature }}</div>
 {% endblock %}
 
 {% block titre_document %}Bulletin d'examens{% if _nature %} — {{ _nature }}{% endif %}{% endblock %}
-{% block sous_titre %}{{ ex_sous_titre or '' }}{% endblock %}
+{% block sous_titre %}{% endblock %}
 
 {% block patient_plus %}
     {% if patient.poids_kg %}<div><span>Poids :</span> <strong>{{ patient.poids_kg|round(1)|string|replace('.0', '') }} kg</strong></div>{% endif %}
-    {% if patient.telephone %}<div><span>Tél :</span> <strong>{{ patient.telephone }}</strong></div>{% endif %}
     {% set _ass = patient.autre_assurance_nom if patient.type_assurance == 'AUTRE_ASSURANCE' and patient.autre_assurance_nom else patient.type_assurance %}
     {% if _ass and 'NON' not in (_ass|upper) and _ass != 'AUTRE_ASSURANCE' %}<div><span>Assurance :</span> <strong>{{ _ass }}</strong></div>{% endif %}
     {% if patient.sexe == 'F' and patient.grossesse %}<div class="ex-alerte">Grossesse en cours</div>{% endif %}
