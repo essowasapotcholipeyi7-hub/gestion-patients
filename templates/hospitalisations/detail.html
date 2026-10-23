@@ -6,18 +6,19 @@
 <div class="container-fluid">
     {# ⭐ 2026-10-22 : bandeau patient (identité, assurance, allergies) au lieu du titre et de la carte « Patient » #}
     {% set _actions %}
+            {# ⭐ 2026-10-23 : actions à gauche, navigation à droite (styles : patients/_bandeau_patient.html) #}
             {% if hospitalisation.statut == 'actif' %}
                 {# ⭐ 2026-10-22 : sortie sur une page, avec note de sortie obligatoire #}
-                <a href="{{ url_for('sortie_hospitalisation', id=hospitalisation.id) }}" class="btn btn-danger">
-                    <i class="fas fa-door-open me-2"></i>Faire sortir le patient
+                <a href="{{ url_for('sortie_hospitalisation', id=hospitalisation.id) }}" class="btn btn-action danger">
+                    <i class="fas fa-door-open"></i>Faire sortir le patient
                 </a>
             {% endif %}
-
-            <a href="{{ url_for('patient_detail', id=hospitalisation.patient.id) }}" class="btn btn-outline-primary">
-                <i class="fas fa-folder-open me-2"></i>Dossier du patient
+            <span class="separateur"></span>
+            <a href="{{ url_for('patient_detail', id=hospitalisation.patient.id) }}" class="btn btn-nav">
+                <i class="fas fa-folder-open"></i>Dossier du patient
             </a>
-            <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left me-2"></i>Retour
+            <a href="{{ url_for('liste_hospitalisations') }}" class="btn btn-nav">
+                <i class="fas fa-arrow-left"></i>Retour
             </a>
     {% endset %}
     {% set _contexte = 'Hospitalisation ' ~ ({'actif': 'en cours', 'sorti': 'terminée', 'transfere': 'terminée (transfert)'}.get(hospitalisation.statut, '')) ~ ' — ' ~ (hospitalisation.service or '') ~ ', admis le ' ~ hospitalisation.date_debut.strftime('%d/%m/%Y à %H:%M') %}
@@ -29,15 +30,15 @@
        la page est rangée en onglets ; on arrive sur l'Accueil (résumé du séjour). L'onglet ouvert est gardé
        dans l'adresse (#ordonnances…) et retrouvé au retour d'une action sur cette hospitalisation. #}
     <style>
-        .hospi-onglets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 18px; }
-        .hospi-onglets .nav-link { display: flex; align-items: center; gap: 8px; border: 1px solid #dfe3ec; border-radius: 10px;
-                                   background: #fff; color: #374151; font-weight: 600; font-size: .88rem; padding: 10px 12px; text-align: left; }
-        .hospi-onglets .nav-link i { font-size: 1.05rem; width: 20px; text-align: center; color: var(--hp-primary, #667eea); }
-        .hospi-onglets .nav-link .badge { margin-left: auto; }
-        .hospi-onglets .nav-link:hover { border-color: var(--hp-primary, #667eea); }
-        .hospi-onglets .nav-link.active { background: var(--hp-primary, #667eea); border-color: var(--hp-primary, #667eea); color: #fff; }
-        .hospi-onglets .nav-link.active i { color: #fff; }
-        [data-bs-theme="dark"] .hospi-onglets .nav-link { background: #1f2430; border-color: #343a46; color: #d6dbe6; }
+        /* onglets : .onglets-dossier (patients/_bandeau_patient.html), 5 colonnes = 2 rangées de 5 */
+        /* actions rapides : mêmes tuiles blanches, icône à la couleur de l'action */
+        .actions-rapides .btn-tuile { display: flex; align-items: center; gap: 12px; width: 100%; height: 100%; padding: 10px 14px;
+                                      border: 1px solid #dfe3ec; border-radius: 10px; background: #fff; color: #374151; text-align: left; }
+        .actions-rapides .btn-tuile:hover { border-color: var(--hp-primary, #667eea); box-shadow: 0 2px 8px rgba(30, 41, 59, .08); }
+        .actions-rapides .btn-tuile i { font-size: 1.25rem; width: 24px; text-align: center; }
+        .actions-rapides .btn-tuile .titre-action { font-weight: 700; font-size: .92rem; line-height: 1.2; }
+        .actions-rapides .btn-tuile small { display: block; font-size: .72rem; color: #8a93a6; font-weight: 500; }
+        [data-bs-theme="dark"] .actions-rapides .btn-tuile { background: #1f2430; border-color: #343a46; color: #d6dbe6; }
         .tuile-hospi { border: 1px solid #e8ebf2; border-radius: 12px; padding: 12px 14px; height: 100%; cursor: pointer; transition: border-color .15s; }
         .tuile-hospi:hover { border-color: var(--hp-primary, #667eea); }
         .tuile-hospi .titre { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #8a93a6; font-weight: 700; margin-bottom: 4px; }
@@ -45,7 +46,7 @@
         [data-bs-theme="dark"] .tuile-hospi { border-color: #343a46; }
     </style>
     {% set _jours = ((hospitalisation.date_fin or now) - hospitalisation.date_debut).days + 1 if hospitalisation.date_debut else 0 %}
-    <ul class="nav hospi-onglets" role="tablist">
+    <ul class="nav hospi-onglets onglets-dossier" role="tablist" style="--onglets-colonnes: 5;">
         <li><a class="nav-link active" data-bs-toggle="tab" data-bs-target="#onglet-accueil" href="#accueil"><i class="fas fa-home"></i>Accueil</a></li>
         <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-notes" href="#notes"><i class="fas fa-file-medical-alt"></i>Admission &amp; notes évolutives <span class="badge bg-secondary">{{ notes|length }}</span></a></li>
         <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-examen-physique" href="#examen-physique"><i class="fas fa-stethoscope"></i>Examen physique</a></li>
@@ -100,29 +101,29 @@
 <!-- ACTIONS RAPIDES                                             -->
 <!-- ========================================================== -->
 {% if hospitalisation.statut == 'actif' %}
-<div class="row mb-4">
-    <div class="col-md-3">
-        <a href="{{ url_for('ajouter_constante', id=hospitalisation.id) }}" class="btn btn-success w-100">
-            <i class="fas fa-heartbeat me-2"></i>Constantes
-            <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé aux infirmiers</small>
+<div class="row g-2 mb-4 actions-rapides">
+    <div class="col-6 col-md-3">
+        <a href="{{ url_for('ajouter_constante', id=hospitalisation.id) }}" class="btn btn-tuile">
+            <i class="fas fa-heartbeat text-success"></i>
+            <span><span class="titre-action">Constantes</span><small>Réservé aux infirmiers</small></span>
         </a>
     </div>
-    <div class="col-md-3">
-        <a href="{{ url_for('ajouter_evolution', id=hospitalisation.id) }}" class="btn btn-primary w-100">
-            <i class="fas fa-notes-medical me-2"></i>Évolution
-            <small class="d-block text-white-150" style="font-size: 0.65rem;">Réservé au médecin</small>
+    <div class="col-6 col-md-3">
+        <a href="{{ url_for('ajouter_evolution', id=hospitalisation.id) }}" class="btn btn-tuile">
+            <i class="fas fa-notes-medical text-primary"></i>
+            <span><span class="titre-action">Évolution</span><small>Réservé au médecin</small></span>
         </a>
     </div>
-    <div class="col-md-3">
-        <button class="btn btn-info w-100" data-bs-toggle="modal" data-bs-target="#avisExternesModal">
-            <i class="fas fa-user-md me-2"></i>Avis externes
-            <small class="d-block" style="font-size: 0.65rem;">Médecins externes</small>
+    <div class="col-6 col-md-3">
+        <button class="btn btn-tuile" data-bs-toggle="modal" data-bs-target="#avisExternesModal">
+            <i class="fas fa-user-md text-info"></i>
+            <span><span class="titre-action">Avis externes</span><small>Médecins externes</small></span>
         </button>
     </div>
-    <div class="col-md-3">
-        <a href="{{ url_for('ajouter_reference_hospitalisation', id=hospitalisation.id) }}" class="btn btn-warning w-100 text-dark">
-            <i class="fas fa-ambulance me-2"></i>Référencer
-            <small class="d-block text-dark-50" style="font-size: 0.65rem;">Référer le patient</small>
+    <div class="col-6 col-md-3">
+        <a href="{{ url_for('ajouter_reference_hospitalisation', id=hospitalisation.id) }}" class="btn btn-tuile">
+            <i class="fas fa-ambulance text-warning"></i>
+            <span><span class="titre-action">Référencer</span><small>Référer le patient</small></span>
         </a>
     </div>
 </div>

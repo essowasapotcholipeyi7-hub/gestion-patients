@@ -29,6 +29,44 @@
     .bandeau-patient.compact .meta .tel, .bandeau-patient.compact .bandeau-actions,
     .bandeau-patient.compact .puce:not(.garde) { display: none !important; }
     .bandeau-patient.compact .puces { display: inline-flex !important; margin: 0 0 0 8px !important; }
+
+    /* ⭐ 2026-10-23 (patron : « les boutons ne sont pas bien organisés ») — mêmes boutons sur le dossier, la
+       consultation et l'hospitalisation : une ligne à eux sous l'identité, même hauteur ; à gauche les ACTIONS
+       (.btn-action, cadre couleur du thème ; .principal plein, .danger rouge), à droite la NAVIGATION (.btn-nav,
+       gris) après .separateur. */
+    .bandeau-actions { flex: 1 0 100%; align-items: center; padding-top: 10px; border-top: 1px solid #eef0f5; }
+    [data-bs-theme="dark"] .bandeau-actions { border-top-color: #343a46; }
+    .bandeau-actions .btn { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; margin: 0 !important;
+                            font-size: .86rem; font-weight: 600; border-radius: 8px; white-space: nowrap; }
+    .bandeau-actions .btn i { margin: 0 !important; }
+    .bandeau-actions .btn-action { background: #fff; border: 1px solid var(--hp-primary, #667eea); color: var(--hp-primary, #667eea); }
+    .bandeau-actions .btn-action:hover, .bandeau-actions .btn-action.principal { background: var(--hp-primary, #667eea); color: #fff; }
+    .bandeau-actions .btn-action.principal:hover { filter: brightness(.92); }
+    .bandeau-actions .btn-action.danger { border-color: #dc3545; color: #dc3545; }
+    .bandeau-actions .btn-action.danger:hover { background: #dc3545; color: #fff; }
+    .bandeau-actions .btn-nav { background: #f3f4f8; border: 1px solid #dfe3ec; color: #374151; }
+    .bandeau-actions .btn-nav:hover { background: #e7eaf1; color: #111827; }
+    [data-bs-theme="dark"] .bandeau-actions .btn-action { background: transparent; }
+    [data-bs-theme="dark"] .bandeau-actions .btn-nav { background: #2b3140; border-color: #343a46; color: #d6dbe6; }
+    .bandeau-actions .separateur { margin-left: auto; }
+
+    /* ⭐ 2026-10-23 : la même barre d'onglets sur les trois pages — cases égales qui remplissent leur
+       colonne (--onglets-colonnes sur la liste), même hauteur, icône + libellé + compteur */
+    .onglets-dossier { display: grid !important; grid-template-columns: repeat(var(--onglets-colonnes, 6), minmax(0, 1fr));
+                       gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; border: 0 !important; }
+    .onglets-dossier > li { display: flex; min-width: 0; }
+    .onglets-dossier .nav-link { flex: 1; display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 8px 12px;
+                                 border: 1px solid #dfe3ec; border-radius: 10px; background: #fff; color: #374151;
+                                 font-weight: 600; font-size: .86rem; line-height: 1.2; text-align: left; }
+    .onglets-dossier .nav-link i { width: 18px; margin: 0 !important; text-align: center; flex-shrink: 0; color: var(--hp-primary, #667eea); }
+    .onglets-dossier .nav-link .badge { margin-left: auto; flex-shrink: 0; }
+    .onglets-dossier .nav-link:hover { border-color: var(--hp-primary, #667eea); color: #111827; }
+    .onglets-dossier .nav-link.active { background: var(--hp-primary, #667eea); border-color: var(--hp-primary, #667eea); color: #fff; }
+    .onglets-dossier .nav-link.active i { color: #fff; }
+    .onglets-dossier .nav-link.active .badge { background: rgba(255, 255, 255, .28) !important; }
+    [data-bs-theme="dark"] .onglets-dossier .nav-link:not(.active) { background: #1f2430; border-color: #343a46; color: #d6dbe6; }
+    @media (max-width: 1199.98px) { .onglets-dossier { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 575.98px) { .onglets-dossier { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
 <div class="bandeau-patient d-flex flex-wrap align-items-center gap-3">
     <div class="avatar">{{ (patient.prenom or ' ')[0]|upper }}{{ (patient.nom or ' ')[0]|upper }}</div>

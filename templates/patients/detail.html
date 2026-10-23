@@ -11,10 +11,7 @@
 
 {% block extra_css %}
 <style>
-    .dossier-onglets .nav-link { white-space: nowrap; font-weight: 600; color: #4b5563; border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: .6rem .9rem; }
-    .dossier-onglets .nav-link.active { color: var(--hp-primary, #667eea); border-bottom-color: var(--hp-primary, #667eea); background: transparent; }
-    .dossier-onglets .nav-link .badge { font-size: .7rem; }
-    .dossier-onglets { border-bottom: 1px solid #e5e7eb; margin-bottom: 16px; flex-wrap: wrap; }
+    /* onglets : .onglets-dossier (patients/_bandeau_patient.html), une rangée de 7 */
     .carte-dossier { border: 1px solid #e8ebf2; border-radius: 12px; box-shadow: none; }
     .carte-dossier > .card-header { background: transparent; font-weight: 700; border-bottom: 1px solid #eef0f5; }
     .libelle { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #8a93a6; font-weight: 700; }
@@ -50,16 +47,18 @@
 {% block content %}
 <div class="container-fluid">
 {% set _actions %}
-    <a href="{{ url_for('consultation_ajouter_avec_patient', id=patient.id) }}" class="btn btn-primary btn-sm" data-loading="true"><i class="fas fa-plus me-1"></i>Nouvelle consultation</a>
-    <a href="{{ url_for('patient_analyses', patient_id=patient.id) }}" class="btn btn-outline-primary btn-sm" data-loading="true"><i class="fas fa-flask me-1"></i>Résultats labo/radio</a>
-    <a href="{{ url_for('imprimer_dossier_patient', patient_id=patient.id) }}" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="fas fa-print me-1"></i>Imprimer le dossier</a>
-    <a href="{{ url_for('patients_list') }}" class="btn btn-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Retour</a>
+    {# ⭐ 2026-10-23 : mêmes boutons que la consultation et l'hospitalisation (patients/_bandeau_patient.html) #}
+    <a href="{{ url_for('consultation_ajouter_avec_patient', id=patient.id) }}" class="btn btn-action principal" data-loading="true"><i class="fas fa-plus"></i>Nouvelle consultation</a>
+    <a href="{{ url_for('patient_analyses', patient_id=patient.id) }}" class="btn btn-action" data-loading="true"><i class="fas fa-flask"></i>Résultats labo/radio</a>
+    <a href="{{ url_for('imprimer_dossier_patient', patient_id=patient.id) }}" target="_blank" class="btn btn-action"><i class="fas fa-print"></i>Imprimer le dossier</a>
+    <span class="separateur"></span>
+    <a href="{{ url_for('patients_list') }}" class="btn btn-nav"><i class="fas fa-arrow-left"></i>Retour</a>
 {% endset %}
 {% with bandeau_actions=_actions %}{% include "patients/_bandeau_patient.html" %}{% endwith %}
 
 {% set _ordonnances_n = historique_ordonnances|length %}
 {% set _analyses_terminees = analyses|selectattr('statut', 'equalto', 'TERMINE')|list %}
-<ul class="nav dossier-onglets" role="tablist">
+<ul class="nav dossier-onglets onglets-dossier" role="tablist" style="--onglets-colonnes: 7;">
     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" data-bs-target="#onglet-synthese" href="#synthese" role="tab"><i class="fas fa-clipboard-list me-1"></i>Synthèse</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-consultations" href="#consultations" role="tab"><i class="fas fa-stethoscope me-1"></i>Consultations <span class="badge bg-secondary">{{ consultations|length }}</span></a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-hospitalisations" href="#hospitalisations" role="tab"><i class="fas fa-procedures me-1"></i>Hospitalisations <span class="badge bg-secondary">{{ hospitalisations|length }}</span></a></li>

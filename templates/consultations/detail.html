@@ -7,30 +7,20 @@
 {# ⭐ 2026-10-22 : bandeau patient (identité, assurance, allergies, hospitalisation en cours) au lieu du titre
    et de la carte « Patient » ; les boutons de la consultation y sont repris. #}
 {% set _actions %}
-        <!-- ⭐ BOUTON RÉSULTATS -->
-        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#resultatsModal">
-            {% if consultation.resultats_biologie or consultation.resultats_imagerie %}
-                Modifier les résultats
-            {% else %}
-                Ajouter les résultats
-            {% endif %}
+        {# ⭐ 2026-10-23 : actions à gauche (même style), navigation à droite (patients/_bandeau_patient.html) #}
+        <a href="{{ url_for('examen_physique', id=consultation.id) }}" class="btn btn-action" data-loading="true">
+            <i class="fas fa-stethoscope"></i>Examen physique
+            {% if consultation.examen_physique %}<i class="fas fa-check-circle" title="Examen physique fait"></i>{% endif %}
+        </a>
+        <button class="btn btn-action" data-bs-toggle="modal" data-bs-target="#resultatsModal">
+            <i class="fas fa-vials"></i>{% if consultation.resultats_biologie or consultation.resultats_imagerie %}Modifier les résultats{% else %}Ajouter les résultats{% endif %}
         </button>
-        
-        <!-- ⭐ BOUTON RÉFÉRENCE -->
-        <a href="{{ url_for('ajouter_reference', id=consultation.id) }}" class="btn btn-warning me-2" data-loading="true">
-            Référencer
+        <a href="{{ url_for('ajouter_reference', id=consultation.id) }}" class="btn btn-action" data-loading="true">
+            <i class="fas fa-share-square"></i>Référencer
         </a>
-        
-        <!-- ⭐ BOUTON EXAMEN PHYSIQUE -->
-        <a href="{{ url_for('examen_physique', id=consultation.id) }}" class="btn btn-info me-2" data-loading="true">
-            Examen Physique
-            {% if consultation.examen_physique %}
-                <span class="badge bg-success ms-1"></span>
-            {% endif %}
-        </a>
-        
-        <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left me-2"></i>Dossier du patient
+        <span class="separateur"></span>
+        <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-nav">
+            <i class="fas fa-folder-open"></i>Dossier du patient
         </a>
 {% endset %}
 {% with bandeau_actions=_actions, bandeau_contexte='Consultation du ' ~ (consultation.date_consultation.strftime('%d/%m/%Y à %H:%M') if consultation.date_consultation else '') %}
@@ -41,15 +31,7 @@
    la consultation est rangée en onglets ; on arrive sur l'Accueil (résumé). L'onglet ouvert est gardé dans
    l'adresse (#ordonnance…) et retrouvé au retour d'une action faite depuis cette consultation. #}
 <style>
-    .consult-onglets { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin-bottom: 18px; }
-    .consult-onglets .nav-link { display: flex; align-items: center; gap: 8px; border: 1px solid #dfe3ec; border-radius: 10px;
-                                 background: #fff; color: #374151; font-weight: 600; font-size: .88rem; padding: 10px 12px; }
-    .consult-onglets .nav-link i { font-size: 1.05rem; width: 20px; text-align: center; color: var(--hp-primary, #667eea); }
-    .consult-onglets .nav-link .badge { margin-left: auto; }
-    .consult-onglets .nav-link:hover { border-color: var(--hp-primary, #667eea); }
-    .consult-onglets .nav-link.active { background: var(--hp-primary, #667eea); border-color: var(--hp-primary, #667eea); color: #fff; }
-    .consult-onglets .nav-link.active i { color: #fff; }
-    [data-bs-theme="dark"] .consult-onglets .nav-link { background: #1f2430; border-color: #343a46; color: #d6dbe6; }
+    /* onglets : .onglets-dossier (patients/_bandeau_patient.html), une rangée de 6 */
     .tuile-consult { border: 1px solid #e8ebf2; border-radius: 12px; padding: 12px 14px; height: 100%; }
     .tuile-consult[data-onglet] { cursor: pointer; }
     .tuile-consult[data-onglet]:hover { border-color: var(--hp-primary, #667eea); }
@@ -58,7 +40,7 @@
 </style>
 {% set _ord = consultation.ordonnance_active %}
 {% set _meds = _ord.get_medicaments_list() if _ord else [] %}
-<ul class="nav consult-onglets" role="tablist">
+<ul class="nav consult-onglets onglets-dossier" role="tablist" style="--onglets-colonnes: 6;">
     <li><a class="nav-link active" data-bs-toggle="tab" data-bs-target="#onglet-accueil" href="#accueil"><i class="fas fa-home"></i>Accueil</a></li>
     <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-observation" href="#observation"><i class="fas fa-stethoscope"></i>Observation clinique</a></li>
     <li><a class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-antecedents" href="#antecedents"><i class="fas fa-history"></i>Antécédents &amp; habitudes</a></li>
